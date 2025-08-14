@@ -99,23 +99,36 @@ export default function AdminPage() {
       setStats({
         totalBusinesses,
         websitesGenerated,
+        emailsSent,
         openRate: Math.round(openRate * 10) / 10,
         clickRate: Math.round(clickRate * 10) / 10,
         conversions,
         revenue
       })
 
-      // Fetch all businesses for the table
+      // Fetch all businesses
       const { data: allBusinesses } = await supabase
         .from('businesses')
-        .select('*')
+        .select('id, business_name, email, phone, city, state, created_at')
         .order('created_at', { ascending: false })
 
       if (allBusinesses) {
+        // Fetch all website previews in one query
+        const businessIds = allBusinesses.map(b => b.id)
+        const { data: allPreviews } = await supabase
+          .from('website_previews')
+          .select('business_id, preview_url')
+          .in('business_id', businessIds)
+
+        // Create a map of business_id to preview_url for quick lookup
+        const previewMap = new Map()
+        allPreviews?.forEach(preview => {
+          previewMap.set(preview.business_id, preview.preview_url)
+        })
+
         const activityData = await Promise.all(
           allBusinesses.map(async (business) => {
-            const [preview, email, tracking, conversion] = await Promise.all([
-              supabase.from('website_previews').select('id, preview_url').eq('business_id', business.id).single(),
+            const [email, tracking, conversion] = await Promise.all([
               supabase.from('email_logs').select('id').eq('business_id', business.id).single(),
               supabase.from('email_tracking').select('event_type').eq('business_id', business.id),
               supabase.from('conversions').select('id').eq('business_id', business.id).single()
@@ -123,6 +136,7 @@ export default function AdminPage() {
 
             const opened = tracking.data?.some(t => t.event_type === 'open') || false
             const clicked = tracking.data?.some(t => t.event_type === 'click') || false
+            const previewUrl = previewMap.get(business.id)
 
             return {
               id: business.id,
@@ -132,10 +146,10 @@ export default function AdminPage() {
               city: business.city,
               state: business.state,
               created_at: business.created_at,
-              preview_url: preview.data?.preview_url || business.preview_url,
+              preview_url: previewUrl,
               status: {
                 imported: true,
-                generated: !!preview.data || !!business.preview_url,
+                generated: !!previewUrl,
                 sent: !!email.data,
                 opened,
                 clicked,
@@ -240,10 +254,10 @@ export default function AdminPage() {
     setGenerationProgress({ current: 0, total: 0 })
     
     try {
-      // Get all businesses
+      // Get all businesses (only the fields we need)
       const { data: allBusinesses, error: fetchError } = await supabase
         .from('businesses')
-        .select('id, business_name, preview_url')
+        .select('id, business_name')
 
       if (fetchError) {
         console.error('Error fetching businesses:', fetchError)
@@ -256,20 +270,18 @@ export default function AdminPage() {
         return
       }
 
-      // Filter businesses without previews
-      const businessesWithoutPreviews = []
-      for (const business of allBusinesses) {
-        // Check if preview exists in website_previews table
-        const { data: existingPreview } = await supabase
-          .from('website_previews')
-          .select('id')
-          .eq('business_id', business.id)
-          .single()
+      // Get all existing previews
+      const { data: existingPreviews } = await supabase
+        .from('website_previews')
+        .select('business_id')
 
-        if (!existingPreview && !business.preview_url) {
-          businessesWithoutPreviews.push(business)
-        }
-      }
+      // Create a set of business IDs that already have previews
+      const businessesWithPreviews = new Set(existingPreviews?.map(p => p.business_id) || [])
+
+      // Filter businesses without previews
+      const businessesWithoutPreviews = allBusinesses.filter(
+        business => !businessesWithPreviews.has(business.id)
+      )
 
       if (businessesWithoutPreviews.length === 0) {
         alert('All businesses already have previews generated')
