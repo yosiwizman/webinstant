@@ -90,6 +90,13 @@ export async function POST(request: NextRequest) {
     stats.total = businesses.length;
     console.log(`Parsed ${businesses.length} businesses from CSV`);
 
+    if (businesses.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid data found in CSV' },
+        { status: 400 }
+      );
+    }
+
     // Get existing businesses to check for duplicates
     const { data: existingBusinesses, error: fetchError } = await supabase
       .from('businesses')
@@ -113,10 +120,12 @@ export async function POST(request: NextRequest) {
     // Process businesses in batches
     const batchSize = 50;
     const businessesToInsert = [];
+    const processedRows = new Map<number, BusinessRow>();
 
     for (let i = 0; i < businesses.length; i++) {
       const business = businesses[i];
       const rowNumber = i + 2; // +2 because row 1 is headers, and arrays are 0-indexed
+      processedRows.set(rowNumber, business);
 
       try {
         // Validate business data
@@ -170,7 +179,7 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         };
 
-        businessesToInsert.push(businessToInsert);
+        businessesToInsert.push({ data: businessToInsert, rowNumber });
 
         // Add to existing sets to prevent duplicates within the same import
         existingEmails.add(normalizedEmail);
@@ -178,18 +187,20 @@ export async function POST(request: NextRequest) {
 
         // Insert in batches
         if (businessesToInsert.length >= batchSize) {
-          const { error: insertError } = await supabase
+          const dataToInsert = businessesToInsert.map(item => item.data);
+          const { data: insertedData, error: insertError } = await supabase
             .from('businesses')
-            .insert(businessesToInsert);
+            .insert(dataToInsert)
+            .select();
 
           if (insertError) {
             console.error('Batch insert error:', insertError);
             stats.errors += businessesToInsert.length;
-            for (const b of businessesToInsert) {
+            for (const item of businessesToInsert) {
               stats.errorDetails.push({
-                row: rowNumber,
+                row: item.rowNumber,
                 error: `Database insert failed: ${insertError.message}`,
-                data: b
+                data: item.data
               });
             }
           } else {
@@ -213,18 +224,20 @@ export async function POST(request: NextRequest) {
 
     // Insert any remaining businesses
     if (businessesToInsert.length > 0) {
-      const { error: insertError } = await supabase
+      const dataToInsert = businessesToInsert.map(item => item.data);
+      const { data: insertedData, error: insertError } = await supabase
         .from('businesses')
-        .insert(businessesToInsert);
+        .insert(dataToInsert)
+        .select();
 
       if (insertError) {
         console.error('Final batch insert error:', insertError);
         stats.errors += businessesToInsert.length;
-        for (const b of businessesToInsert) {
+        for (const item of businessesToInsert) {
           stats.errorDetails.push({
-            row: stats.total,
+            row: item.rowNumber,
             error: `Database insert failed: ${insertError.message}`,
-            data: b
+            data: item.data
           });
         }
       } else {
@@ -267,13 +280,13 @@ export async function POST(request: NextRequest) {
 }
 
 function parseCSV(csvContent: string): BusinessRow[] {
-  const lines = csvContent.split('\n').filter(line => line.trim());
+  const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
   if (lines.length === 0) {
     throw new Error('CSV file is empty');
   }
 
   // Parse headers
-  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
   const requiredHeaders = ['business_name', 'address', 'city', 'state', 'zip', 'phone', 'email'];
   
   // Check for required headers
@@ -295,6 +308,12 @@ function parseCSV(csvContent: string): BusinessRow[] {
     if (!line) continue;
 
     const values = parseCSVLine(line);
+    
+    // Skip rows that don't have enough columns
+    if (values.length < Object.keys(headerIndices).length) {
+      console.warn(`Skipping row ${i + 1}: insufficient columns`);
+      continue;
+    }
     
     const business: BusinessRow = {
       business_name: values[headerIndices.business_name] || '',
@@ -379,7 +398,7 @@ function validateBusiness(business: BusinessRow, rowNumber: number): { isValid: 
   // Validate phone format (basic check)
   if (business.phone) {
     const cleanPhone = business.phone.replace(/[\s\-\(\)\.]/g, '');
-    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+    if (!/^\d{10,15}$/.test(cleanPhone)) {
       errors.push(`Invalid phone number: ${business.phone}`);
     }
   }
