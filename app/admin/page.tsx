@@ -9,8 +9,6 @@ interface Statistics {
   emailsSent: number
   openRate: number
   clickRate: number
-  conversions: number
-  revenue: number
 }
 
 interface BusinessActivity {
@@ -28,13 +26,7 @@ interface BusinessActivity {
     sent: boolean
     opened: boolean
     clicked: boolean
-    converted: boolean
   }
-}
-
-interface ChartData {
-  date: string
-  value: number
 }
 
 export default function AdminPage() {
@@ -43,14 +35,10 @@ export default function AdminPage() {
     websitesGenerated: 0,
     emailsSent: 0,
     openRate: 0,
-    clickRate: 0,
-    conversions: 0,
-    revenue: 0
+    clickRate: 0
   })
   
   const [recentActivity, setRecentActivity] = useState<BusinessActivity[]>([])
-  const [conversionChart, setConversionChart] = useState<ChartData[]>([])
-  const [revenueChart, setRevenueChart] = useState<ChartData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [generatingPreviews, setGeneratingPreviews] = useState(false)
@@ -75,22 +63,16 @@ export default function AdminPage() {
       const [
         businessesResult,
         websitesResult,
-        emailsResult,
-        conversionsResult
+        emailsResult
       ] = await Promise.all([
         supabase.from('businesses').select('id', { count: 'exact' }),
         supabase.from('website_previews').select('id', { count: 'exact' }),
-        supabase.from('email_logs').select('id', { count: 'exact' }),
-        supabase.from('conversions').select('id, revenue', { count: 'exact' })
+        supabase.from('email_logs').select('id', { count: 'exact' })
       ])
 
       const totalBusinesses = businessesResult.count || 0
       const websitesGenerated = websitesResult.count || 0
       const emailsSent = emailsResult.count || 0
-      const conversions = conversionsResult.count || 0
-
-      // Calculate revenue
-      const revenue = conversionsResult.data?.reduce((sum, conv) => sum + (conv.revenue || 0), 0) || 0
 
       // Fetch email tracking stats for open and click rates
       const { data: emailTracking } = await supabase
@@ -108,9 +90,7 @@ export default function AdminPage() {
         websitesGenerated,
         emailsSent,
         openRate: Math.round(openRate * 10) / 10,
-        clickRate: Math.round(clickRate * 10) / 10,
-        conversions,
-        revenue
+        clickRate: Math.round(clickRate * 10) / 10
       })
 
       // Fetch all businesses
@@ -135,10 +115,9 @@ export default function AdminPage() {
 
         const activityData = await Promise.all(
           allBusinesses.map(async (business) => {
-            const [email, tracking, conversion] = await Promise.all([
+            const [email, tracking] = await Promise.all([
               supabase.from('email_logs').select('id').eq('business_id', business.id).single(),
-              supabase.from('email_tracking').select('event_type').eq('business_id', business.id),
-              supabase.from('conversions').select('id').eq('business_id', business.id).single()
+              supabase.from('email_tracking').select('event_type').eq('business_id', business.id)
             ])
 
             const opened = tracking.data?.some(t => t.event_type === 'open') || false
@@ -159,62 +138,13 @@ export default function AdminPage() {
                 generated: !!previewUrl,
                 sent: !!email.data,
                 opened,
-                clicked,
-                converted: !!conversion.data
+                clicked
               }
             }
           })
         )
         setRecentActivity(activityData)
       }
-
-      // Fetch conversion chart data (last 7 days)
-      const conversionDates = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date()
-        date.setDate(date.getDate() - (6 - i))
-        return date.toISOString().split('T')[0]
-      })
-
-      const conversionData = await Promise.all(
-        conversionDates.map(async (date) => {
-          const { count } = await supabase
-            .from('conversions')
-            .select('id', { count: 'exact' })
-            .gte('created_at', `${date}T00:00:00`)
-            .lt('created_at', `${date}T23:59:59`)
-          
-          return {
-            date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
-            value: count || 0
-          }
-        })
-      )
-      setConversionChart(conversionData)
-
-      // Fetch revenue chart data (last 30 days)
-      const revenueDates = Array.from({ length: 30 }, (_, i) => {
-        const date = new Date()
-        date.setDate(date.getDate() - (29 - i))
-        return date.toISOString().split('T')[0]
-      })
-
-      const revenueData = await Promise.all(
-        revenueDates.map(async (date) => {
-          const { data } = await supabase
-            .from('conversions')
-            .select('revenue')
-            .gte('created_at', `${date}T00:00:00`)
-            .lt('created_at', `${date}T23:59:59`)
-          
-          const dailyRevenue = data?.reduce((sum, conv) => sum + (conv.revenue || 0), 0) || 0
-          
-          return {
-            date: new Date(date).getDate().toString(),
-            value: dailyRevenue
-          }
-        })
-      )
-      setRevenueChart(revenueData)
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -446,38 +376,6 @@ export default function AdminPage() {
     )
   }
 
-  const SimpleChart = ({ data, title, height = 200, prefix = '' }: { data: ChartData[]; title: string; height?: number; prefix?: string }) => {
-    const maxValue = Math.max(...data.map(d => d.value), 1)
-    
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-        <div className="relative" style={{ height }}>
-          <div className="flex items-end justify-between h-full">
-            {data.map((item, index) => (
-              <div key={index} className="flex flex-col items-center flex-1">
-                <div className="w-full px-1">
-                  <div 
-                    className="bg-blue-500 rounded-t hover:bg-blue-600 transition-colors relative group cursor-pointer"
-                    style={{ 
-                      height: `${(item.value / maxValue) * 100}%`,
-                      minHeight: item.value > 0 ? '4px' : '0'
-                    }}
-                  >
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                      {prefix}{item.value.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs text-gray-600 mt-2">{item.date}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (!isMounted || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -498,14 +396,12 @@ export default function AdminPage() {
         </div>
         
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <StatCard title="Total Businesses" value={stats.totalBusinesses} />
           <StatCard title="Websites Generated" value={stats.websitesGenerated} />
           <StatCard title="Emails Sent" value={stats.emailsSent} />
           <StatCard title="Open Rate" value={stats.openRate} suffix="%" />
           <StatCard title="Click Rate" value={stats.clickRate} suffix="%" />
-          <StatCard title="Conversions" value={stats.conversions} />
-          <StatCard title="Revenue" value={`$${stats.revenue.toLocaleString()}`} />
         </div>
 
         {/* Action Buttons */}
@@ -606,19 +502,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <SimpleChart 
-            data={conversionChart} 
-            title="Daily Conversions (Last 7 Days)" 
-          />
-          <SimpleChart 
-            data={revenueChart} 
-            title="Revenue (Last 30 Days)" 
-            prefix="$"
-          />
-        </div>
-
         {/* Imported Businesses Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -655,15 +538,12 @@ export default function AdminPage() {
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Clicked
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Converted
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {recentActivity.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                       No businesses imported yet. Upload a CSV file to get started.
                     </td>
                   </tr>
@@ -696,9 +576,6 @@ export default function AdminPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge active={business.status.clicked} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <StatusBadge active={business.status.converted} />
                       </td>
                     </tr>
                   ))
