@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { generateBusinessContent, createSlug } from '@/lib/contentGenerator';
+import { generateBusinessContent, detectBusinessType } from '@/lib/contentGenerator';
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function generateUniqueSlug(baseName: string): Promise<string> {
+  let slug = generateSlug(baseName);
+  let counter = 1;
+  
+  // Check if slug exists
+  while (true) {
+    const { data: existing } = await supabase
+      .from('website_previews')
+      .select('slug')
+      .eq('slug', slug)
+      .single();
+    
+    if (!existing) {
+      return slug;
+    }
+    
+    // Add counter to make it unique
+    slug = `${generateSlug(baseName)}-${counter}`;
+    counter++;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,67 +103,106 @@ export async function POST(request: NextRequest) {
 
     // Generate previews for each business
     let generatedCount = 0;
+    let failedCount = 0;
 
     for (const business of businessesToProcess) {
       try {
         // Generate content based on business type
         const content = generateBusinessContent(business);
         
-        // Create URL slug
-        const slug = createSlug(business.business_name);
+        // Generate unique slug
+        const slug = await generateUniqueSlug(business.business_name);
+        const previewUrl = `/preview/${slug}`;
+        
+        // Detect business type if not set
+        const businessType = business.industry_type || detectBusinessType(business.business_name);
         
         // Generate HTML using the themed template
         const htmlContent = generateThemedHTML(business, content);
         
-        // Insert preview into database with slug
-        const { data: insertedPreview, error: insertError } = await supabase
+        // Check if preview already exists for this business
+        const { data: existingPreview } = await supabase
           .from('website_previews')
-          .insert({
-            business_id: business.id,
-            html_content: htmlContent,
-            preview_url: `/preview/${slug}`,
-            template_used: `themed-${content.businessType}`,
-            slug: slug
-          })
-          .select()
+          .select('id')
+          .eq('business_id', business.id)
           .single();
+        
+        if (existingPreview) {
+          // Update existing preview
+          const { error: updateError } = await supabase
+            .from('website_previews')
+            .update({
+              html_content: htmlContent,
+              preview_url: previewUrl,
+              template_used: `themed-${content.businessType}`,
+              slug: slug,
+              updated_at: new Date().toISOString()
+            })
+            .eq('business_id', business.id);
 
-        if (insertError) {
-          // Check if it's a duplicate key error
-          if (insertError.code === '23505') {
-            // Update existing preview instead
-            const { error: updateError } = await supabase
-              .from('website_previews')
-              .update({
-                html_content: htmlContent,
-                preview_url: `/preview/${slug}`,
-                template_used: `themed-${content.businessType}`,
-                slug: slug
-              })
-              .eq('business_id', business.id);
+          if (updateError) {
+            console.error(`Error updating preview for business ${business.id}:`, updateError);
+            failedCount++;
+            continue;
+          }
+        } else {
+          // Insert new preview
+          const { error: insertError } = await supabase
+            .from('website_previews')
+            .insert({
+              business_id: business.id,
+              html_content: htmlContent,
+              preview_url: previewUrl,
+              template_used: `themed-${content.businessType}`,
+              slug: slug
+            });
 
-            if (updateError) {
-              console.error(`Error updating preview for business ${business.id}:`, updateError);
-              continue;
-            }
-          } else {
+          if (insertError) {
             console.error(`Error creating preview for business ${business.id}:`, insertError);
+            failedCount++;
             continue;
           }
         }
+        
+        // Update the businesses table with preview URL and industry type
+        const updateData: any = {
+          website_url: previewUrl,
+          updated_at: new Date().toISOString()
+        };
+        
+        // Only update industry_type if it's not already set
+        if (!business.industry_type) {
+          updateData.industry_type = businessType;
+        }
+        
+        const { error: businessUpdateError } = await supabase
+          .from('businesses')
+          .update(updateData)
+          .eq('id', business.id);
+        
+        if (businessUpdateError) {
+          console.error(`Error updating business ${business.id}:`, businessUpdateError);
+          // Don't count as failed since preview was created
+        }
 
         generatedCount++;
-        console.log(`Preview generated for ${business.business_name} (${business.id}) with theme: ${content.businessType}`);
+        console.log(`Preview generated for ${business.business_name} (${business.id})`);
+        console.log(`  - Slug: ${slug}`);
+        console.log(`  - URL: ${previewUrl}`);
+        console.log(`  - Theme: ${content.businessType}`);
         
       } catch (error) {
         console.error(`Error processing business ${business.id}:`, error);
+        failedCount++;
       }
     }
 
     // Return success response
     return NextResponse.json({
       success: true,
-      count: generatedCount
+      generated: generatedCount,
+      failed: failedCount,
+      total: businessesToProcess.length
     });
 
   } catch (error) {
@@ -159,7 +227,7 @@ function generateThemedHTML(business: any, content: any): string {
   const email = business.email || '';
   const zip = business.zip_code || '';
   
-  // Get theme colors
+  // Get theme colors from content
   const theme = content.theme;
   
   // Generate star rating HTML
@@ -346,7 +414,7 @@ function generateThemedHTML(business: any, content: any): string {
       cursor: pointer;
       text-transform: uppercase;
       letter-spacing: 1px;
-      backgroun: white;
+      background: white;
       color: var(--accent-color);
       transition: all 0.3s ease;
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -935,7 +1003,9 @@ export async function GET(request: NextRequest) {
     },
     response: {
       success: 'boolean - Whether the operation was successful',
-      count: 'number - Number of previews generated'
+      generated: 'number - Number of previews successfully generated',
+      failed: 'number - Number of previews that failed to generate',
+      total: 'number - Total number of businesses processed'
     }
   });
 }
