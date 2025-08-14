@@ -21,6 +21,7 @@ interface BusinessActivity {
   city: string
   state: string
   created_at: string
+  preview_url?: string
   status: {
     imported: boolean
     generated: boolean
@@ -53,6 +54,7 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [generatingPreviews, setGeneratingPreviews] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 })
   const [sendingCampaign, setSendingCampaign] = useState(false)
 
   useEffect(() => {
@@ -97,7 +99,6 @@ export default function AdminPage() {
       setStats({
         totalBusinesses,
         websitesGenerated,
-        emailsSent,
         openRate: Math.round(openRate * 10) / 10,
         clickRate: Math.round(clickRate * 10) / 10,
         conversions,
@@ -114,7 +115,7 @@ export default function AdminPage() {
         const activityData = await Promise.all(
           allBusinesses.map(async (business) => {
             const [preview, email, tracking, conversion] = await Promise.all([
-              supabase.from('website_previews').select('id').eq('business_id', business.id).single(),
+              supabase.from('website_previews').select('id, preview_url').eq('business_id', business.id).single(),
               supabase.from('email_logs').select('id').eq('business_id', business.id).single(),
               supabase.from('email_tracking').select('event_type').eq('business_id', business.id),
               supabase.from('conversions').select('id').eq('business_id', business.id).single()
@@ -131,9 +132,10 @@ export default function AdminPage() {
               city: business.city,
               state: business.state,
               created_at: business.created_at,
+              preview_url: preview.data?.preview_url || business.preview_url,
               status: {
                 imported: true,
-                generated: !!preview.data,
+                generated: !!preview.data || !!business.preview_url,
                 sent: !!email.data,
                 opened,
                 clicked,
@@ -235,38 +237,111 @@ export default function AdminPage() {
 
   const handleGeneratePreviews = async () => {
     setGeneratingPreviews(true)
+    setGenerationProgress({ current: 0, total: 0 })
+    
     try {
-      // Get businesses without previews
-      const { data: businessesWithoutPreviews } = await supabase
+      // Get all businesses
+      const { data: allBusinesses, error: fetchError } = await supabase
         .from('businesses')
-        .select('id')
-        .is('preview_url', null)
+        .select('id, business_name, preview_url')
 
-      if (!businessesWithoutPreviews || businessesWithoutPreviews.length === 0) {
-        alert('All businesses already have previews')
+      if (fetchError) {
+        console.error('Error fetching businesses:', fetchError)
+        alert('Failed to fetch businesses')
         return
       }
 
-      let generated = 0
-      for (const business of businessesWithoutPreviews) {
-        const response = await fetch('/api/generate-preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ business_id: business.id })
-        })
+      if (!allBusinesses || allBusinesses.length === 0) {
+        alert('No businesses found to generate previews for')
+        return
+      }
 
-        if (response.ok) {
-          generated++
+      // Filter businesses without previews
+      const businessesWithoutPreviews = []
+      for (const business of allBusinesses) {
+        // Check if preview exists in website_previews table
+        const { data: existingPreview } = await supabase
+          .from('website_previews')
+          .select('id')
+          .eq('business_id', business.id)
+          .single()
+
+        if (!existingPreview && !business.preview_url) {
+          businessesWithoutPreviews.push(business)
         }
       }
 
-      alert(`Generated ${generated} previews`)
-      fetchDashboardData()
+      if (businessesWithoutPreviews.length === 0) {
+        alert('All businesses already have previews generated')
+        return
+      }
+
+      const totalToGenerate = businessesWithoutPreviews.length
+      setGenerationProgress({ current: 0, total: totalToGenerate })
+
+      let successCount = 0
+      let failCount = 0
+      const errors = []
+
+      // Generate previews one by one
+      for (let i = 0; i < businessesWithoutPreviews.length; i++) {
+        const business = businessesWithoutPreviews[i]
+        setGenerationProgress({ current: i + 1, total: totalToGenerate })
+
+        try {
+          console.log(`Generating preview for ${business.business_name} (${i + 1}/${totalToGenerate})`)
+          
+          const response = await fetch('/api/generate-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ business_id: business.id })
+          })
+
+          const result = await response.json()
+
+          if (response.ok) {
+            successCount++
+            console.log(`Successfully generated preview for ${business.business_name}`)
+          } else {
+            failCount++
+            errors.push(`${business.business_name}: ${result.error || 'Unknown error'}`)
+            console.error(`Failed to generate preview for ${business.business_name}:`, result.error)
+          }
+
+          // Add a small delay to avoid overwhelming the API
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+        } catch (error) {
+          failCount++
+          errors.push(`${business.business_name}: ${error}`)
+          console.error(`Error generating preview for ${business.business_name}:`, error)
+        }
+      }
+
+      // Show results
+      let message = `Preview generation complete!\n\n`
+      message += `✓ Successfully generated: ${successCount}\n`
+      if (failCount > 0) {
+        message += `✗ Failed: ${failCount}\n`
+        if (errors.length > 0) {
+          message += `\nErrors:\n${errors.slice(0, 5).join('\n')}`
+          if (errors.length > 5) {
+            message += `\n... and ${errors.length - 5} more errors`
+          }
+        }
+      }
+      
+      alert(message)
+      
+      // Refresh the dashboard data to show new previews
+      await fetchDashboardData()
+      
     } catch (error) {
       console.error('Generate previews error:', error)
-      alert('Failed to generate previews')
+      alert('Failed to generate previews: ' + error)
     } finally {
       setGeneratingPreviews(false)
+      setGenerationProgress({ current: 0, total: 0 })
     }
   }
 
@@ -317,6 +392,27 @@ export default function AdminPage() {
       {active ? '✓' : '○'}
     </span>
   )
+
+  const PreviewLink = ({ url, businessName }: { url?: string; businessName: string }) => {
+    if (!url) {
+      return <StatusBadge active={false} />
+    }
+    
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors"
+        title={`View preview for ${businessName}`}
+      >
+        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+        View
+      </a>
+    )
+  }
 
   const SimpleChart = ({ data, title, height = 200, prefix = '' }: { data: ChartData[]; title: string; height?: number; prefix?: string }) => {
     const maxValue = Math.max(...data.map(d => d.value), 1)
@@ -435,7 +531,9 @@ export default function AdminPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Generating...
+                  {generationProgress.total > 0 
+                    ? `Generating ${generationProgress.current} of ${generationProgress.total}...`
+                    : 'Generating...'}
                 </>
               ) : (
                 <>
@@ -556,7 +654,7 @@ export default function AdminPage() {
                         {new Date(business.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <StatusBadge active={business.status.generated} />
+                        <PreviewLink url={business.preview_url} businessName={business.business_name} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge active={business.status.sent} />
