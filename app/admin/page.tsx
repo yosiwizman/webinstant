@@ -16,6 +16,10 @@ interface Statistics {
 interface BusinessActivity {
   id: string
   business_name: string
+  email: string
+  phone: string
+  city: string
+  state: string
   created_at: string
   status: {
     imported: boolean
@@ -100,16 +104,15 @@ export default function AdminPage() {
         revenue
       })
 
-      // Fetch recent activity
-      const { data: recentBusinesses } = await supabase
+      // Fetch all businesses for the table
+      const { data: allBusinesses } = await supabase
         .from('businesses')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10)
 
-      if (recentBusinesses) {
+      if (allBusinesses) {
         const activityData = await Promise.all(
-          recentBusinesses.map(async (business) => {
+          allBusinesses.map(async (business) => {
             const [preview, email, tracking, conversion] = await Promise.all([
               supabase.from('website_previews').select('id').eq('business_id', business.id).single(),
               supabase.from('email_logs').select('id').eq('business_id', business.id).single(),
@@ -123,6 +126,10 @@ export default function AdminPage() {
             return {
               id: business.id,
               business_name: business.business_name,
+              email: business.email,
+              phone: business.phone,
+              city: business.city,
+              state: business.state,
               created_at: business.created_at,
               status: {
                 imported: true,
@@ -293,17 +300,19 @@ export default function AdminPage() {
   }
 
   const StatCard = ({ title, value, suffix = '' }: { title: string; value: number | string; suffix?: string }) => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">{title}</h3>
-      <p className="mt-2 text-3xl font-bold text-gray-900">
+    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">{title}</h3>
+      <p className="text-3xl font-bold text-gray-900">
         {typeof value === 'number' ? value.toLocaleString() : value}{suffix}
       </p>
     </div>
   )
 
   const StatusBadge = ({ active }: { active: boolean }) => (
-    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-      active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-400'
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+      active 
+        ? 'bg-green-100 text-green-800 border border-green-200' 
+        : 'bg-gray-100 text-gray-500 border border-gray-200'
     }`}>
       {active ? '✓' : '○'}
     </span>
@@ -313,26 +322,26 @@ export default function AdminPage() {
     const maxValue = Math.max(...data.map(d => d.value), 1)
     
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
         <div className="relative" style={{ height }}>
           <div className="flex items-end justify-between h-full">
             {data.map((item, index) => (
               <div key={index} className="flex flex-col items-center flex-1">
                 <div className="w-full px-1">
                   <div 
-                    className="bg-blue-500 rounded-t hover:bg-blue-600 transition-colors relative group"
+                    className="bg-blue-500 rounded-t hover:bg-blue-600 transition-colors relative group cursor-pointer"
                     style={{ 
                       height: `${(item.value / maxValue) * 100}%`,
                       minHeight: item.value > 0 ? '4px' : '0'
                     }}
                   >
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                       {prefix}{item.value.toLocaleString()}
                     </div>
                   </div>
                 </div>
-                <span className="text-xs text-gray-500 mt-2">{item.date}</span>
+                <span className="text-xs text-gray-600 mt-2">{item.date}</span>
               </div>
             ))}
           </div>
@@ -343,22 +352,25 @@ export default function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-gray-700 font-medium">Loading dashboard...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="mt-2 text-gray-600">Manage your business outreach campaigns</p>
+        </div>
         
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard title="Total Businesses" value={stats.totalBusinesses} />
           <StatCard title="Websites Generated" value={stats.websitesGenerated} />
           <StatCard title="Emails Sent" value={stats.emailsSent} />
@@ -369,40 +381,97 @@ export default function AdminPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Actions</h2>
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8 border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Campaign Actions</h2>
           <div className="flex flex-wrap gap-4">
-            <label className="relative">
+            <div className="relative">
               <input
                 type="file"
+                id="csv-upload"
                 accept=".csv"
                 onChange={handleFileUpload}
                 disabled={uploadingFile}
-                className="hidden"
+                className="sr-only"
               />
-              <button
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                onClick={(e) => e.currentTarget.parentElement?.querySelector('input')?.click()}
-                disabled={uploadingFile}
+              <label
+                htmlFor="csv-upload"
+                className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white cursor-pointer transition-colors ${
+                  uploadingFile 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                }`}
               >
-                {uploadingFile ? 'Uploading...' : 'Import CSV'}
-              </button>
-            </label>
+                {uploadingFile ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Import CSV
+                  </>
+                )}
+              </label>
+            </div>
             
             <button
               onClick={handleGeneratePreviews}
               disabled={generatingPreviews}
-              className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled: cursor-not-allowed transition-colors"
+              className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
+                generatingPreviews 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
+              }`}
             >
-              {generatingPreviews ? 'Generating...' : 'Generate Previews'}
+              {generatingPreviews ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Generate Previews
+                </>
+              )}
             </button>
             
             <button
               onClick={handleSendCampaign}
               disabled={sendingCampaign}
-              className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
+                sendingCampaign 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
+              }`}
             >
-              {sendingCampaign ? 'Sending...' : 'Send Campaign'}
+              {sendingCampaign ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Send Campaign
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -420,70 +489,90 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Recent Activity Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-xl font-semibold">Recent Activity</h2>
+        {/* Imported Businesses Table */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h2 className="text-xl font-semibold text-gray-900">Imported Businesses ({recentActivity.length})</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Business Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Location
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Date Added
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Imported
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Preview
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Generated
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Email Sent
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sent
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Opened
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Clicked
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Converted
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {recentActivity.map((business) => (
-                  <tr key={business.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {business.business_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(business.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.imported} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.generated} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.sent} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.opened} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.clicked} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.converted} />
+              <tbody className="bg-white divide-y divide-gray-200">
+                {recentActivity.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                      No businesses imported yet. Upload a CSV file to get started.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentActivity.map((business) => (
+                    <tr key={business.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {business.business_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {business.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {business.phone}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {business.city}, {business.state}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {new Date(business.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <StatusBadge active={business.status.generated} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <StatusBadge active={business.status.sent} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <StatusBadge active={business.status.opened} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <StatusBadge active={business.status.clicked} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <StatusBadge active={business.status.converted} />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
