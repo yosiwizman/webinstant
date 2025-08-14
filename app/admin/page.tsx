@@ -56,10 +56,17 @@ export default function AdminPage() {
   const [generatingPreviews, setGeneratingPreviews] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 })
   const [sendingCampaign, setSendingCampaign] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
-    fetchDashboardData()
+    setIsMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchDashboardData()
+    }
+  }, [isMounted])
 
   const fetchDashboardData = async () => {
     setIsLoading(true)
@@ -386,6 +393,19 @@ export default function AdminPage() {
     }
   }
 
+  const formatDate = (dateString: string) => {
+    if (!isMounted) return '—'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+      })
+    } catch {
+      return '—'
+    }
+  }
+
   const StatCard = ({ title, value, suffix = '' }: { title: string; value: number | string; suffix?: string }) => (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
       <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">{title}</h3>
@@ -458,7 +478,7 @@ export default function AdminPage() {
     )
   }
 
-  if (isLoading) {
+  if (!isMounted || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -663,7 +683,7 @@ export default function AdminPage() {
                         {business.city}, {business.state}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {new Date(business.created_at).toLocaleDateString()}
+                        {formatDate(business.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <PreviewLink url={business.preview_url} businessName={business.business_name} />
