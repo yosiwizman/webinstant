@@ -8,19 +8,20 @@ const supabase = createClient(
 )
 
 interface PageProps {
-  params: {
-    id: string
-  }
+  params: Promise<{ id: string }>
 }
 
 export default async function PreviewPage({ params }: PageProps) {
-  console.log('Fetching preview with ID:', params.id)
+  // Await params for Next.js 15
+  const { id } = await params
   
-  // Fetch the preview from the database
+  console.log('Fetching preview for business ID:', id)
+  
+  // Fetch preview by business_id (not by preview id!)
   const { data: preview, error } = await supabase
     .from('website_previews')
     .select('id, business_id, preview_url, html_content, template_used')
-    .eq('id', params.id)
+    .eq('business_id', id)  // Changed from 'id' to 'business_id'
     .single()
 
   // Log for debugging
@@ -37,13 +38,13 @@ export default async function PreviewPage({ params }: PageProps) {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Preview not found</h1>
           <p className="text-gray-600">The preview you're looking for doesn't exist or has been removed.</p>
-          <p className="text-sm text-gray-500 mt-4">Preview ID: {params.id}</p>
+          <p className="text-sm text-gray-500 mt-4">Business ID: {id}</p>
         </div>
       </div>
     )
   }
 
-  // Render the HTML content in an iframe-like container for better isolation
+  // Render the HTML content
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}>
       <div 
