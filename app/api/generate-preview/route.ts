@@ -1,281 +1,286 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createContentGenerator } from '@/lib/contentGenerator';
 import { supabase } from '@/lib/supabase';
-import { renderToStaticMarkup } from 'react-dom/server';
-import RestaurantTemplate from '@/components/templates/RestaurantTemplate';
-import React from 'react';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { business_id } = body;
 
-    if (!business_id) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      );
-    }
-
-    console.log('Generating preview for business:', business_id);
-
-    // 1. Fetch business data from Supabase
-    const { data: business, error: fetchError } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('id', business_id)
-      .single();
-
-    if (fetchError || !business) {
-      console.error('Error fetching business:', fetchError);
-      return NextResponse.json(
-        { error: 'Business not found' },
-        { status: 404 }
-      );
-    }
-
-    console.log('Business data:', business);
-
-    // 2. Generate AI content
-    const contentGenerator = createContentGenerator();
-    const generatedContent = await contentGenerator.generateContent({
-      businessName: business.business_name,
-      businessType: inferBusinessType(business.business_name),
-      address: business.address,
-      city: business.city,
-      state: business.state
-    });
-
-    console.log('Generated content:', generatedContent);
-
-    // 3. Determine business type and select template
-    const businessType = inferBusinessType(business.business_name);
+    let businessesToProcess = [];
     
-    // 4. Prepare template data
-    const templateData = {
-      businessName: business.business_name,
-      address: business.address || '',
-      phone: business.phone || '',
-      hours: {
-        'Monday-Friday': '9:00 AM - 6:00 PM',
-        'Saturday': '10:00 AM - 4:00 PM',
-        'Sunday': 'Closed'
-      },
-      tagline: generatedContent.tagline,
-      aboutUs: generatedContent.aboutUs,
-      services: generatedContent.servicesDescription,
-      email: business.email || '',
-      city: business.city || '',
-      state: business.state || '',
-      zipCode: business.zip_code || ''
+    if (business_id) {
+      // Generate preview for specific business
+      console.log('Generating preview for business:', business_id);
+      
+      const { data: business, error: fetchError } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('id', business_id)
+        .single();
+
+      if (fetchError || !business) {
+        console.error('Error fetching business:', fetchError);
+        return NextResponse.json(
+          { error: 'Business not found' },
+          { status: 404 }
+        );
+      }
+      
+      businessesToProcess = [business];
+    } else {
+      // Generate previews for ALL businesses without previews
+      console.log('Generating previews for all businesses without previews');
+      
+      // First, get all businesses
+      const { data: allBusinesses, error: fetchError } = await supabase
+        .from('businesses')
+        .select('*');
+
+      if (fetchError) {
+        console.error('Error fetching businesses:', fetchError);
+        return NextResponse.json(
+          { error: 'Failed to fetch businesses' },
+          { status: 500 }
+        );
+      }
+
+      // Get existing previews to filter out businesses that already have them
+      const { data: existingPreviews, error: previewError } = await supabase
+        .from('website_previews')
+        .select('business_id');
+
+      if (previewError) {
+        console.error('Error fetching existing previews:', previewError);
+        // Continue anyway - we'll just regenerate all
+        businessesToProcess = allBusinesses || [];
+      } else {
+        // Filter out businesses that already have previews
+        const existingBusinessIds = new Set(existingPreviews?.map(p => p.business_id) || []);
+        businessesToProcess = (allBusinesses || []).filter(b => !existingBusinessIds.has(b.id));
+      }
+
+      console.log(`Found ${businessesToProcess.length} businesses without previews`);
+    }
+
+    // Generate previews for each business
+    let generatedCount = 0;
+    const errors = [];
+
+    for (const business of businessesToProcess) {
+      try {
+        // Generate simple HTML template
+        const htmlContent = generateSimpleHTML(business);
+        
+        // Insert into website_previews table
+        const { data: preview, error: insertError } = await supabase
+          .from('website_previews')
+          .upsert({
+            business_id: business.id,
+            html_content: htmlContent,
+            preview_url: `/preview/${business.id}`,
+            template_type: 'simple',
+            metadata: {
+              generated_at: new Date().toISOString(),
+              business_name: business.business_name,
+              template_version: '1.0'
+            },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'business_id'
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(`Error creating preview for business ${business.id}:`, insertError);
+          errors.push({
+            business_id: business.id,
+            business_name: business.business_name,
+            error: insertError.message
+          });
+        } else {
+          generatedCount++;
+          console.log(`Preview generated for ${business.business_name} (${business.id})`);
+        }
+      } catch (error) {
+        console.error(`Error processing business ${business.id}:`, error);
+        errors.push({
+          business_id: business.id,
+          business_name: business.business_name,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    // Return success response
+    const response: any = {
+      success: true,
+      generated: generatedCount,
+      total: businessesToProcess.length
     };
 
-    // 5. Render template to HTML string
-    let htmlContent = '';
-    
-    if (businessType === 'restaurant') {
-      // For restaurant businesses
-      htmlContent = renderToStaticMarkup(
-        React.createElement(RestaurantTemplate, templateData)
-      );
+    if (errors.length > 0) {
+      response.errors = errors;
+      response.message = `Generated ${generatedCount} out of ${businessesToProcess.length} previews`;
     } else {
-      // For service businesses (plumbing, etc.) - create a simple service template
-      htmlContent = generateServiceTemplate(templateData);
+      response.message = `Successfully generated ${generatedCount} preview(s)`;
     }
 
-    // Wrap in complete HTML document
-    const fullHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${business.business_name} - Professional Website</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; text-align: center; }
-        .header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .header p { font-size: 1.2rem; opacity: 0.9; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-        .section { margin-bottom: 3rem; }
-        .section h2 { color: #667eea; margin-bottom: 1rem; font-size: 2rem; }
-        .contact-info { background: #f8f9fa; padding: 2rem; border-radius: 8px; margin-top: 2rem; }
-        .contact-info h3 { color: #667eea; margin-bottom: 1rem; }
-        .contact-item { margin-bottom: 0.5rem; }
-        .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
-        .service-card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .footer { background: #2d3748; color: white; text-align: center; padding: 2rem 0; margin-top: 3rem; }
-        .hours-table { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .hours-table table { width: 100%; border-collapse: collapse; }
-        .hours-table th, .hours-table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        .hours-table th { background: #667eea; color: white; }
-    </style>
-</head>
-<body>
-    ${htmlContent}
-</body>
-</html>`;
-
-    // 6. Create data URL from HTML
-    const base64Html = Buffer.from(fullHtml).toString('base64');
-    const dataUrl = `data:text/html;base64,${base64Html}`;
-
-    // 7. Store in generated_websites table
-    const { data: websiteRecord, error: insertError } = await supabase
-      .from('generated_websites')
-      .upsert({
-        business_id: business_id,
-        preview_url: dataUrl,
-        template_used: businessType,
-        content: {
-          tagline: generatedContent.tagline,
-          aboutUs: generatedContent.aboutUs,
-          services: generatedContent.servicesDescription
-        },
-        generated_at: new Date().toISOString()
-      }, {
-        onConflict: 'business_id'
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Error storing website record:', insertError);
-      // Continue anyway - we have the preview
-    }
-
-    // 8. Return success with preview URL
-    return NextResponse.json({
-      success: true,
-      previewUrl: dataUrl,
-      businessId: business_id,
-      businessName: business.business_name,
-      templateUsed: businessType,
-      message: 'Website preview generated successfully'
-    });
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Error in generate-preview endpoint:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { 
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal server error' 
+      },
       { status: 500 }
     );
   }
 }
 
-function inferBusinessType(businessName: string): string {
-  const name = businessName.toLowerCase();
-  
-  // Restaurant keywords
-  if (/restaurant|pizza|food|cafe|bakery|diner|grill|bistro|kitchen|eat|burger|sushi|thai|chinese|mexican|italian/.test(name)) {
-    return 'restaurant';
-  }
-  
-  // Service business keywords
-  if (/plumb|electric|hvac|repair|service|contractor|construction|landscap|clean|maintenance|automotive|mechanic/.test(name)) {
-    return 'service';
-  }
-  
-  // Retail keywords
-  if (/store|shop|boutique|market|mart|retail|supply|outlet/.test(name)) {
-    return 'retail';
-  }
-  
-  // Default to service
-  return 'service';
-}
+function generateSimpleHTML(business: any): string {
+  // Escape HTML to prevent XSS
+  const escapeHtml = (text: string): string => {
+    if (!text) return '';
+    const map: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+  };
 
-function generateServiceTemplate(data: any): string {
-  return `
-    <div class="header">
-        <h1>${data.businessName}</h1>
-        <p>${data.tagline}</p>
-    </div>
-    
+  const businessName = escapeHtml(business.business_name || 'Business');
+  const address = escapeHtml(business.address || '');
+  const city = escapeHtml(business.city || '');
+  const state = escapeHtml(business.state || '');
+  const phone = escapeHtml(business.phone || '');
+  const email = escapeHtml(business.email || '');
+  const zipCode = escapeHtml(business.zip_code || '');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${businessName}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+        .info-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-item {
+            margin: 15px 0;
+            font-size: 1.1em;
+        }
+        .label {
+            font-weight: bold;
+            color: #667eea;
+            display: inline-block;
+            min-width: 100px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            color: #718096;
+        }
+        a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
     <div class="container">
-        <div class="section">
-            <h2>About Us</h2>
-            <p>${data.aboutUs}</p>
-        </div>
+        <h1>Welcome to ${businessName}</h1>
         
-        <div class="section">
-            <h2>Our Services</h2>
-            <p>${data.services}</p>
-            <div class="services">
-                <div class="service-card">
-                    <h3>Professional Service</h3>
-                    <p>We provide top-quality professional services with attention to detail.</p>
-                </div>
-                <div class="service-card">
-                    <h3>Expert Team</h3>
-                    <p>Our experienced team is dedicated to exceeding your expectations.</p>
-                </div>
-                <div class="service-card">
-                    <h3>Customer Satisfaction</h3>
-                    <p>Your satisfaction is our top priority. We guarantee our work.</p>
-                </div>
+        <div class="info-section">
+            <h2 style="color: #764ba2; margin-bottom: 20px;">Contact Information</h2>
+            
+            ${address ? `
+            <div class="info-item">
+                <span class="label">Address:</span>
+                <span>${address}${city ? `, ${city}` : ''}${state ? `, ${state}` : ''}${zipCode ? ` ${zipCode}` : ''}</span>
             </div>
-        </div>
-        
-        <div class="section">
-            <h2>Business Hours</h2>
-            <div class="hours-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Day</th>
-                            <th>Hours</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${Object.entries(data.hours).map(([day, hours]) => `
-                            <tr>
-                                <td>${day}</td>
-                                <td>${hours}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+            ` : ''}
+            
+            ${phone ? `
+            <div class="info-item">
+                <span class="label">Phone:</span>
+                <span><a href="tel:${phone}">${phone}</a></span>
             </div>
+            ` : ''}
+            
+            ${email ? `
+            <div class="info-item">
+                <span class="label">Email:</span>
+                <span><a href="mailto:${email}">${email}</a></span>
+            </div>
+            ` : ''}
         </div>
         
-        <div class="contact-info">
-            <h3>Contact Us</h3>
-            <div class="contact-item"><strong>Phone:</strong> ${data.phone}</div>
-            <div class="contact-item"><strong>Email:</strong> ${data.email}</div>
-            <div class="contact-item"><strong>Address:</strong> ${data.address}, ${data.city}, ${data.state} ${data.zipCode}</div>
+        <div class="info-section">
+            <h2 style="color: #764ba2; margin-bottom: 20px;">About Us</h2>
+            <p>Welcome to ${businessName}! We are dedicated to providing excellent service to our customers in ${city ? city : 'our area'}${state ? `, ${state}` : ''}. Contact us today to learn more about what we can do for you.</p>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} ${businessName}. All rights reserved.</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Website generated on ${new Date().toLocaleDateString()}</p>
         </div>
     </div>
-    
-    <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} ${data.businessName}. All rights reserved.</p>
-        <p>Generated with AI-Powered Website Builder</p>
-    </div>
-  `;
+</body>
+</html>`;
 }
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const businessId = searchParams.get('business_id');
-
-  if (!businessId) {
-    return NextResponse.json({
-      message: 'Website preview generator endpoint',
-      method: 'POST',
-      requiredParams: {
-        business_id: 'string - The ID of the business to generate preview for'
-      },
-      description: 'Generates a website preview for the specified business using AI-generated content and appropriate templates'
-    });
-  }
-
-  // If business_id is provided in GET, redirect to POST
-  return NextResponse.json(
-    { 
-      error: 'Please use POST method to generate preview',
-      requiredBody: { business_id: businessId }
+  return NextResponse.json({
+    message: 'Website preview generator endpoint',
+    method: 'POST',
+    body: {
+      business_id: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.'
     },
-    { status: 405 }
-  );
+    response: {
+      success: 'boolean - Whether the operation was successful',
+      generated: 'number - Count of previews generated',
+      total: 'number - Total businesses processed',
+      message: 'string - Status message',
+      errors: 'array (optional) - List of any errors encountered'
+    },
+    description: 'Generates simple HTML website previews for businesses and stores them in the website_previews table'
+  });
 }
