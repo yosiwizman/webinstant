@@ -3,35 +3,42 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { business_id } = body;
+    // Parse request body - it might be empty
+    let businessId: string | undefined;
+    try {
+      const body = await request.json();
+      businessId = body.businessId;
+    } catch {
+      // No body provided, will generate for all
+      businessId = undefined;
+    }
 
     let businessesToProcess = [];
     
-    if (business_id) {
+    if (businessId) {
       // Generate preview for specific business
-      console.log('Generating preview for business:', business_id);
+      console.log('Generating preview for business:', businessId);
       
       const { data: business, error: fetchError } = await supabase
         .from('businesses')
         .select('*')
-        .eq('id', business_id)
+        .eq('id', businessId)
         .single();
 
       if (fetchError || !business) {
         console.error('Error fetching business:', fetchError);
         return NextResponse.json(
-          { error: 'Business not found' },
+          { success: false, error: 'Business not found' },
           { status: 404 }
         );
       }
       
       businessesToProcess = [business];
     } else {
-      // Generate previews for ALL businesses without previews
-      console.log('Generating previews for all businesses without previews');
+      // Generate previews for all businesses without previews
+      console.log('Finding businesses without previews');
       
-      // First, get all businesses
+      // Get all businesses
       const { data: allBusinesses, error: fetchError } = await supabase
         .from('businesses')
         .select('*');
@@ -39,7 +46,7 @@ export async function POST(request: NextRequest) {
       if (fetchError) {
         console.error('Error fetching businesses:', fetchError);
         return NextResponse.json(
-          { error: 'Failed to fetch businesses' },
+          { success: false, error: 'Failed to fetch businesses' },
           { status: 500 }
         );
       }
@@ -51,83 +58,75 @@ export async function POST(request: NextRequest) {
 
       if (previewError) {
         console.error('Error fetching existing previews:', previewError);
-        // Continue anyway - we'll just regenerate all
-        businessesToProcess = allBusinesses || [];
-      } else {
-        // Filter out businesses that already have previews
-        const existingBusinessIds = new Set(existingPreviews?.map(p => p.business_id) || []);
-        businessesToProcess = (allBusinesses || []).filter(b => !existingBusinessIds.has(b.id));
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch existing previews' },
+          { status: 500 }
+        );
       }
+
+      // Filter out businesses that already have previews
+      const existingBusinessIds = new Set(existingPreviews?.map(p => p.business_id) || []);
+      businessesToProcess = (allBusinesses || []).filter(b => !existingBusinessIds.has(b.id));
 
       console.log(`Found ${businessesToProcess.length} businesses without previews`);
     }
 
     // Generate previews for each business
     let generatedCount = 0;
-    const errors = [];
 
     for (const business of businessesToProcess) {
       try {
-        // Generate simple HTML template
-        const htmlContent = generateSimpleHTML(business);
+        // Generate HTML using the simple template
+        const htmlContent = generateHTML(business);
         
-        // Insert into website_previews table
-        const { data: preview, error: insertError } = await supabase
+        // Insert preview into database
+        const { data: insertedPreview, error: insertError } = await supabase
           .from('website_previews')
-          .upsert({
+          .insert({
             business_id: business.id,
             html_content: htmlContent,
             preview_url: `/preview/${business.id}`,
-            template_type: 'simple',
-            metadata: {
-              generated_at: new Date().toISOString(),
-              business_name: business.business_name,
-              template_version: '1.0'
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'business_id'
+            template_used: 'basic'
           })
           .select()
           .single();
 
         if (insertError) {
-          console.error(`Error creating preview for business ${business.id}:`, insertError);
-          errors.push({
-            business_id: business.id,
-            business_name: business.business_name,
-            error: insertError.message
-          });
-        } else {
-          generatedCount++;
-          console.log(`Preview generated for ${business.business_name} (${business.id})`);
+          // Check if it's a duplicate key error
+          if (insertError.code === '23505') {
+            // Update existing preview instead
+            const { error: updateError } = await supabase
+              .from('website_previews')
+              .update({
+                html_content: htmlContent,
+                preview_url: `/preview/${business.id}`,
+                template_used: 'basic'
+              })
+              .eq('business_id', business.id);
+
+            if (updateError) {
+              console.error(`Error updating preview for business ${business.id}:`, updateError);
+              continue;
+            }
+          } else {
+            console.error(`Error creating preview for business ${business.id}:`, insertError);
+            continue;
+          }
         }
+
+        generatedCount++;
+        console.log(`Preview generated for ${business.business_name} (${business.id})`);
+        
       } catch (error) {
         console.error(`Error processing business ${business.id}:`, error);
-        errors.push({
-          business_id: business.id,
-          business_name: business.business_name,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
       }
     }
 
     // Return success response
-    const response: any = {
+    return NextResponse.json({
       success: true,
-      generated: generatedCount,
-      total: businessesToProcess.length
-    };
-
-    if (errors.length > 0) {
-      response.errors = errors;
-      response.message = `Generated ${generatedCount} out of ${businessesToProcess.length} previews`;
-    } else {
-      response.message = `Successfully generated ${generatedCount} preview(s)`;
-    }
-
-    return NextResponse.json(response);
+      count: generatedCount
+    });
 
   } catch (error) {
     console.error('Error in generate-preview endpoint:', error);
@@ -141,128 +140,34 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateSimpleHTML(business: any): string {
-  // Escape HTML to prevent XSS
-  const escapeHtml = (text: string): string => {
-    if (!text) return '';
-    const map: { [key: string]: string } = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
-  };
+function generateHTML(business: any): string {
+  // Safely get values with fallbacks
+  const businessName = business.business_name || 'Business';
+  const address = business.address || '';
+  const city = business.city || '';
+  const state = business.state || '';
+  const phone = business.phone || '';
+  const email = business.email || '';
 
-  const businessName = escapeHtml(business.business_name || 'Business');
-  const address = escapeHtml(business.address || '');
-  const city = escapeHtml(business.city || '');
-  const state = escapeHtml(business.state || '');
-  const phone = escapeHtml(business.phone || '');
-  const email = escapeHtml(business.email || '');
-  const zipCode = escapeHtml(business.zip_code || '');
-
+  // Build the HTML template
   return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${businessName}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 10px;
-            padding: 40px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #667eea;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            text-align: center;
-        }
-        .info-section {
-            margin: 20px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .info-item {
-            margin: 15px 0;
-            font-size: 1.1em;
-        }
-        .label {
-            font-weight: bold;
-            color: #667eea;
-            display: inline-block;
-            min-width: 100px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #e2e8f0;
-            color: #718096;
-        }
-        a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-    </style>
+  <title>${businessName}</title>
+  <style>
+    body { font-family: Arial; padding: 40px; }
+    h1 { color: #333; }
+    .info { margin: 20px 0; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome to ${businessName}</h1>
-        
-        <div class="info-section">
-            <h2 style="color: #764ba2; margin-bottom: 20px;">Contact Information</h2>
-            
-            ${address ? `
-            <div class="info-item">
-                <span class="label">Address:</span>
-                <span>${address}${city ? `, ${city}` : ''}${state ? `, ${state}` : ''}${zipCode ? ` ${zipCode}` : ''}</span>
-            </div>
-            ` : ''}
-            
-            ${phone ? `
-            <div class="info-item">
-                <span class="label">Phone:</span>
-                <span><a href="tel:${phone}">${phone}</a></span>
-            </div>
-            ` : ''}
-            
-            ${email ? `
-            <div class="info-item">
-                <span class="label">Email:</span>
-                <span><a href="mailto:${email}">${email}</a></span>
-            </div>
-            ` : ''}
-        </div>
-        
-        <div class="info-section">
-            <h2 style="color: #764ba2; margin-bottom: 20px;">About Us</h2>
-            <p>Welcome to ${businessName}! We are dedicated to providing excellent service to our customers in ${city ? city : 'our area'}${state ? `, ${state}` : ''}. Contact us today to learn more about what we can do for you.</p>
-        </div>
-        
-        <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} ${businessName}. All rights reserved.</p>
-            <p style="font-size: 0.9em; margin-top: 10px;">Website generated on ${new Date().toLocaleDateString()}</p>
-        </div>
-    </div>
+  <h1>Welcome to ${businessName}</h1>
+  <div class="info">
+    <p><strong>Address:</strong> ${address}, ${city}, ${state}</p>
+    <p><strong>Phone:</strong> ${phone}</p>
+    <p><strong>Email:</strong> ${email}</p>
+  </div>
+  <p>Your professional website is coming soon!</p>
 </body>
 </html>`;
 }
@@ -272,15 +177,11 @@ export async function GET(request: NextRequest) {
     message: 'Website preview generator endpoint',
     method: 'POST',
     body: {
-      business_id: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.'
+      businessId: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.'
     },
     response: {
       success: 'boolean - Whether the operation was successful',
-      generated: 'number - Count of previews generated',
-      total: 'number - Total businesses processed',
-      message: 'string - Status message',
-      errors: 'array (optional) - List of any errors encountered'
-    },
-    description: 'Generates simple HTML website previews for businesses and stores them in the website_previews table'
+      count: 'number - Number of previews generated'
+    }
   });
 }
