@@ -6,7 +6,7 @@ export interface BusinessRow {
   address: string;
   city: string;
   state: string;
-  zip: string;
+  zip_code: string;
   phone: string;
   email: string;
 }
@@ -75,6 +75,7 @@ export class BusinessImporter {
     );
     console.log('Parsed headers:', headers);
     
+    // Required headers - note we accept 'zip' in CSV but map to 'zip_code'
     const requiredHeaders = ['business_name', 'address', 'city', 'state', 'zip', 'phone', 'email'];
     
     // Check for required headers
@@ -104,13 +105,13 @@ export class BusinessImporter {
       const values = this.parseCSVLine(line);
       console.log(`Parsed values for line ${i + 1}:`, values);
       
-      // Create business object
+      // Create business object - map 'zip' from CSV to 'zip_code' for database
       const business: BusinessRow = {
         business_name: (values[headerIndices.business_name] || '').trim(),
         address: (values[headerIndices.address] || '').trim(),
         city: (values[headerIndices.city] || '').trim(),
         state: (values[headerIndices.state] || '').trim(),
-        zip: (values[headerIndices.zip] || '').trim(),
+        zip_code: (values[headerIndices.zip] || '').trim(), // Map 'zip' column to 'zip_code' property
         phone: (values[headerIndices.phone] || '').trim(),
         email: (values[headerIndices.email] || '').trim()
       };
@@ -184,7 +185,7 @@ export class BusinessImporter {
     if (!business.state?.trim()) {
       errors.push('State is required');
     }
-    if (!business.zip?.trim()) {
+    if (!business.zip_code?.trim()) {
       errors.push('ZIP code is required');
     }
 
@@ -207,10 +208,10 @@ export class BusinessImporter {
     }
 
     // Validate ZIP code
-    if (business.zip) {
-      const cleanZip = business.zip.replace(/[\s\-]/g, '');
+    if (business.zip_code) {
+      const cleanZip = business.zip_code.replace(/[\s\-]/g, '');
       if (!/^\d{5}(\d{4})?$/.test(cleanZip)) {
-        errors.push(`Invalid ZIP code: ${business.zip}`);
+        errors.push(`Invalid ZIP code: ${business.zip_code}`);
       }
     }
 
@@ -336,13 +337,13 @@ export class BusinessImporter {
           continue;
         }
 
-        // Prepare business for insertion with has_website field
+        // Prepare business for insertion with correct column names
         const businessToInsert = {
           business_name: business.business_name.trim(),
           address: business.address.trim(),
           city: business.city.trim(),
           state: business.state.trim().toUpperCase(),
-          zip: business.zip.trim(),
+          zip_code: business.zip_code.trim(), // Using zip_code for database column
           phone: business.phone.trim(),
           email: business.email.trim().toLowerCase(),
           has_website: false,
