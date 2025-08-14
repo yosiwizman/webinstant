@@ -15,21 +15,49 @@ export default async function PreviewPage({ params }: PageProps) {
   // Await params for Next.js 15
   const { id } = await params
   
-  console.log('Fetching preview for business ID:', id)
+  console.log('Fetching preview for ID/slug:', id)
   
-  // Fetch preview by business_id (not by preview id!)
-  const { data: preview, error } = await supabase
+  // First try to find by slug (SEO-friendly URL)
+  let { data: preview, error } = await supabase
     .from('website_previews')
-    .select('id, business_id, preview_url, html_content, template_used')
-    .eq('business_id', id)  // Changed from 'id' to 'business_id'
+    .select('id, business_id, preview_url, html_content, template_used, slug')
+    .eq('slug', id)
     .single()
+
+  // If not found by slug, try by business_id (for backwards compatibility)
+  if (error || !preview) {
+    console.log('Not found by slug, trying by business_id...')
+    
+    const result = await supabase
+      .from('website_previews')
+      .select('id, business_id, preview_url, html_content, template_used, slug')
+      .eq('business_id', id)
+      .single()
+    
+    preview = result.data
+    error = result.error
+  }
+
+  // If still not found, try by preview ID (UUID)
+  if (error || !preview) {
+    console.log('Not found by business_id, trying by preview ID...')
+    
+    const result = await supabase
+      .from('website_previews')
+      .select('id, business_id, preview_url, html_content, template_used, slug')
+      .eq('id', id)
+      .single()
+    
+    preview = result.data
+    error = result.error
+  }
 
   // Log for debugging
   if (error) {
     console.error('Error fetching preview:', error)
   }
   
-  console.log('Preview data:', preview ? 'Found' : 'Not found')
+  console.log('Preview data:', preview ? `Found (template: ${preview.template_used})` : 'Not found')
 
   // If there's an error or no preview found, show not found message
   if (error || !preview || !preview.html_content) {
@@ -38,7 +66,7 @@ export default async function PreviewPage({ params }: PageProps) {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Preview not found</h1>
           <p className="text-gray-600">The preview you're looking for doesn't exist or has been removed.</p>
-          <p className="text-sm text-gray-500 mt-4">Business ID: {id}</p>
+          <p className="text-sm text-gray-500 mt-4">ID/Slug: {id}</p>
         </div>
       </div>
     )
