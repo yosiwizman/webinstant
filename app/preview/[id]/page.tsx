@@ -72,6 +72,65 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
+  // Add mobile viewport and responsive CSS to the HTML
+  const mobileStyles = `
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      
+      html, body {
+        max-width: 100vw;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+      }
+      
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+      
+      /* Responsive text */
+      @media (max-width: 768px) {
+        body {
+          font-size: 16px;
+        }
+        
+        h1 {
+          font-size: 2rem;
+        }
+        
+        h2 {
+          font-size: 1.5rem;
+        }
+        
+        h3 {
+          font-size: 1.25rem;
+        }
+        
+        /* Fix any fixed width containers */
+        div, section, article, main, header, footer {
+          max-width: 100vw !important;
+        }
+        
+        /* Ensure tables are responsive */
+        table {
+          display: block;
+          overflow-x: auto;
+          max-width: 100%;
+        }
+      }
+      
+      /* Prevent horizontal scroll */
+      .container, .wrapper, .content {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+      }
+    </style>
+  `;
+
   // Create the inline edit script
   const editScript = `
     <script>
@@ -436,8 +495,10 @@ export default async function PreviewPage({ params }: PageProps) {
               updates.prices = priceUpdates;
             }
 
-            // Save to database
+            // Save to database with better error handling
             try {
+              console.log('Sending update request:', { previewId: window.PREVIEW_ID, updates });
+              
               const response = await fetch('/api/preview/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -448,7 +509,10 @@ export default async function PreviewPage({ params }: PageProps) {
                 })
               });
               
-              if (response.ok) {
+              const data = await response.json();
+              console.log('Response:', data);
+              
+              if (response.ok && data.success) {
                 statusDiv.style.background = '#28a745';
                 statusDiv.style.color = '#fff';
                 statusDiv.textContent = '✓ Changes saved successfully!';
@@ -465,13 +529,17 @@ export default async function PreviewPage({ params }: PageProps) {
                   statusDiv.style.display = 'none';
                 }, 2000);
               } else {
-                throw new Error('Failed to save');
+                throw new Error(data.error || 'Failed to save changes');
               }
             } catch (error) {
               console.error('Save failed:', error);
               statusDiv.style.background = '#dc3545';
               statusDiv.style.color = '#fff';
-              statusDiv.textContent = '✗ Failed to save changes. Please try again.';
+              statusDiv.textContent = '✗ ' + (error.message || 'Failed to save changes. Please try again.');
+              
+              setTimeout(() => {
+                statusDiv.style.display = 'none';
+              }, 5000);
             }
           };
         }
@@ -479,17 +547,38 @@ export default async function PreviewPage({ params }: PageProps) {
     </script>
   `;
 
-  // Add the edit script to the HTML content
-  const htmlWithEditScript = preview.html_content
-    .replace('</body>', `${editScript}</body>`);
+  // Process HTML to ensure proper structure
+  let processedHtml = preview.html_content;
+  
+  // Ensure DOCTYPE is at the beginning
+  if (!processedHtml.trim().toLowerCase().startsWith('<!doctype')) {
+    processedHtml = '<!DOCTYPE html>\n' + processedHtml;
+  }
+  
+  // Add viewport and responsive styles in the head
+  if (processedHtml.includes('</head>')) {
+    processedHtml = processedHtml.replace('</head>', mobileStyles + '</head>');
+  } else if (processedHtml.includes('<body')) {
+    // If no head tag, add it before body
+    processedHtml = processedHtml.replace('<body', '<head>' + mobileStyles + '</head><body');
+  }
+  
+  // Add the edit script before closing body tag
+  processedHtml = processedHtml.replace('</body>', editScript + '</body>');
 
-  // Render the HTML content with edit mode script
+  // Return the processed HTML as a complete HTML document
   return (
-    <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}>
-      <div 
-        dangerouslySetInnerHTML={{ __html: htmlWithEditScript }}
-        style={{ width: '100%', height: '100%' }}
-      />
-    </div>
+    <iframe
+      srcDoc={processedHtml}
+      style={{
+        width: '100%',
+        height: '100vh',
+        border: 'none',
+        margin: 0,
+        padding: 0,
+        display: 'block'
+      }}
+      title="Website Preview"
+    />
   )
 }

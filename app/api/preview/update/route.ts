@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Initialize Supabase client
+// Initialize Supabase client with service role for write operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 export async function POST(request: NextRequest) {
@@ -48,12 +48,25 @@ export async function POST(request: NextRequest) {
     // Update hours
     if (updates.hours) {
       for (const [day, hours] of Object.entries(updates.hours)) {
-        // This is a simplified approach - in production you'd want more sophisticated HTML parsing
-        const dayRegex = new RegExp(`${day}[^<]*`, 'gi')
-        updatedHtml = updatedHtml.replace(dayRegex, (match) => {
-          // Try to preserve the day name and just update the hours
-          return `${day.charAt(0).toUpperCase() + day.slice(1)}: ${hours}`
-        })
+        // More sophisticated replacement for hours
+        const dayCapitalized = day.charAt(0).toUpperCase() + day.slice(1)
+        // Match various formats: "Monday: 9-5", "Monday 9-5", etc.
+        const dayPatterns = [
+          new RegExp(`${dayCapitalized}[:\\s]+[^<\\n]*`, 'g'),
+          new RegExp(`${day}[:\\s]+[^<\\n]*`, 'gi')
+        ]
+        
+        for (const pattern of dayPatterns) {
+          updatedHtml = updatedHtml.replace(pattern, (match) => {
+            // Preserve any HTML tags in the match
+            if (match.includes('<')) {
+              const beforeTag = match.substring(0, match.indexOf('<'))
+              const afterTag = match.substring(match.indexOf('<'))
+              return `${dayCapitalized}: ${hours}${afterTag}`
+            }
+            return `${dayCapitalized}: ${hours}`
+          })
+        }
       }
     }
 
@@ -70,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the updated HTML back to the database
-    const { error: updateError } = await supabase
+    const { error: updateError } =  await supabase
       .from('website_previews')
       .update({ 
         html_content: updatedHtml,
@@ -81,23 +94,27 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       console.error('Error updating preview:', updateError)
       return NextResponse.json(
-        { success: false, error: 'Failed to update preview' },
+        { success: false, error: 'Failed to update preview: ' + updateError.message },
         { status: 500 }
       )
     }
 
-    // Log the update
-    await supabase
-      .from('preview_edits')
-      .insert({
-        preview_id: previewId,
-        business_id: businessId,
-        updates: updates,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-      .catch(err => console.log('Failed to log edit:', err))
+    // Try to log the update (non-critical, so we don't fail if this errors)
+    try {
+      // Check if preview_edits table exists before inserting
+      await supabase
+        .from('preview_edits')
+        .insert({
+          preview_id: previewId,
+          business_id: businessId,
+          updates: updates,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+    } catch (logError) {
+      console.log('Note: preview_edits table may not exist, skipping edit log:', logError)
+    }
 
     return NextResponse.json({
       success: true,
@@ -108,7 +125,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in preview update:', error)
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
@@ -119,6 +136,7 @@ export async function GET() {
     message: 'Preview update endpoint',
     method: 'POST',
     requiredFields: ['previewId', 'updates'],
-    supportedUpdates: ['phone', 'hours', 'prices']
+    supportedUpdates: ['phone', 'hours', 'prices'],
+    status: 'ready'
   })
 }
