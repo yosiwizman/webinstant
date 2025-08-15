@@ -251,26 +251,44 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     ).join('');
   };
   
-  // Get logo HTML
+  // Get logo HTML - FIXED with text-based logo
   const getLogoHTML = () => {
-    if (content.logo?.type === 'image' && content.logo?.url) {
-      return `<img src="${content.logo.url}" alt="${businessName}" class="logo-image" />`;
-    } else if (content.logo?.html) {
-      return content.logo.html;
-    } else {
-      // Fallback typography logo
-      const firstLetter = businessName.charAt(0);
-      const restOfName = businessName.slice(1);
-      return `
-        <div class="premium-logo">
-          <span class="logo-first">${firstLetter}</span>
-          <span class="logo-rest">${restOfName}</span>
+    return `
+      <div class="logo-container" style="display: flex; align-items: center; gap: 15px;">
+        <div class="logo-icon" style="width: 50px; height: 50px; background: linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent}); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold;">
+          ${businessName.charAt(0)}
         </div>
-      `;
+        <div class="logo-text" style="font-size: 24px; font-weight: bold; color: ${theme.colors.primary};">
+          ${businessName}
+        </div>
+      </div>
+    `;
+  };
+  
+  // Determine hero text color based on business type
+  const getHeroTextColor = () => {
+    switch(content.businessType) {
+      case 'restaurant':
+        return 'white'; // White text on orange background
+      case 'plumbing':
+        return 'white'; // White text on blue background
+      case 'beauty':
+        return 'white'; // White text on pink background
+      case 'automotive':
+        return 'white'; // White text on dark background
+      case 'cleaning':
+        return '#0C4A4D'; // Dark blue text on turquoise background
+      default:
+        return 'white'; // Default to white for safety
     }
   };
   
-  // Get layout-specific hero section
+  const heroTextColor = getHeroTextColor();
+  const heroTextShadow = content.businessType === 'cleaning' 
+    ? '1px 1px 3px rgba(255,255,255,0.5)' // Light shadow for dark text
+    : '2px 2px 8px rgba(0,0,0,0.5)'; // Dark shadow for white text
+  
+  // Get layout-specific hero section with FIXED text colors
   const getHeroSection = () => {
     const videoBackground = content.videoBackground ? `
       <video class="video-bg" autoplay muted loop playsinline>
@@ -286,12 +304,12 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />`}
             </div>
             <div class="hero-overlay"></div>
-            <div class="hero-content animate-on-scroll" style="--delay: 0">
-              <h1 class="hero-title gradient-text floating">${businessName}</h1>
-              <div class="tagline" style="--delay: 1">${content.tagline}</div>
+            <div class="hero-content animate-on-scroll" style="--delay: 0; color: ${heroTextColor};">
+              <h1 class="hero-title" style="color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${businessName}</h1>
+              <div class="tagline" style="color: ${heroTextColor}; text-shadow: ${heroTextShadow}; --delay: 1">${content.tagline}</div>
               <div class="hero-cta" style="--delay: 2">
                 <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
-                <a href="#contact" class="btn-secondary">Get Directions</a>
+                <a href="#contact" class="btn-secondary" style="border-color: ${heroTextColor}; color: ${heroTextColor};">Get Directions</a>
               </div>
             </div>
           </section>`;
@@ -306,7 +324,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
                 <p class="hero-description">${content.description.substring(0, 150)}...</p>
                 <div class="hero-cta">
                   <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
-                  <a href="#services" class="btn-secondary">Our Services</a>
+                  <a href="#services" class="btn-secondary-alt">Our Services</a>
                 </div>
                 <div class="hero-stats">
                   <div class="stat">
@@ -333,14 +351,14 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-video parallax" />`}
               <div class="hero-gradient-overlay"></div>
             </div>
-            <div class="hero-fullscreen-content">
-              <div class="hero-badge animate-on-scroll" style="--delay: 0">⭐ Top Rated ${content.businessType}</div>
+            <div class="hero-fullscreen-content" style="color: ${heroTextColor};">
+              <div class="hero-badge animate-on-scroll" style="--delay: 0; color: ${heroTextColor}; border-color: ${heroTextColor};">⭐ Top Rated ${content.businessType}</div>
               <h1 class="hero-massive-title animate-on-scroll" style="--delay: 1">
-                <span class="gradient-text">${businessName}</span>
+                <span style="color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${businessName}</span>
               </h1>
-              <div class="hero-subtitle animate-on-scroll" style="--delay: 2">${content.tagline}</div>
+              <div class="hero-subtitle animate-on-scroll" style="--delay: 2; color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${content.tagline}</div>
               <div class="hero-features animate-on-scroll" style="--delay: 3">
-                ${content.services.slice(0, 3).map((s: string) => `<span class="feature-badge">${s.substring(2, 20)}...</span>`).join('')}
+                ${content.services.slice(0, 3).map((s: string) => `<span class="feature-badge" style="color: ${heroTextColor}; border-color: ${heroTextColor};">${s.substring(2, 20)}...</span>`).join('')}
               </div>
               <div class="hero-cta animate-on-scroll" style="--delay: 4">
                 <a href="tel:${phone}" class="btn-premium btn-large pulse">
@@ -348,9 +366,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
                 </a>
               </div>
             </div>
-            <div class="scroll-indicator">
+            <div class="scroll-indicator" style="color: ${heroTextColor};">
               <span>Scroll</span>
-              <div class="scroll-arrow"></div>
+              <div class="scroll-arrow" style="border-color: ${heroTextColor};"></div>
             </div>
           </section>`;
     }
@@ -743,33 +761,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       opacity: 1;
     }
 
-    /* Logo Styles */
-    .premium-logo {
-      font-family: var(--heading-font);
-      font-size: 2rem;
-      background: linear-gradient(135deg, var(--primary), var(--accent));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      font-weight: bold;
-      letter-spacing: -1px;
-    }
-
-    .logo-first {
-      font-size: 2.5rem;
-      display: inline-block;
-      animation: logoGlow 2s ease-in-out infinite;
-    }
-
-    .logo-image {
-      height: 50px;
-      width: auto;
-    }
-
-    @keyframes logoGlow {
-      0%, 100% { filter: brightness(1); }
-      50% { filter: brightness(1.2); }
-    }
-
     /* Premium Navigation */
     .premium-nav {
       position: fixed;
@@ -797,28 +788,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     }
 
     .logo {
-      font-family: var(--heading-font);
-      font-size: 2rem;
-      font-weight: 900;
-      background: var(--hero-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
       text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-    }
-
-    .logo-icon {
-      width: 40px;
-      height: 40px;
-      background: var(--hero-gradient);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 1.5rem;
     }
 
     .nav-menu {
@@ -950,7 +922,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       max-width: 1200px;
       padding: 2rem;
       text-align: center;
-      color: white;
       z-index: 1;
     }
 
@@ -1042,7 +1013,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       justify-content: center;
       align-items: center;
       text-align: center;
-      color: white;
       padding: 2rem;
       z-index: 1;
     }
@@ -1092,12 +1062,19 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       bottom: 2rem;
       left: 50%;
       transform: translateX(-50%);
-      color: white;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.5rem;
       animation: bounce 2s infinite;
+    }
+
+    .scroll-arrow {
+      width: 20px;
+      height: 20px;
+      border-right: 2px solid;
+      border-bottom: 2px solid;
+      transform: rotate(45deg);
     }
 
     @keyframes bounce {
@@ -1110,7 +1087,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       font-size: clamp(3rem, 8vw, 6rem);
       font-weight: 900;
       margin-bottom: 1rem;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
       line-height: 1.1;
     }
 
@@ -1120,7 +1096,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       margin: 2rem 0;
       opacity: 0.95;
       font-weight: 300;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     }
 
     .hero-cta {
@@ -1194,17 +1169,35 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       text-transform: uppercase;
       letter-spacing: 1px;
       background: transparent;
-      color: white;
       transition: all 0.3s ease;
       text-decoration: none;
       display: inline-block;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     }
 
-    .btn-secondary:hover {
+    .btn-secondary: {
       background: white;
       color: var(--primary);
-      text-shadow: none;
+    }
+
+    .btn-secondary-alt {
+      padding: 1.2rem 3rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: 2px solid var(--primary);
+      border-radius: 50px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      background: transparent;
+      color: var(--primary);
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-secondary-alt:hover {
+      background: var(--primary);
+      color: white;
     }
 
     /* Pulse animation */
