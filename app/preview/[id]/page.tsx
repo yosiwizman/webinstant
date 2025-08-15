@@ -302,7 +302,7 @@ export default async function PreviewPage({ params }: PageProps) {
             
             <div style="display: flex; gap: 10px;">
               <button id="save-changes" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Save Changes</button>
-              <button id="cancel-edit" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Cancel</button>
+              <button id="cancel-edit" style="flex: 1;padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Cancel</button>
             </div>
             
             <div id="save-status" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none; text-align: center; font-size: 14px;"></div>
@@ -499,16 +499,16 @@ export default async function PreviewPage({ params }: PageProps) {
             statusDiv.style.color = '#000';
             statusDiv.textContent = 'Saving changes...';
             
+            // Prepare updates object for API
             const updates = {};
             
-            // Update phone in DOM
+            // Check phone changes
             const newPhone = document.getElementById('edit-phone').value;
-            if (phoneElement && newPhone && newPhone !== originalValues.phone) {
-              phoneElement.node.textContent = phoneElement.node.textContent.replace(phoneElement.value, newPhone);
+            if (newPhone && newPhone !== originalValues.phone) {
               updates.phone = newPhone;
             }
             
-            // Update hours in DOM
+            // Check hours changes
             const dayMap = {
               'mon': 'monday',
               'tue': 'tuesday',
@@ -522,13 +522,9 @@ export default async function PreviewPage({ params }: PageProps) {
             const hoursUpdates = {};
             for (const [shortDay, fullDay] of Object.entries(dayMap)) {
               const input = document.getElementById('hours-' + shortDay);
-              if (input && input.value && hoursElements[fullDay]) {
-                const oldValue = hoursElements[fullDay].value;
-                const newValue = input.value;
-                if (newValue !== oldValue) {
-                  hoursElements[fullDay].node.textContent = hoursElements[fullDay].node.textContent.replace(oldValue, newValue);
-                  hoursUpdates[fullDay] = newValue;
-                }
+              const originalValue = originalValues['hours-' + shortDay];
+              if (input && input.value && input.value !== originalValue) {
+                hoursUpdates[fullDay] = input.value;
               }
             }
             
@@ -536,13 +532,13 @@ export default async function PreviewPage({ params }: PageProps) {
               updates.hours = hoursUpdates;
             }
             
-            // Update prices in DOM
+            // Check price changes
             const priceUpdates = [];
             priceElements.forEach((price, index) => {
               const input = document.getElementById('price-' + (index + 1));
-              if (input && input.value && input.value !== price.value) {
-                price.node.textContent = price.node.textContent.replace(price.value, input.value);
-                priceUpdates.push({ old: price.value, new: input.value });
+              const originalValue = originalValues['price-' + (index + 1)];
+              if (input && input.value && input.value !== originalValue) {
+                priceUpdates.push({ old: originalValue, new: input.value });
               }
             });
             
@@ -550,7 +546,7 @@ export default async function PreviewPage({ params }: PageProps) {
               updates.prices = priceUpdates;
             }
 
-            // Save to database - send only the necessary data
+            // Save to database
             try {
               console.log('Sending update request:', { 
                 previewId: window.PREVIEW_ID, 
@@ -572,12 +568,89 @@ export default async function PreviewPage({ params }: PageProps) {
               console.log('Response:', data);
               
               if (response.ok && data.success) {
+                // NOW update the DOM after successful save
+                
+                // Update phone number in the DOM
+                if (updates.phone) {
+                  const walker = document.createTreeWalker(
+                    document.body,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                  );
+                  
+                  let node;
+                  while (node = walker.nextNode()) {
+                    if (node.textContent.includes(originalValues.phone) && !node.parentElement.closest('.edit-panel')) {
+                      node.textContent = node.textContent.replace(originalValues.phone, updates.phone);
+                    }
+                  }
+                  
+                  // Update the stored original value
+                  originalValues.phone = updates.phone;
+                }
+                
+                // Update hours in the DOM
+                if (updates.hours) {
+                  for (const [fullDay, newHours] of Object.entries(updates.hours)) {
+                    const shortDay = Object.entries(dayMap).find(([short, full]) => full === fullDay)?.[0];
+                    if (shortDay) {
+                      const oldHours = originalValues['hours-' + shortDay];
+                      
+                      if (oldHours) {
+                        // Find and update hours text
+                        const walker = document.createTreeWalker(
+                          document.body,
+                          NodeFilter.SHOW_TEXT,
+                          null,
+                          false
+                        );
+                        
+                        let node;
+                        while (node = walker.nextNode()) {
+                          if (node.textContent.includes(oldHours) && !node.parentElement.closest('.edit-panel')) {
+                            node.textContent = node.textContent.replace(oldHours, newHours);
+                          }
+                        }
+                        
+                        // Update stored value
+                        originalValues['hours-' + shortDay] = newHours;
+                      }
+                    }
+                  }
+                }
+                
+                // Update prices in the DOM
+                if (updates.prices) {
+                  updates.prices.forEach((priceUpdate, index) => {
+                    const walker = document.createTreeWalker(
+                      document.body,
+                      NodeFilter.SHOW_TEXT,
+                      null,
+                      false
+                    );
+                    
+                    let node;
+                    while (node = walker.nextNode()) {
+                      if (node.textContent.includes(priceUpdate.old) && !node.parentElement.closest('.edit-panel')) {
+                        node.textContent = node.textContent.replace(priceUpdate.old, priceUpdate.new);
+                      }
+                    }
+                    
+                    // Update stored value
+                    originalValues['price-' + (index + 1)] = priceUpdate.new;
+                  });
+                }
+                
+                // Show success message
                 statusDiv.style.background = '#28a745';
                 statusDiv.style.color = '#fff';
-                statusDiv.textContent = '✓ Changes saved successfully!';
+                statusDiv.textContent = '✓ Changes saved and applied!';
                 
-                // Update original values
-                Object.assign(originalValues, updates);
+                // Re-find elements with new values for future edits
+                phoneElement = findPhoneNumber();
+                hoursElements = findHours();
+                priceElements = findPrices();
                 
                 setTimeout(() => {
                   hidePanel();
