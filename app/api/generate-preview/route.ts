@@ -5,7 +5,9 @@ import {
   detectBusinessType, 
   getCategoryTheme,
   generateBusinessImages,
-  getImagePrompt
+  getImagePrompt,
+  getLayoutVariation,
+  generatePremiumContent
 } from '@/lib/contentGenerator';
 
 function generateSlug(name: string): string {
@@ -103,8 +105,8 @@ export async function POST(request: NextRequest) {
 
     for (const business of businessesToProcess) {
       try {
-        // Generate premium content
-        const content = generateBusinessContent(business);
+        // Generate premium AI content
+        const content = await generatePremiumContent(business);
         
         // Generate AI images for the business
         const images = await generateBusinessImages(content.businessType, business.business_name);
@@ -113,6 +115,9 @@ export async function POST(request: NextRequest) {
         // Get category-specific theme
         const theme = getCategoryTheme(content.businessType);
         
+        // Get layout variation based on business name
+        const layoutVariation = getLayoutVariation(business.business_name);
+        
         // Generate unique slug
         const slug = await generateUniqueSlug(business.business_name);
         const previewUrl = `/preview/${slug}`;
@@ -120,8 +125,8 @@ export async function POST(request: NextRequest) {
         // Detect business type if not set
         const businessType = business.industry_type || detectBusinessType(business.business_name);
         
-        // Generate premium HTML with category-specific design
-        const htmlContent = generatePremiumHTML(business, content, theme);
+        // Generate premium HTML with category-specific design and layout variation
+        const htmlContent = generatePremiumHTML(business, content, theme, layoutVariation);
         
         const { data: existingPreview } = await supabase
           .from('website_previews')
@@ -135,7 +140,7 @@ export async function POST(request: NextRequest) {
             .update({
               html_content: htmlContent,
               preview_url: previewUrl,
-              template_used: `premium-${content.businessType}`,
+              template_used: `premium-${content.businessType}-v${layoutVariation}`,
               slug: slug,
               updated_at: new Date().toISOString()
             })
@@ -153,7 +158,7 @@ export async function POST(request: NextRequest) {
               business_id: business.id,
               html_content: htmlContent,
               preview_url: previewUrl,
-              template_used: `premium-${content.businessType}`,
+              template_used: `premium-${content.businessType}-v${layoutVariation}`,
               slug: slug
             });
 
@@ -187,6 +192,7 @@ export async function POST(request: NextRequest) {
         console.log(`  - Slug: ${slug}`);
         console.log(`  - URL: ${previewUrl}`);
         console.log(`  - Theme: ${content.businessType}`);
+        console.log(`  - Layout: Variation ${layoutVariation}`);
         console.log(`  - Images: ${images ? 'AI Generated' : 'Stock Photos'}`);
         
       } catch (error) {
@@ -214,7 +220,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generatePremiumHTML(business: any, content: any, theme: any): string {
+function generatePremiumHTML(business: any, content: any, theme: any, layoutVariation: number): string {
   const businessName = business.business_name || 'Business';
   const address = business.address || '';
   const city = business.city || '';
@@ -225,9 +231,9 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   
   // Get images (AI generated or stock)
   const images = content.images || {
-    hero: 'https://images.unsplash.com/photo-1556761175-4b46a572b786?w=1920&h=1080&fit=crop',
-    service: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop',
-    team: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=600&fit=crop'
+    hero: `https://picsum.photos/1920/1080?random=${Math.random()}`,
+    service: `https://picsum.photos/800/600?random=${Math.random()}`,
+    team: `https://picsum.photos/800/600?random=${Math.random()}`
   };
   
   // Generate star rating HTML
@@ -237,7 +243,200 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
     ).join('');
   };
   
-  // Generate category-specific sections
+  // Get layout-specific hero section
+  const getHeroSection = () => {
+    switch(layoutVariation) {
+      case 0: // Classic centered hero
+        return `
+          <section id="home" class="hero hero-classic">
+            <div class="hero-background">
+              <img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />
+            </div>
+            <div class="hero-overlay"></div>
+            <div class="hero-content animate-on-scroll" style="--delay: 0">
+              <h1 class="hero-title gradient-text floating">${businessName}</h1>
+              <div class="tagline" style="--delay: 1">${content.tagline}</div>
+              <div class="hero-cta" style="--delay: 2">
+                <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
+                <a href="#contact" class="btn-secondary">Get Directions</a>
+              </div>
+            </div>
+          </section>`;
+          
+      case 1: // Split hero with image on right
+        return `
+          <section id="home" class="hero hero-split">
+            <div class="hero-split-content">
+              <div class="hero-text-side animate-on-scroll" style="--delay: 0">
+                <h1 class="hero-title gradient-text">${businessName}</h1>
+                <div class="tagline">${content.tagline}</div>
+                <p class="hero-description">${content.description.substring(0, 150)}...</p>
+                <div class="hero-cta">
+                  <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
+                  <a href="#services" class="btn-secondary">Our Services</a>
+                </div>
+                <div class="hero-stats">
+                  <div class="stat">
+                    <span class="counter" data-target="${Math.floor(Math.random() * 15) + 5}">0</span>+
+                    <span>Years Experience</span>
+                  </div>
+                  <div class="stat">
+                    <span class="counter" data-target="${Math.floor(Math.random() * 9000) + 1000}">0</span>+
+                    <span>Happy Customers</span>
+                  </div>
+                </div>
+              </div>
+              <div class="hero-image-side">
+                <img src="${images.hero}" alt="${businessName}" class="hero-split-image animate-on-scroll" style="--delay: 1" />
+                <div class="image-overlay"></div>
+              </div>
+            </div>
+          </section>`;
+          
+      case 2: // Full-screen video-style hero
+        return `
+          <section id="home" class="hero hero-fullscreen">
+            <div class="hero-video-container">
+              <img src="${images.hero}" alt="${businessName}" class="hero-video parallax" />
+              <div class="hero-gradient-overlay"></div>
+            </div>
+            <div class="hero-fullscreen-content">
+              <div class="hero-badge animate-on-scroll" style="--delay: 0">⭐ Top Rated ${content.businessType}</div>
+              <h1 class="hero-massive-title animate-on-scroll" style="--delay: 1">
+                <span class="gradient-text">${businessName}</span>
+              </h1>
+              <div class="hero-subtitle animate-on-scroll" style="--delay: 2">${content.tagline}</div>
+              <div class="hero-features animate-on-scroll" style="--delay: 3">
+                ${content.services.slice(0, 3).map(s => `<span class="feature-badge">${s.substring(2, 20)}...</span>`).join('')}
+              </div>
+              <div class="hero-cta animate-on-scroll" style="--delay: 4">
+                <a href="tel:${phone}" class="btn-premium btn-large pulse">
+                  <span class="btn-icon">📞</span> ${phone}
+                </a>
+              </div>
+            </div>
+            <div class="scroll-indicator">
+              <span>Scroll</span>
+              <div class="scroll-arrow"></div>
+            </div>
+          </section>`;
+    }
+  };
+  
+  // Get layout-specific about section
+  const getAboutSection = () => {
+    switch(layoutVariation) {
+      case 0: // Image on left
+        return `
+          <section id="about" class="about-section">
+            <div class="container">
+              <h2 class="section-title animate-on-scroll">About Us</h2>
+              <p class="section-subtitle animate-on-scroll">Discover Our Story</p>
+              <div class="about-content about-left">
+                <div class="about-image animate-on-scroll" style="--delay: 1">
+                  <img src="${images.service}" alt="About ${businessName}" />
+                  <div class="image-decoration"></div>
+                </div>
+                <div class="about-text animate-on-scroll" style="--delay: 2">
+                  <p>${content.description}</p>
+                  <div class="about-stats">
+                    <div class="stat-card">
+                      <div class="stat-number counter" data-target="${Math.floor(Math.random() * 15) + 5}">0</div>
+                      <div class="stat-label">Years Experience</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-number counter" data-target="${Math.floor(Math.random() * 9000) + 1000}">0</div>
+                      <div class="stat-label">Happy Customers</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-number">100%</div>
+                      <div class="stat-label">Satisfaction</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>`;
+          
+      case 1: // Centered with background
+        return `
+          <section id="about" class="about-section about-centered">
+            <div class="about-bg-pattern"></div>
+            <div class="container">
+              <h2 class="section-title animate-on-scroll">Our Story</h2>
+              <div class="about-content-centered">
+                <p class="about-lead animate-on-scroll" style="--delay: 1">${content.description}</p>
+                <div class="about-features animate-on-scroll" style="--delay: 2">
+                  <div class="feature-item">
+                    <div class="feature-icon">✓</div>
+                    <h4>Licensed & Insured</h4>
+                    <p>Fully certified professionals</p>
+                  </div>
+                  <div class="feature-item">
+                    <div class="feature-icon">⚡</div>
+                    <h4>Fast Response</h4>
+                    <p>Quick and reliable service</p>
+                  </div>
+                  <div class="feature-item">
+                    <div class="feature-icon">💎</div>
+                    <h4>Premium Quality</h4>
+                    <p>Excellence in every detail</p>
+                  </div>
+                </div>
+                <div class="about-image-strip animate-on-scroll" style="--delay: 3">
+                  <img src="${images.hero}" alt="Our Work" />
+                  <img src="${images.service}" alt="Our Service" />
+                  <img src="${images.team}" alt="Our Team" />
+                </div>
+              </div>
+            </div>
+          </section>`;
+          
+      case 2: // Timeline style
+        return `
+          <section id="about" class="about-section about-timeline">
+            <div class="container">
+              <h2 class="section-title animate-on-scroll">Why Choose Us</h2>
+              <p class="section-subtitle animate-on-scroll">Excellence Through Experience</p>
+              <div class="timeline-container">
+                <div class="timeline-line"></div>
+                <div class="timeline-item animate-on-scroll" style="--delay: 1">
+                  <div class="timeline-content">
+                    <h3>Expert Team</h3>
+                    <p>Certified professionals with years of experience</p>
+                  </div>
+                  <div class="timeline-image">
+                    <img src="${images.team}" alt="Our Team" />
+                  </div>
+                </div>
+                <div class="timeline-item reverse animate-on-scroll" style="--delay: 2">
+                  <div class="timeline-content">
+                    <h3>Quality Service</h3>
+                    <p>Premium solutions that exceed expectations</p>
+                  </div>
+                  <div class="timeline-image">
+                    <img src="${images.service}" alt="Our Service" />
+                  </div>
+                </div>
+                <div class="timeline-item animate-on-scroll" style="--delay: 3">
+                  <div class="timeline-content">
+                    <h3>Customer First</h3>
+                    <p>Your satisfaction is our top priority</p>
+                  </div>
+                  <div class="timeline-image">
+                    <img src="${images.hero}" alt="Customer Service" />
+                  </div>
+                </div>
+              </div>
+              <div class="about-description animate-on-scroll" style="--delay: 4">
+                <p>${content.description}</p>
+              </div>
+            </div>
+          </section>`;
+    }
+  };
+  
+  // Get category-specific sections
   const getCategorySpecificSections = () => {
     switch(content.businessType) {
       case 'restaurant':
@@ -245,9 +444,9 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
           <!-- Menu Preview Section -->
           <section class="menu-section">
             <div class="container">
-              <h2 class="section-title">Our Signature Menu</h2>
+              <h2 class="section-title animate-on-scroll">Our Signature Menu</h2>
               <div class="menu-grid">
-                <div class="menu-card premium-card">
+                <div class="menu-card premium-card animate-on-scroll" style="--delay: 1">
                   <h3>Appetizers</h3>
                   <div class="menu-item">
                     <span>Truffle Arancini</span>
@@ -262,7 +461,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
                     <span class="price">$32</span>
                   </div>
                 </div>
-                <div class="menu-card premium-card">
+                <div class="menu-card premium-card animate-on-scroll" style="--delay: 2">
                   <h3>Main Courses</h3>
                   <div class="menu-item">
                     <span>Pan-Seared Duck Breast</span>
@@ -285,8 +484,8 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
           <!-- Reservation Widget -->
           <section class="reservation-section">
             <div class="container">
-              <h2 class="section-title">Make a Reservation</h2>
-              <div class="reservation-widget premium-card">
+              <h2 class="section-title animate-on-scroll">Make a Reservation</h2>
+              <div class="reservation-widget premium-card animate-on-scroll">
                 <form class="reservation-form">
                   <input type="date" placeholder="Select Date" />
                   <input type="time" placeholder="Select Time" />
@@ -304,15 +503,15 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
             <div class="container">
               <h3>🚨 24/7 Emergency Service Available</h3>
               <p>Burst pipe? Major leak? We're here to help!</p>
-              <a href="tel:${phone}" class="btn-emergency">Call Now: ${phone}</a>
+              <a href="tel:${phone}" class="btn-emergency pulse">Call Now: ${phone}</a>
             </div>
           </div>
           
           <!-- Service Calculator -->
           <section class="calculator-section">
             <div class="container">
-              <h2 class="section-title">Instant Quote Calculator</h2>
-              <div class="calculator-widget premium-card">
+              <h2 class="section-title animate-on-scroll">Instant Quote Calculator</h2>
+              <div class="calculator-widget premium-card animate-on-scroll">
                 <select id="service-type">
                   <option>Select Service Type</option>
                   <option value="drain">Drain Cleaning ($150-300)</option>
@@ -328,17 +527,17 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
           <!-- Trust Badges -->
           <section class="trust-section">
             <div class="container">
-              <div class="trust-badges">
+              <div class="trust-badges animate-on-scroll">
                 <div class="badge">
-                  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%230066CC'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='white' font-size='12'%3ELICENSED%3C/text%3E%3C/svg%3E" alt="Licensed" />
+                  <div class="badge-icon">✓</div>
                   <p>Fully Licensed</p>
                 </div>
                 <div class="badge">
-                  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%2300AA44'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='white' font-size='12'%3EINSURED%3C/text%3E%3C/svg%3E" alt="Insured" />
+                  <div class="badge-icon">🛡️</div>
                   <p>Fully Insured</p>
                 </div>
                 <div class="badge">
-                  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23FFD700'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='black' font-size='12'%3EA+ BBB%3C/text%3E%3C/svg%3E" alt="BBB" />
+                  <div class="badge-icon">⭐</div>
                   <p>A+ BBB Rating</p>
                 </div>
               </div>
@@ -350,10 +549,10 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
           <!-- Instagram Gallery -->
           <section class="instagram-section">
             <div class="container">
-              <h2 class="section-title">Follow Our Transformations</h2>
+              <h2 class="section-title animate-on-scroll">Follow Our Transformations</h2>
               <div class="instagram-grid">
                 ${[1,2,3,4,5,6].map(i => `
-                  <div class="instagram-post premium-card">
+                  <div class="instagram-post premium-card animate-on-scroll" style="--delay: ${i}">
                     <img src="${images.service}" alt="Beauty transformation ${i}" />
                     <div class="instagram-overlay">
                       <span>❤️ ${Math.floor(Math.random() * 500) + 100}</span>
@@ -368,8 +567,8 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
           <!-- Booking Widget -->
           <section class="booking-section">
             <div class="container">
-              <h2 class="section-title">Book Your Appointment</h2>
-              <div class="booking-widget premium-card">
+              <h2 class="section-title animate-on-scroll">Book Your Appointment</h2>
+              <div class="booking-widget premium-card animate-on-scroll">
                 <div class="service-selector">
                   <button class="service-btn active">Hair</button>
                   <button class="service-btn">Nails</button>
@@ -396,145 +595,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
                 <button class="btn-premium">Book Now</button>
               </div>
             </div>
-          </section>
-          
-          <!-- Before/After Gallery -->
-          <section class="before-after-section">
-            <div class="container">
-              <h2 class="section-title">Amazing Transformations</h2>
-              <div class="before-after-slider">
-                <div class="ba-slide premium-card">
-                  <div class="ba-container">
-                    <div class="ba-before">
-                      <img src="${images.service}" alt="Before" />
-                      <span class="ba-label">Before</span>
-                    </div>
-                    <div class="ba-after">
-                      <img src="${images.service}" alt="After" />
-                      <span class="ba-label">After</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>`;
-          
-      case 'auto':
-        return `
-          <!-- Service Estimator -->
-          <section class="estimator-section">
-            <div class="container">
-              <h2 class="section-title">Service Cost Estimator</h2>
-              <div class="estimator-widget premium-card">
-                <select id="vehicle-make">
-                  <option>Select Make</option>
-                  <option>Toyota</option>
-                  <option>Honda</option>
-                  <option>Ford</option>
-                  <option>BMW</option>
-                  <option>Mercedes</option>
-                </select>
-                <select id="vehicle-model">
-                  <option>Select Model</option>
-                </select>
-                <select id="service-needed">
-                  <option>Select Service</option>
-                  <option>Oil Change</option>
-                  <option>Brake Service</option>
-                  <option>Transmission</option>
-                  <option>Engine Diagnostic</option>
-                </select>
-                <button class="btn-premium">Get Estimate</button>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Certifications -->
-          <section class="certifications-section">
-            <div class="container">
-              <h2 class="section-title">Our Certifications</h2>
-              <div class="cert-grid">
-                <div class="cert-card premium-card">
-                  <h3>ASE Certified</h3>
-                  <p>Master Technicians</p>
-                </div>
-                <div class="cert-card premium-card">
-                  <h3>AAA Approved</h3>
-                  <p>Auto Repair Facility</p>
-                </div>
-                <div class="cert-card premium-card">
-                  <h3>NAPA AutoCare</h3>
-                  <p>Nationwide Warranty</p>
-                </div>
-              </div>
-            </div>
-          </section>`;
-          
-      case 'cleaning':
-        return `
-          <!-- Pricing Tables -->
-          <section class="pricing-section">
-            <div class="container">
-              <h2 class="section-title">Transparent Pricing</h2>
-              <div class="pricing-grid">
-                <div class="pricing-card premium-card">
-                  <h3>Basic Clean</h3>
-                  <div class="price">$99</div>
-                  <ul>
-                    <li>✓ 2 Bedrooms</li>
-                    <li>✓ 1 Bathroom</li>
-                    <li>✓ Kitchen & Living</li>
-                    <li>✓ Eco Products</li>
-                  </ul>
-                  <button class="btn-premium">Book Now</button>
-                </div>
-                <div class="pricing-card featured premium-card">
-                  <div class="badge">Most Popular</div>
-                  <h3>Deep Clean</h3>
-                  <div class="price">$199</div>
-                  <ul>
-                    <li>✓ All Rooms</li>
-                    <li>✓ All Bathrooms</li>
-                    <li>✓ Inside Appliances</li>
-                    <li>✓ Windows & Baseboards</li>
-                  </ul>
-                  <button class="btn-premium">Book Now</button>
-                </div>
-                <div class="pricing-card premium-card">
-                  <h3>Move In/Out</h3>
-                  <div class="price">$299</div>
-                  <ul>
-                    <li>✓ Complete Deep Clean</li>
-                    <li>✓ Inside Cabinets</li>
-                    <li>✓ Garage Cleaning</li>
-                    <li>✓ Satisfaction Guarantee</li>
-                  </ul>
-                  <button class="btn-premium">Book Now</button>
-                </div>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Booking Calendar -->
-          <section class="calendar-section">
-            <div class="container">
-              <h2 class="section-title">Schedule Your Cleaning</h2>
-              <div class="calendar-widget premium-card">
-                <div class="calendar-header">
-                  <button>&lt;</button>
-                  <h3>January 2025</h3>
-                  <button>&gt;</button>
-                </div>
-                <div class="calendar-grid">
-                  ${Array(31).fill(0).map((_, i) => `
-                    <div class="calendar-day ${Math.random() > 0.7 ? 'available' : 'booked'}">
-                      ${i + 1}
-                    </div>
-                  `).join('')}
-                </div>
-                <button class="btn-premium">Confirm Date</button>
-              </div>
-            </div>
           </section>`;
           
       default:
@@ -543,11 +603,11 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   };
   
   // Generate testimonials HTML
-  const testimonialsHTML = content.testimonials.map((t: any) => `
-    <div class="testimonial-card premium-card">
+  const testimonialsHTML = content.testimonials.map((t: any, i: number) => `
+    <div class="testimonial-card premium-card animate-on-scroll" style="--delay: ${i + 1}">
       <div class="testimonial-header">
         <div class="customer-info">
-          <div class="avatar">${t.name.charAt(0)}</div>
+          <div class="avatar gradient-bg">${t.name.charAt(0)}</div>
           <div>
             <h4>${t.name}</h4>
             <div class="stars">${generateStars(t.rating)}</div>
@@ -560,9 +620,9 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   `).join('');
   
   // Generate services HTML with icons
-  const servicesHTML = content.services.map((service: string) => `
-    <div class="service-item premium-card">
-      <div class="service-icon">${service.substring(0, 2)}</div>
+  const servicesHTML = content.services.map((service: string, i: number) => `
+    <div class="service-item premium-card animate-on-scroll" style="--delay: ${i + 1}">
+      <div class="service-icon gradient-bg">${service.substring(0, 2)}</div>
       <h4>${service.substring(2)}</h4>
       <p>Professional service with guaranteed satisfaction</p>
       <button class="btn-secondary">Learn More</button>
@@ -626,6 +686,28 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
                    theme.style === 'glamorous' ? '#FFF0F5' :
                    theme.style === 'industrial' ? '#1A1A1A' :
                    theme.style === 'fresh' ? '#F0FFFF' : '#FFFFFF'};
+    }
+
+    /* Premium animations */
+    @keyframes fadeInUp {
+      from { 
+        opacity: 0; 
+        transform: translateY(40px); 
+      }
+      to { 
+        opacity: 1; 
+        transform: translateY(0); 
+      }
+    }
+
+    .animate-on-scroll {
+      opacity: 0;
+      animation: fadeInUp 0.8s ease forwards;
+      animation-delay: calc(var(--delay) * 0.1s);
+    }
+
+    .animate-on-scroll.visible {
+      opacity: 1;
     }
 
     /* Premium Navigation */
@@ -730,6 +812,9 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       flex-direction: column;
       gap: 4px;
       cursor: pointer;
+      background: none;
+      border: none;
+      padding: 5px;
     }
 
     .mobile-menu-toggle span {
@@ -737,9 +822,22 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       height: 3px;
       background: var(--text);
       transition: all 0.3s ease;
+      border-radius: 3px;
     }
 
-    /* Hero Section with Parallax */
+    .mobile-menu-toggle.active span:nth-child(1) {
+      transform: rotate(45deg) translate(5px, 5px);
+    }
+
+    .mobile-menu-toggle.active span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .mobile-menu-toggle.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(7px, -6px);
+    }
+
+    /* Hero Variations */
     .hero {
       min-height: 100vh;
       position: relative;
@@ -750,7 +848,8 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       margin-top: 80px;
     }
 
-    .hero-background {
+    /* Classic Hero */
+    .hero-classic .hero-background {
       position: absolute;
       top: 0;
       left: 0;
@@ -759,50 +858,188 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       z-index: -2;
     }
 
-    .hero-image {
+    .hero-classic .hero-image {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      filter: brightness(0.7);
+      filter: brightness(0.8);
     }
 
-    .hero-overlay {
+    .hero-classic .hero-overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: var(--hero-gradient);
-      opacity: 0.8;
+      background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%);
       z-index: -1;
     }
 
-    .hero-content {
+    .hero-classic .hero-content {
       max-width: 1200px;
       padding: 2rem;
       text-align: center;
       color: white;
       z-index: 1;
-      animation: fadeInUp 1s ease;
     }
 
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+    /* Split Hero */
+    .hero-split {
+      padding: 0;
+      margin-top: 80px;
     }
 
-    .hero h1 {
+    .hero-split-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 100%;
+      min-height: calc(100vh - 80px);
+    }
+
+    .hero-text-side {
+      padding: 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--light) 0%, white 100%);
+    }
+
+    .hero-image-side {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-split-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 3rem;
+      margin-top: 3rem;
+    }
+
+    .hero-stats .stat {
+      text-align: center;
+    }
+
+    .hero-stats .counter {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: var(--primary);
+    }
+
+    /* Fullscreen Hero */
+    .hero-fullscreen {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      margin-top: 0;
+    }
+
+    .hero-video-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .hero-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hero-gradient-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.5) 100%);
+    }
+
+    .hero-fullscreen-content {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      padding: 2rem;
+      z-index: 1;
+    }
+
+    .hero-badge {
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+      padding: 0.5rem 1.5rem;
+      border-radius: 50px;
+      margin-bottom: 2rem;
+      font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    .hero-massive-title {
+      font-size: clamp(3rem, 10vw, 7rem);
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      opacity: 0.95;
+      margin-bottom: 2rem;
+    }
+
+    .hero-features {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 3rem;
+    }
+
+    .feature-badge {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      padding: 0.5rem 1rem;
+      border-radius: 25px;
+      border: 1px solid rgba(255,255,255,0.2);
+      font-size: 0.9rem;
+    }
+
+    .scroll-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(10px); }
+    }
+
+    .hero h1, .hero-title {
       font-family: var(--heading-font);
       font-size: clamp(3rem, 8vw, 6rem);
       font-weight: 900;
       margin-bottom: 1rem;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
       line-height: 1.1;
     }
 
@@ -812,6 +1049,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       margin: 2rem 0;
       opacity: 0.95;
       font-weight: 300;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     }
 
     .hero-cta {
@@ -833,15 +1071,46 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       letter-spacing: 1px;
       background: white;
       color: var(--primary);
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
       text-decoration: none;
       display: inline-block;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-premium::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: var(--accent);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+
+    .btn-premium:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .btn-premium:hover {
       transform: translateY(-3px);
       box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+      color: white;
+    }
+
+    .btn-premium span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn-large {
+      padding: 1.5rem 4rem;
+      font-size: 1.3rem;
     }
 
     .btn-secondary {
@@ -858,11 +1127,30 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       transition: all 0.3s ease;
       text-decoration: none;
       display: inline-block;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     }
 
     .btn-secondary:hover {
       background: white;
       color: var(--primary);
+      text-shadow: none;
+    }
+
+    /* Pulse animation */
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+      }
     }
 
     /* Premium Cards */
@@ -871,9 +1159,10 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       border-radius: 20px;
       padding: 2.5rem;
       box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-      transition: all 0.3s ease;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       position: relative;
       overflow: hidden;
+      transform-style: preserve-3d;
     }
 
     .premium-card::before {
@@ -887,8 +1176,23 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
     }
 
     .premium-card:hover {
-      transform: translateY(-10px);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      transform: translateY(-15px) rotateX(7deg);
+      box-shadow: 
+        0 50px 100px -20px rgba(50,50,93,.25),
+        0 30px 60px -30px rgba(0,0,0,.3);
+    }
+
+    /* Gradient text effect */
+    .gradient-text {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+    }
+
+    .gradient-bg {
+      background: var(--hero-gradient);
+      color: white;
     }
 
     /* Sections */
@@ -925,7 +1229,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       margin-right: auto;
     }
 
-    /* About Section with Image */
+    /* About Section Variations */
     .about-section {
       background: linear-gradient(135deg, var(--light) 0%, white 100%);
     }
@@ -936,6 +1240,135 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       gap: 4rem;
       align-items: center;
       margin-top: 3rem;
+    }
+
+    .about-left {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .about-centered {
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .about-bg-pattern {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.05;
+      background-image: repeating-linear-gradient(45deg, var(--primary) 0, var(--primary) 1px, transparent 1px, transparent 15px);
+    }
+
+    .about-content-centered {
+      max-width: 1000px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .about-lead {
+      font-size: 1.3rem;
+      line-height: 1.8;
+      margin-bottom: 3rem;
+    }
+
+    .about-features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .feature-item {
+      padding: 2rem;
+    }
+
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 1rem;
+      background: var(--hero-gradient);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: white;
+    }
+
+    .about-image-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 3rem;
+    }
+
+    .about-image-strip img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+
+    /* Timeline About */
+    .about-timeline {
+      background: white;
+    }
+
+    .timeline-container {
+      position: relative;
+      max-width: 1000px;
+      margin: 3rem auto;
+    }
+
+    .timeline-line {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--hero-gradient);
+      transform: translateX(-50%);
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      margin-bottom: 4rem;
+      align-items: center;
+    }
+
+    .timeline-item.reverse {
+      direction: rtl;
+    }
+
+    .timeline-item.reverse > * {
+      direction: ltr;
+    }
+
+    .timeline-content {
+      padding: 2rem;
+      background: var(--light);
+      border-radius: 20px;
+    }
+
+    .timeline-image img {
+      width: 100%;
+      height: 250px;
+      object-fit: cover;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+
+    .about-description {
+      max-width: 800px;
+      margin: 3rem auto 0;
+      text-align: center;
+      font-size: 1.1rem;
+      line-height: 1.8;
     }
 
     .about-text {
@@ -956,6 +1389,17 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       display: block;
     }
 
+    .image-decoration {
+      position: absolute;
+      top: -20px;
+      right: -20px;
+      width: 100px;
+      height: 100px;
+      background: var(--hero-gradient);
+      border-radius: 50%;
+      opacity: 0.3;
+    }
+
     .about-stats {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -967,7 +1411,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       text-align: center;
     }
 
-    .stat-number {
+    .stat-number, .counter {
       font-family: var(--heading-font);
       font-size: 3rem;
       font-weight: 900;
@@ -1399,48 +1843,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       margin-bottom: 0.5rem;
     }
 
-    .before-after-slider {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-
-    .ba-container {
-      position: relative;
-      padding-top: 60%;
-      overflow: hidden;
-    }
-
-    .ba-before,
-    .ba-after {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    .ba-after {
-      clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-    }
-
-    .ba-label {
-      position: absolute;
-      bottom: 20px;
-      padding: 0.5rem 1rem;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      border-radius: 5px;
-      font-weight: bold;
-    }
-
-    .ba-before .ba-label {
-      left: 20px;
-    }
-
-    .ba-after .ba-label {
-      right: 20px;
-    }
-
     .trust-badges {
       display: flex;
       justify-content: center;
@@ -1452,131 +1854,32 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       text-align: center;
     }
 
-    .badge img {
-      width: 100px;
-      height: 100px;
-      margin-bottom: 1rem;
-    }
-
-    .cert-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 2rem;
-      margin: 3rem 0;
-    }
-
-    .cert-card {
-      text-align: center;
-      padding: 2rem;
-    }
-
-    .cert-card h3 {
-      color: var(--primary);
-      margin-bottom: 1rem;
-    }
-
-    .pricing-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      margin: 3rem 0;
-    }
-
-    .pricing-card {
-      text-align: center;
-      position: relative;
-      padding: 3rem 2rem;
-    }
-
-    .pricing-card.featured {
-      transform: scale(1.05);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-
-    .pricing-card .badge {
-      position: absolute;
-      top: -15px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--accent);
-      color: white;
-      padding: 0.5rem 1.5rem;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      font-weight: bold;
-    }
-
-    .pricing-card h3 {
-      font-family: var(--heading-font);
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
-      color: var(--primary);
-    }
-
-    .pricing-card .price {
-      font-size: 3rem;
-      font-weight: bold;
-      color: var(--accent);
-      margin: 1rem 0;
-    }
-
-    .pricing-card ul {
-      list-style: none;
-      margin: 2rem 0;
-    }
-
-    .pricing-card li {
-      padding: 0.5rem 0;
-      color: var(--text);
-    }
-
-    .calendar-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-
-    .calendar-header button {
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: var(--primary);
-    }
-
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .calendar-day {
-      aspect-ratio: 1;
+    .badge-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1rem;
+      background: var(--hero-gradient);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-weight: 500;
-    }
-
-    .calendar-day.available {
-      background: var(--light);
-      color: var(--primary);
-    }
-
-    .calendar-day.available:hover {
-      background: var(--accent);
+      font-size: 2rem;
       color: white;
     }
 
-    .calendar-day.booked {
-      background: #f0f0f0;
-      color: #999;
-      cursor: not-allowed;
+    /* Parallax effect */
+    .parallax {
+      will-change: transform;
+    }
+
+    /* Floating animation */
+    .floating {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
     }
 
     /* Footer */
@@ -1650,7 +1953,20 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .nav-menu {
-        display: none;
+        position: fixed;
+        left: -100%;
+        top: 80px;
+        flex-direction: column;
+        background: white;
+        width: 100%;
+        text-align: center;
+        transition: 0.3s;
+        box-shadow: 0 10px 27px rgba(0,0,0,0.05);
+        padding: 2rem 0;
+      }
+
+      .nav-menu.active {
+        left: 0;
       }
 
       .mobile-menu-toggle {
@@ -1661,7 +1977,33 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
         font-size: 2.5rem;
       }
 
-      .about-content {
+      .hero-split-content {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-text-side {
+        padding: 2rem;
+      }
+
+      .hero-image-side {
+        height: 300px;
+      }
+
+      .hero-stats {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .about-content,
+      .timeline-item {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline-line {
+        display: none;
+      }
+
+      .about-features {
         grid-template-columns: 1fr;
       }
 
@@ -1670,10 +2012,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       .gallery-grid,
       .contact-grid {
         grid-template-columns: 1fr;
-      }
-
-      .pricing-card.featured {
-        transform: scale(1);
       }
 
       .instagram-grid {
@@ -1692,14 +2030,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       .trust-badges {
         flex-direction: column;
         gap: 2rem;
-      }
-
-      .calendar-grid {
-        gap: 0.25rem;
-      }
-
-      .calendar-day {
-        font-size: 0.9rem;
       }
     }
 
@@ -1735,28 +2065,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
-
-    /* Scroll Animations */
-    .fade-in {
-      opacity: 0;
-      transform: translateY(30px);
-      transition: all 0.8s ease;
-    }
-
-    .fade-in.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* Floating Elements */
-    .floating {
-      animation: float 6s ease-in-out infinite;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
-    }
   </style>
 </head>
 <body>
@@ -1772,7 +2080,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
         <div class="logo-icon">${businessName.charAt(0)}</div>
         ${businessName}
       </a>
-      <ul class="nav-menu">
+      <ul class="nav-menu" id="nav-menu">
         <li><a href="#about">About</a></li>
         <li><a href="#services">Services</a></li>
         <li><a href="#gallery">Gallery</a></li>
@@ -1780,68 +2088,26 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
         <li><a href="#contact">Contact</a></li>
       </ul>
       <a href="tel:${phone}" class="nav-cta">Call Now</a>
-      <div class="mobile-menu-toggle" id="mobile-toggle">
+      <button class="mobile-menu-toggle" id="mobile-toggle" aria-label="Toggle menu">
         <span></span>
         <span></span>
         <span></span>
-      </div>
+      </button>
     </div>
   </nav>
 
-  <!-- Hero Section with Parallax -->
-  <section id="home" class="hero">
-    <div class="hero-background">
-      <img src="${images.hero}" alt="${businessName}" class="hero-image" />
-    </div>
-    <div class="hero-overlay"></div>
-    <div class="hero-content">
-      <h1 class="floating">${businessName}</h1>
-      <div class="tagline">${content.tagline}</div>
-      <div class="hero-cta">
-        <a href="tel:${phone}" class="btn-premium">Call Now</a>
-        <a href="#contact" class="btn-secondary">Get Directions</a>
-      </div>
-    </div>
-  </section>
+  ${getHeroSection()}
 
   ${getCategorySpecificSections()}
 
-  <!-- About Section with Image -->
-  <section id="about" class="about-section">
-    <div class="container">
-      <h2 class="section-title fade-in">About Us</h2>
-      <p class="section-subtitle fade-in">Discover Our Story</p>
-      <div class="about-content fade-in">
-        <div class="about-text">
-          <p>${content.description}</p>
-          <div class="about-stats">
-            <div class="stat-card">
-              <div class="stat-number">${Math.floor(Math.random() * 15) + 5}+</div>
-              <div class="stat-label">Years Experience</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number">${Math.floor(Math.random() * 9000) + 1000}+</div>
-              <div class="stat-label">Happy Customers</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number">100%</div>
-              <div class="stat-label">Satisfaction</div>
-            </div>
-          </div>
-        </div>
-        <div class="about-image">
-          <img src="${images.service}" alt="About ${businessName}" />
-        </div>
-      </div>
-    </div>
-  </section>
+  ${getAboutSection()}
 
   <!-- Services Section -->
   <section id="services" class="services-section">
     <div class="container">
-      <h2 class="section-title fade-in">Our Services</h2>
-      <p class="section-subtitle fade-in">Excellence in Every Detail</p>
-      <div class="services-grid fade-in">
+      <h2 class="section-title animate-on-scroll">Our Services</h2>
+      <p class="section-subtitle animate-on-scroll">Excellence in Every Detail</p>
+      <div class="services-grid">
         ${servicesHTML}
       </div>
     </div>
@@ -1850,24 +2116,24 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   <!-- Gallery Section -->
   <section id="gallery" class="gallery-section">
     <div class="container">
-      <h2 class="section-title fade-in">Our Work</h2>
-      <p class="section-subtitle fade-in">See What We Can Do</p>
-      <div class="gallery-grid fade-in">
-        <div class="gallery-item">
+      <h2 class="section-title animate-on-scroll">Our Work</h2>
+      <p class="section-subtitle animate-on-scroll">See What We Can Do</p>
+      <div class="gallery-grid">
+        <div class="gallery-item animate-on-scroll" style="--delay: 1">
           <img src="${images.hero}" alt="Gallery 1" />
           <div class="gallery-overlay">
             <h4>Premium Quality</h4>
             <p>Excellence in every project</p>
           </div>
         </div>
-        <div class="gallery-item">
+        <div class="gallery-item animate-on-scroll" style="--delay: 2">
           <img src="${images.service}" alt="Gallery 2" />
           <div class="gallery-overlay">
             <h4>Professional Service</h4>
             <p>Attention to detail</p>
           </div>
         </div>
-        <div class="gallery-item">
+        <div class="gallery-item animate-on-scroll" style="--delay: 3">
           <img src="${images.team}" alt="Gallery 3" />
           <div class="gallery-overlay">
             <h4>Expert Team</h4>
@@ -1881,9 +2147,9 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   <!-- Testimonials Section -->
   <section id="testimonials" class="testimonials-section">
     <div class="container">
-      <h2 class="section-title fade-in">What Our Customers Say</h2>
-      <p class="section-subtitle fade-in">Real Reviews from Real People</p>
-      <div class="testimonials-container fade-in">
+      <h2 class="section-title animate-on-scroll">What Our Customers Say</h2>
+      <p class="section-subtitle animate-on-scroll">Real Reviews from Real People</p>
+      <div class="testimonials-container">
         ${testimonialsHTML}
       </div>
     </div>
@@ -1892,16 +2158,16 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
   <!-- Contact Section -->
   <section id="contact" class="contact-section">
     <div class="container">
-      <h2 class="section-title">Get In Touch</h2>
-      <p class="section-subtitle">We're Here to Help</p>
+      <h2 class="section-title animate-on-scroll">Get In Touch</h2>
+      <p class="section-subtitle animate-on-scroll">We're Here to Help</p>
       <div class="contact-grid">
-        <div class="contact-card premium-card">
+        <div class="contact-card premium-card animate-on-scroll" style="--delay: 1">
           <h3>📍 Visit Us</h3>
           <p>${address}</p>
           <p>${city}, ${state} ${zip}</p>
           <a href="https://maps.google.com/?q=${encodeURI(address + ' ' + city + ' ' + state)}" target="_blank">Get Directions</a>
         </div>
-        <div class="contact-card premium-card">
+        <div class="contact-card premium-card animate-on-scroll" style="--delay: 2">
           <h3>📞 Contact</h3>
           <p><a href="tel:${phone}">${phone}</a></p>
           ${email ? `<p><a href="mailto:${email}">${email}</a></p>` : ''}
@@ -1911,7 +2177,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
             <a href="#" aria-label="Twitter">t</a>
           </div>
         </div>
-        <div class="contact-card premium-card">
+        <div class="contact-card premium-card animate-on-scroll" style="--delay: 3">
           <h3>🕒 Business Hours</h3>
           <div class="hours-container">
             ${hoursHTML}
@@ -1920,7 +2186,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       </div>
       
       <!-- Google Maps -->
-      <div class="map-container fade-in">
+      <div class="map-container animate-on-scroll" style="--delay: 4">
         <iframe 
           src="${mapsEmbedUrl}"
           allowfullscreen=""
@@ -1958,7 +2224,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
         <div class="footer-section">
           <h3>Services</h3>
           <ul>
-            ${content.services.slice(0, 5).map(s => `<li><a href="#services">${s.substring(2)}</a></li>`).join('')}
+            ${content.services.slice(0, 5).map((s: string) => `<li><a href="#services">${s.substring(2)}</a></li>`).join('')}
           </ul>
         </div>
         <div class="footer-section">
@@ -2006,7 +2272,7 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       });
     });
 
-    // Scroll animations
+    // Intersection Observer for animations
     const observerOptions = {
       threshold: 0.1,
       rootMargin: '0px 0px -50px 0px'
@@ -2016,27 +2282,61 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           entry.target.classList.add('visible');
+          
+          // Animate counters when visible
+          const counters = entry.target.querySelectorAll('.counter');
+          counters.forEach(counter => {
+            const target = parseInt(counter.getAttribute('data-target'));
+            if (target && !counter.classList.contains('counted')) {
+              counter.classList.add('counted');
+              animateCounter(counter, target);
+            }
+          });
         }
       });
     }, observerOptions);
 
-    document.querySelectorAll('.fade-in').forEach(el => {
+    document.querySelectorAll('.animate-on-scroll').forEach(el => {
       observer.observe(el);
     });
+
+    // Animated number counter
+    function animateCounter(element, target) {
+      let current = 0;
+      const increment = target / 100;
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          element.textContent = target.toLocaleString();
+          clearInterval(timer);
+        } else {
+          element.textContent = Math.floor(current).toLocaleString();
+        }
+      }, 20);
+    }
 
     // Mobile menu toggle
     document.getElementById('mobile-toggle').addEventListener('click', function() {
       this.classList.toggle('active');
-      document.querySelector('.nav-menu').classList.toggle('active');
+      document.getElementById('nav-menu').classList.toggle('active');
+    });
+
+    // Close mobile menu when clicking a link
+    document.querySelectorAll('.nav-menu a').forEach(link => {
+      link.addEventListener('click', () => {
+        document.getElementById('mobile-toggle').classList.remove('active');
+        document.getElementById('nav-menu').classList.remove('active');
+      });
     });
 
     // Parallax effect for hero image
     window.addEventListener('scroll', () => {
       const scrolled = window.pageYOffset;
-      const heroImage = document.querySelector('.hero-image');
-      if (heroImage) {
-        heroImage.style.transform = \`translateY(\${scrolled * 0.5}px)\`;
-      }
+      const parallaxElements = document.querySelectorAll('.parallax');
+      parallaxElements.forEach(element => {
+        const speed = 0.5;
+        element.style.transform = \`translateY(\${scrolled * speed}px)\`;
+      });
     });
 
     // Category-specific interactions
@@ -2074,18 +2374,6 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
         card.addEventListener('click', function() {
           document.querySelectorAll('.stylist-card').forEach(c => c.style.border = 'none');
           this.style.border = '3px solid var(--accent)';
-        });
-      });
-    ` : ''}
-
-    ${content.businessType === 'cleaning' ? `
-      // Calendar day selection
-      document.querySelectorAll('.calendar-day.available').forEach(day => {
-        day.addEventListener('click', function() {
-          document.querySelectorAll('.calendar-day').forEach(d => d.classList.remove('selected'));
-          this.classList.add('selected');
-          this.style.background = 'var(--accent)';
-          this.style.color = 'white';
         });
       });
     ` : ''}
@@ -2131,15 +2419,17 @@ function generatePremiumHTML(business: any, content: any, theme: any): string {
 
     // Add page load animations
     document.addEventListener('DOMContentLoaded', () => {
-      const elements = document.querySelectorAll('.hero-content > *');
+      const elements = document.querySelectorAll('.hero-content > *, .hero-fullscreen-content > *, .hero-text-side > *');
       elements.forEach((el, index) => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(30px)';
-        setTimeout(() => {
-          el.style.transition = 'all 0.8s ease';
-          el.style.opacity = '1';
-          el.style.transform = 'translateY(0)';
-        }, index * 200);
+        if (!el.style.animationDelay) {
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(30px)';
+          setTimeout(() => {
+            el.style.transition = 'all 0.8s ease';
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0)';
+          }, index * 200);
+        }
       });
     });
   </script>
@@ -2152,11 +2442,13 @@ export async function GET(request: NextRequest) {
     message: 'Premium website preview generator endpoint',
     method: 'POST',
     features: [
-      'AI-powered content generation with Together AI',
+      'AI-powered content generation with Together AI or Claude',
       'AI-generated images with Replicate',
       'Category-specific themes and layouts',
       'Premium $2000-quality designs',
-      'Distinct templates for each business type'
+      '3 distinct layout variations per business type',
+      'Advanced animations and interactions',
+      'Mobile-responsive design'
     ],
     body: {
       businessId: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.'
