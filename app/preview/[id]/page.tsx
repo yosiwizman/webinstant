@@ -72,11 +72,17 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
-  // Render the HTML content
+  // Add the edit mode script to the HTML content
+  const htmlWithEditScript = preview.html_content.replace(
+    '</body>',
+    `<script src="/edit-mode.js" data-preview-id="${preview.id}"></script></body>`
+  )
+
+  // Render the HTML content with edit mode script
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}>
       <div 
-        dangerouslySetInnerHTML={{ __html: preview.html_content }}
+        dangerouslySetInnerHTML={{ __html: htmlWithEditScript }}
         style={{ width: '100%', height: '100%' }}
       />
     </div>
