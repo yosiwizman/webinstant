@@ -7,7 +7,13 @@ import {
   generateBusinessImages,
   getImagePrompt,
   getLayoutVariation,
-  generatePremiumContent
+  generatePremiumContent,
+  generateTrustSignals,
+  generateSocialProofTicker,
+  generateInteractiveElements,
+  generateReviewsWidget,
+  generateLiveChatBubble,
+  generateExitIntentPopup
 } from '@/lib/contentGenerator';
 
 function generateSlug(name: string): string {
@@ -125,7 +131,7 @@ export async function POST(request: NextRequest) {
         // Detect business type if not set
         const businessType = business.industry_type || detectBusinessType(business.business_name);
         
-        // Generate premium HTML with category-specific design and layout variation
+        // Generate premium HTML with all new features
         const htmlContent = generatePremiumHTML(business, content, theme, layoutVariation);
         
         const { data: existingPreview } = await supabase
@@ -194,6 +200,8 @@ export async function POST(request: NextRequest) {
         console.log(`  - Theme: ${content.businessType}`);
         console.log(`  - Layout: Variation ${layoutVariation}`);
         console.log(`  - Images: ${images ? 'AI Generated' : 'Stock Photos'}`);
+        console.log(`  - Logo: ${content.logo?.type === 'image' ? 'AI Generated' : 'Typography'}`);
+        console.log(`  - Video Background: ${content.videoBackground ? 'Yes' : 'No'}`);
         
       } catch (error) {
         console.error(`Error processing business ${business.id}:`, error);
@@ -243,14 +251,39 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     ).join('');
   };
   
+  // Get logo HTML
+  const getLogoHTML = () => {
+    if (content.logo?.type === 'image' && content.logo?.url) {
+      return `<img src="${content.logo.url}" alt="${businessName}" class="logo-image" />`;
+    } else if (content.logo?.html) {
+      return content.logo.html;
+    } else {
+      // Fallback typography logo
+      const firstLetter = businessName.charAt(0);
+      const restOfName = businessName.slice(1);
+      return `
+        <div class="premium-logo">
+          <span class="logo-first">${firstLetter}</span>
+          <span class="logo-rest">${restOfName}</span>
+        </div>
+      `;
+    }
+  };
+  
   // Get layout-specific hero section
   const getHeroSection = () => {
+    const videoBackground = content.videoBackground ? `
+      <video class="video-bg" autoplay muted loop playsinline>
+        <source src="${content.videoBackground}" type="video/mp4">
+      </video>
+    ` : '';
+    
     switch(layoutVariation) {
       case 0: // Classic centered hero
         return `
           <section id="home" class="hero hero-classic">
             <div class="hero-background">
-              <img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />
+              ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />`}
             </div>
             <div class="hero-overlay"></div>
             <div class="hero-content animate-on-scroll" style="--delay: 0">
@@ -287,7 +320,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
                 </div>
               </div>
               <div class="hero-image-side">
-                <img src="${images.hero}" alt="${businessName}" class="hero-split-image animate-on-scroll" style="--delay: 1" />
+                ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-split-image animate-on-scroll" style="--delay: 1" />`}
                 <div class="image-overlay"></div>
               </div>
             </div>
@@ -297,7 +330,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         return `
           <section id="home" class="hero hero-fullscreen">
             <div class="hero-video-container">
-              <img src="${images.hero}" alt="${businessName}" class="hero-video parallax" />
+              ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-video parallax" />`}
               <div class="hero-gradient-overlay"></div>
             </div>
             <div class="hero-fullscreen-content">
@@ -307,7 +340,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               </h1>
               <div class="hero-subtitle animate-on-scroll" style="--delay: 2">${content.tagline}</div>
               <div class="hero-features animate-on-scroll" style="--delay: 3">
-                ${content.services.slice(0, 3).map(s => `<span class="feature-badge">${s.substring(2, 20)}...</span>`).join('')}
+                ${content.services.slice(0, 3).map((s: string) => `<span class="feature-badge">${s.substring(2, 20)}...</span>`).join('')}
               </div>
               <div class="hero-cta animate-on-scroll" style="--delay: 4">
                 <a href="tel:${phone}" class="btn-premium btn-large pulse">
@@ -641,7 +674,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   const mapsQuery = encodeURIComponent(`${address}, ${city}, ${state} ${zip}`);
   const mapsEmbedUrl = `https://maps.google.com/maps?q=${mapsQuery}&output=embed`;
   
-  // Build the premium HTML template
+  // Build the premium HTML template with all new features
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -708,6 +741,33 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
     .animate-on-scroll.visible {
       opacity: 1;
+    }
+
+    /* Logo Styles */
+    .premium-logo {
+      font-family: var(--heading-font);
+      font-size: 2rem;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: bold;
+      letter-spacing: -1px;
+    }
+
+    .logo-first {
+      font-size: 2.5rem;
+      display: inline-block;
+      animation: logoGlow 2s ease-in-out infinite;
+    }
+
+    .logo-image {
+      height: 50px;
+      width: auto;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% { filter: brightness(1); }
+      50% { filter: brightness(1.2); }
     }
 
     /* Premium Navigation */
@@ -835,6 +895,17 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
     .mobile-menu-toggle.active span:nth-child(3) {
       transform: rotate(-45deg) translate(7px, -6px);
+    }
+
+    /* Video Background */
+    .video-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
     }
 
     /* Hero Variations */
@@ -1195,6 +1266,269 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       color: white;
     }
 
+    /* Trust Signals */
+    .trust-signals {
+      background: linear-gradient(135deg, #f5f5f5, #ffffff);
+      padding: 3rem 0;
+      border-top: 3px solid var(--primary);
+    }
+
+    .trust-container {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 2rem;
+    }
+
+    .trust-badge {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
+    }
+
+    .trust-badge:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    }
+
+    .badge-icon {
+      font-size: 2rem;
+      width: 60px;
+      height: 60px;
+      background: var(--hero-gradient);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+
+    .badge-text strong {
+      display: block;
+      font-size: 1.1rem;
+      color: var(--primary);
+    }
+
+    .badge-text span {
+      color: var(--text);
+      opacity: 0.8;
+    }
+
+    /* Social Proof Ticker */
+    .social-proof-ticker {
+      background: var(--primary);
+      color: white;
+      padding: 0.8rem;
+      overflow: hidden;
+      position: sticky;
+      top: 80px;
+      z-index: 900;
+    }
+
+    .ticker-content {
+      display: flex;
+      animation: ticker 30s linear infinite;
+      gap: 4rem;
+    }
+
+    .ticker-item {
+      white-space: nowrap;
+      padding: 0 2rem;
+    }
+
+    @keyframes ticker {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    /* Interactive Elements */
+    .quote-calculator, .service-estimator, .booking-widget {
+      background: white;
+      padding: 2rem;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: 2rem auto;
+    }
+
+    .premium-slider {
+      width: 100%;
+      margin: 1rem 0;
+    }
+
+    .premium-select, .premium-input {
+      width: 100%;
+      padding: 1rem;
+      border: 2px solid var(--light);
+      border-radius: 10px;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    .estimate-text {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--accent);
+    }
+
+    /* Google Reviews Widget */
+    .google-reviews-widget {
+      max-width: 600px;
+      margin: 2rem auto;
+    }
+
+    .reviews-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .google-logo {
+      height: 24px;
+    }
+
+    .rating-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .stars {
+      color: #FFD700;
+      font-size: 1.2rem;
+    }
+
+    .recent-reviews {
+      margin: 2rem 0;
+    }
+
+    .review-card {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--light);
+    }
+
+    .review-card:last-child {
+      border-bottom: none;
+    }
+
+    .review-date {
+      color: var(--text);
+      opacity: 0.6;
+      font-size: 0.9rem;
+    }
+
+    /* Live Chat Bubble */
+    .live-chat-bubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary);
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      animation: bounce 2s infinite;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .chat-icon {
+      font-size: 1.5rem;
+    }
+
+    .chat-popup {
+      position: absolute;
+      bottom: 70px;
+      right: 0;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      padding: 1rem;
+      display: none;
+      min-width: 200px;
+    }
+
+    .live-chat-bubble:hover .chat-popup {
+      display: block;
+    }
+
+    .chat-option {
+      display: block;
+      padding: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      border-radius: 10px;
+      transition: background 0.3s ease;
+    }
+
+    .chat-option:hover {
+      background: var(--light);
+    }
+
+    /* Exit Intent Popup */
+    .exit-popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .popup-content {
+      background: white;
+      padding: 3rem;
+      border-radius: 20px;
+      max-width: 500px;
+      text-align: center;
+      position: relative;
+    }
+
+    .close-popup {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      font-size: 2rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .offer-text {
+      font-size: 2rem;
+      color: var(--accent);
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+
+    .countdown {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin: 1rem 0;
+    }
+
+    .disclaimer {
+      font-size: 0.9rem;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: 1rem;
+    }
+
     /* Sections */
     .container {
       max-width: 1400px;
@@ -1497,12 +1831,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       color: white;
       font-weight: bold;
       font-size: 1.5rem;
-    }
-
-    .stars {
-      color: #FFD700;
-      font-size: 1.2rem;
-      margin-top: 0.25rem;
     }
 
     .verified {
@@ -1854,19 +2182,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       text-align: center;
     }
 
-    .badge-icon {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 1rem;
-      background: var(--hero-gradient);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 2rem;
-      color: white;
-    }
-
     /* Parallax effect */
     .parallax {
       will-change: transform;
@@ -2031,6 +2346,10 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         flex-direction: column;
         gap: 2rem;
       }
+
+      .trust-container {
+        flex-direction: column;
+      }
     }
 
     /* Loading Animation */
@@ -2073,12 +2392,14 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     <div class="spinner"></div>
   </div>
 
+  <!-- Social Proof Ticker -->
+  ${generateSocialProofTicker(city)}
+
   <!-- Premium Navigation -->
   <nav class="premium-nav" id="navbar">
     <div class="nav-container">
       <a href="#home" class="logo">
-        <div class="logo-icon">${businessName.charAt(0)}</div>
-        ${businessName}
+        ${getLogoHTML()}
       </a>
       <ul class="nav-menu" id="nav-menu">
         <li><a href="#about">About</a></li>
@@ -2100,7 +2421,18 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
   ${getCategorySpecificSections()}
 
+  <!-- Trust Signals -->
+  ${generateTrustSignals(content.businessType, businessName)}
+
   ${getAboutSection()}
+
+  <!-- Interactive Elements Section -->
+  <section class="interactive-section">
+    <div class="container">
+      <h2 class="section-title animate-on-scroll">Get Started Today</h2>
+      ${generateInteractiveElements(content.businessType)}
+    </div>
+  </section>
 
   <!-- Services Section -->
   <section id="services" class="services-section">
@@ -2141,6 +2473,14 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Google Reviews Widget -->
+  <section class="reviews-section">
+    <div class="container">
+      <h2 class="section-title animate-on-scroll">Customer Reviews</h2>
+      ${generateReviewsWidget()}
     </div>
   </section>
 
@@ -2243,6 +2583,12 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     </div>
   </footer>
 
+  <!-- Live Chat Bubble -->
+  ${generateLiveChatBubble(phone)}
+
+  <!-- Exit Intent Popup -->
+  ${generateExitIntentPopup(businessName)}
+
   <script>
     // Hide loading screen
     window.addEventListener('load', () => {
@@ -2338,6 +2684,53 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         element.style.transform = \`translateY(\${scrolled * speed}px)\`;
       });
     });
+
+    // Exit Intent Popup
+    let exitIntent = false;
+    document.addEventListener('mouseleave', (e) => {
+      if (e.clientY <= 0 && !exitIntent) {
+        document.getElementById('exitPopup').style.display = 'flex';
+        exitIntent = true;
+        startCountdown();
+      }
+    });
+
+    // Countdown Timer
+    function startCountdown() {
+      let hours = 48;
+      let minutes = 0;
+      let seconds = 0;
+      
+      const countdownEl = document.getElementById('countdown');
+      
+      const timer = setInterval(() => {
+        if (seconds > 0) {
+          seconds--;
+        } else if (minutes > 0) {
+          minutes--;
+          seconds = 59;
+        } else if (hours > 0) {
+          hours--;
+          minutes = 59;
+          seconds = 59;
+        } else {
+          clearInterval(timer);
+        }
+        
+        if (countdownEl) {
+          countdownEl.textContent = \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
+        }
+      }, 1000);
+    }
+
+    // Interactive Calculator for Restaurant
+    ${content.businessType === 'restaurant' ? `
+      document.getElementById('party-size')?.addEventListener('input', function() {
+        const size = this.value;
+        document.getElementById('guest-count').textContent = size;
+        document.getElementById('cost-estimate').textContent = (size * 25).toFixed(0);
+      });
+    ` : ''}
 
     // Category-specific interactions
     ${content.businessType === 'restaurant' ? `
@@ -2444,10 +2837,16 @@ export async function GET(request: NextRequest) {
     features: [
       'AI-powered content generation with Together AI or Claude',
       'AI-generated images with Replicate',
+      'AI-generated logos and video backgrounds',
       'Category-specific themes and layouts',
       'Premium $2000-quality designs',
       '3 distinct layout variations per business type',
       'Advanced animations and interactions',
+      'Trust signals and social proof',
+      'Interactive calculators and widgets',
+      'Google Reviews integration',
+      'Live chat bubble',
+      'Exit intent popups',
       'Mobile-responsive design'
     ],
     body: {

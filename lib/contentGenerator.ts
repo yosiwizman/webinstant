@@ -33,6 +33,8 @@ export interface BusinessContent {
   theme: BusinessTheme;
   businessType: string;
   images?: BusinessImages;
+  logo?: BusinessLogo;
+  videoBackground?: string;
 }
 
 export interface BusinessTheme {
@@ -48,6 +50,12 @@ export interface BusinessImages {
   service: string;
   team: string;
   gallery?: string[];
+}
+
+export interface BusinessLogo {
+  type: 'image' | 'text';
+  url?: string;
+  html?: string;
 }
 
 export interface CategoryTheme {
@@ -124,6 +132,10 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
 
     const content = JSON.parse(response.content[0].text);
     
+    // Generate logo and video background
+    const logo = await generateBusinessLogo(business.business_name, businessType);
+    const videoBackground = await generateVideoBackground(businessType);
+    
     return {
       tagline: content.tagline || generateTagline(businessType, business.business_name),
       description: content.about || generateDescription(businessType, business),
@@ -131,7 +143,9 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
       testimonials: content.testimonials || generateTestimonials(businessType),
       hours: generateBusinessHours(businessType),
       theme: getThemeForType(businessType),
-      businessType
+      businessType,
+      logo,
+      videoBackground
     };
   } catch (error) {
     console.error('Claude generation failed:', error);
@@ -181,6 +195,11 @@ Format your response as JSON with these fields:
 
     try {
       const content = JSON.parse(response);
+      
+      // Generate logo and video background
+      const logo = await generateBusinessLogo(business.business_name, businessType);
+      const videoBackground = await generateVideoBackground(businessType);
+      
       return {
         tagline: content.tagline || generateTagline(businessType, business.business_name),
         description: content.description || generateDescription(businessType, business),
@@ -188,7 +207,9 @@ Format your response as JSON with these fields:
         testimonials: content.testimonials || generateTestimonials(businessType),
         hours: generateBusinessHours(businessType),
         theme: getThemeForType(businessType),
-        businessType
+        businessType,
+        logo,
+        videoBackground
       };
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
@@ -198,6 +219,308 @@ Format your response as JSON with these fields:
     console.error('Together AI generation failed:', error);
     throw error;
   }
+}
+
+// AI Logo Generation
+async function generateBusinessLogo(businessName: string, businessType: string): Promise<BusinessLogo> {
+  // Option A: Try AI-generated logo first
+  try {
+    const logoPrompts: { [key: string]: string } = {
+      restaurant: 'minimalist pizza slice icon, simple geometric logo, flat design, svg style',
+      plumbing: 'water drop with wrench icon, minimalist plumbing logo, blue, simple svg',
+      beauty: 'scissors and comb icon, elegant beauty logo, minimalist, pink, svg style',
+      auto: 'wrench and gear icon, automotive logo, minimalist, professional, svg',
+      cleaning: 'sparkle and broom icon, cleaning service logo, fresh, minimalist, svg'
+    };
+
+    const output = await replicate.run(
+      "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
+      {
+        input: {
+          prompt: logoPrompts[businessType] || 'minimalist business logo, simple, professional',
+          width: 256,
+          height: 256,
+          num_outputs: 1
+        }
+      }
+    );
+    
+    if (Array.isArray(output) && output.length > 0) {
+      return {
+        type: 'image',
+        url: output[0]
+      };
+    }
+    throw new Error('No logo generated');
+  } catch (error) {
+    // Option B: Fallback to premium typography logo
+    console.log('Using typography logo fallback');
+    return {
+      type: 'text',
+      html: generateTypographyLogo(businessName, businessType)
+    };
+  }
+}
+
+function generateTypographyLogo(name: string, type: string): string {
+  const fonts: { [key: string]: string } = {
+    restaurant: 'Playfair Display',
+    plumbing: 'Oswald',
+    beauty: 'Dancing Script',
+    auto: 'Russo One',
+    cleaning: 'Comfortaa'
+  };
+  
+  const firstLetter = name.charAt(0);
+  const restOfName = name.slice(1);
+  
+  return `
+    <div class="premium-logo">
+      <span class="logo-first">${firstLetter}</span>
+      <span class="logo-rest">${restOfName}</span>
+    </div>
+  `;
+}
+
+// Video Background Generation
+async function generateVideoBackground(businessType: string): Promise<string | null> {
+  try {
+    const videoPrompts: { [key: string]: string } = {
+      restaurant: 'chef cooking pasta, steam rising, kitchen, professional cooking, cinematic',
+      plumbing: 'water flowing through modern faucet, slow motion, crystal clear',
+      beauty: 'hair styling in salon, professional stylist, elegant movements',
+      auto: 'mechanic working on car engine, professional garage, tools',
+      cleaning: 'sparkling clean surfaces being wiped, satisfying cleaning, fresh'
+    };
+
+    // Generate short video clip
+    const output = await replicate.run(
+      "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438",
+      {
+        input: {
+          cond_aug: 0.02,
+          decoding_t: 7,
+          input_image: videoPrompts[businessType] || videoPrompts.cleaning,
+          video_length: "14_frames_with_svd",
+          sizing_strategy: "maintain_aspect_ratio",
+          motion_bucket_id: 127,
+          frames_per_second: 6
+        }
+      }
+    );
+    
+    return output as string || null;
+  } catch (error) {
+    console.log('Video generation failed, using static image');
+    return null;
+  }
+}
+
+// Trust Signals Generation
+export function generateTrustSignals(businessType: string, businessName: string): string {
+  const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
+  const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
+  
+  return `
+    <section class="trust-signals">
+      <div class="container">
+        <div class="trust-container">
+          <div class="trust-badge animate-on-scroll" style="--delay: 1">
+            <div class="badge-icon">🛡️</div>
+            <div class="badge-text">
+              <strong>Licensed & Insured</strong>
+              <span>Fully Certified</span>
+            </div>
+          </div>
+          <div class="trust-badge animate-on-scroll" style="--delay: 2">
+            <div class="badge-icon">👨‍👩‍👧‍👦</div>
+            <div class="badge-text">
+              <strong>Family Owned</strong>
+              <span>Since ${yearFounded}</span>
+            </div>
+          </div>
+          <div class="trust-badge animate-on-scroll" style="--delay: 3">
+            <div class="badge-icon">⭐</div>
+            <div class="badge-text">
+              <strong>${customerCount}+</strong>
+              <span>Happy Customers</span>
+            </div>
+          </div>
+          <div class="trust-badge animate-on-scroll" style="--delay: 4">
+            <div class="badge-icon">⚡</div>
+            <div class="badge-text">
+              <strong>Same Day Service</strong>
+              <span>Available 24/7</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+// Social Proof Ticker
+export function generateSocialProofTicker(city: string): string {
+  const names = ['John', 'Maria', 'David', 'Sarah', 'Michael', 'Jennifer', 'Robert', 'Lisa'];
+  const areas = city ? [`${city} Downtown`, `North ${city}`, `${city} Heights`, `West ${city}`, `${city} Park`] : 
+                      ['Downtown', 'Northside', 'Westside', 'Eastside', 'Central'];
+  const actions = ['just requested a quote', 'booked a service', 'left a 5-star review', 'scheduled an appointment'];
+  
+  return `
+    <div class="social-proof-ticker">
+      <div class="ticker-content">
+        <span class="ticker-item">🔥 ${names[0]} from ${areas[0]} ${actions[0]} 2 minutes ago</span>
+        <span class="ticker-item">⭐ ${names[1]} from ${areas[1]} ${actions[1]} 5 minutes ago</span>
+        <span class="ticker-item">✅ ${names[2]} from ${areas[2]} ${actions[2]} 12 minutes ago</span>
+        <span class="ticker-item">🎉 ${names[3]} from ${areas[3]} ${actions[3]} 18 minutes ago</span>
+        <span class="ticker-item">💯 ${names[4]} from ${areas[4]} ${actions[0]} 25 minutes ago</span>
+      </div>
+    </div>
+  `;
+}
+
+// Interactive Elements
+export function generateInteractiveElements(businessType: string): string {
+  const calculators: { [key: string]: string } = {
+    restaurant: `
+      <div class="quote-calculator premium-card">
+        <h3>Party Size Calculator</h3>
+        <input type="range" min="2" max="50" value="10" id="party-size" class="premium-slider">
+        <p>Guests: <span id="guest-count">10</span></p>
+        <p class="estimate-text">Estimated Cost: $<span id="cost-estimate">250</span></p>
+        <button class="btn-premium pulse">Reserve Now</button>
+      </div>
+    `,
+    auto: `
+      <div class="service-estimator premium-card">
+        <h3>Instant Service Estimate</h3>
+        <select class="premium-select">
+          <option>Oil Change - $39</option>
+          <option>Brake Service - $199</option>
+          <option>Tire Rotation - $29</option>
+          <option>Full Inspection - $89</option>
+        </select>
+        <button class="btn-premium pulse">Book This Service</button>
+      </div>
+    `,
+    beauty: `
+      <div class="booking-widget premium-card">
+        <h3>Book Your Appointment</h3>
+        <input type="date" min="${new Date().toISO String().split('T')[0]}" class="premium-input">
+        <select class="premium-select">
+          <option>Haircut - $45</option>
+          <option>Color - $120</option>
+          <option>Manicure - $35</option>
+        </select>
+        <button class="btn-premium pulse">Check Availability</button>
+      </div>
+    `,
+    plumbing: `
+      <div class="service-estimator premium-card">
+        <h3>Emergency Service Calculator</h3>
+        <select class="premium-select">
+          <option>Burst Pipe - $150-300</option>
+          <option>Clogged Drain - $100-200</option>
+          <option>Water Heater - $800-2000</option>
+          <option>Leak Repair - $200-500</option>
+        </select>
+        <button class="btn-premium pulse">Get Emergency Help</button>
+      </div>
+    `,
+    cleaning: `
+      <div class="quote-calculator premium-card">
+        <h3>Instant Quote Calculator</h3>
+        <select class="premium-select">
+          <option>Studio/1BR - $80-120</option>
+          <option>2BR - $120-180</option>
+          <option>3BR - $180-250</option>
+          <option>4BR+ - $250+</option>
+        </select>
+        <select class="premium-select">
+          <option>One Time</option>
+          <option>Weekly (20% off)</option>
+          <option>Bi-Weekly (15% off)</option>
+          <option>Monthly (10% off)</option>
+        </select>
+        <button class="btn-premium pulse">Get Your Quote</button>
+      </div>
+    `
+  };
+  
+  return calculators[businessType] || calculators.auto;
+}
+
+// Google Reviews Widget
+export function generateReviewsWidget(): string {
+  const rating = (4.7 + Math.random() * 0.3).toFixed(1); // 4.7-5.0 rating
+  const reviewCount = 80 + Math.floor(Math.random() * 150); // 80-230 reviews
+  
+  return `
+    <div class="google-reviews-widget premium-card">
+      <div class="reviews-header">
+        <svg class="google-logo" width="74" height="24" viewBox="0 0 74 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9.24 8.19v2.46h5.88c-.18 1.38-.64 2.39-1.34 3.1-.86.86-2.2 1.8-4.54 1.8-3.62 0-6.45-2.92-6.45-6.54s2.83-6.54 6.45-6.54c1.95 0 3.38.77 4.43 1.76L15.4 2.5C13.94 1.08 11.98 0 9.24 0 4.28 0 .11 4.04.11 9s4.17 9 9.13 9c2.68 0 4.7-.88 6.28-2.52 1.62-1.62 2.13-3.91 2.13-5.75 0-.57-.04-1.1-.13-1.54H9.24z" fill="#4285F4"/>
+          <path d="M25 6.19c-3.21 0-5.83 2.44-5.83 5.81 0 3.34 2.62 5.81 5.83 5.81s5.83-2.46 5.83-5.81c0-3.37-2.62-5.81-5.83-5.81zm0 9.33c-1.76 0-3.28-1.45-3.28-3.52 0-2.09 1.52-3.52 3.28-3.52s3.28 1.43 3.28 3.52c0 2.07-1.52 3.52-3.28 3.52z" fill="#EA4335"/>
+          <path d="M53.58 7.49h-.09c-.57-.68-1.67-1.3-3.06-1.3C47.53 6.19 45 8.72 45 12c0 3.26 2.53 5.81 5.43 5.81 1.39 0 2.49-.62 3.06-1.32h.09v.81c0 2.22-1.19 3.41-3.1 3.41-1.56 0-2.53-1.12-2.93-2.07l-2.22.92c.64 1.54 2.33 3.43 5.15 3.43 2.99 0 5.52-1.76 5.52-6.05V6.49h-2.42v1zm-2.93 8.03c-1.76 0-3.1-1.5-3.1-3.52 0-2.05 1.34-3.52 3.1-3.52 1.74 0 3.1 1.5 3.1 3.54.01 2.03-1.36 3.5-3.1 3.5z" fill="#FBBC05"/>
+          <path d="M38 6.19c-3.21 0-5.83 2.44-5.83 5.81 0 3.34 2.62 5.81 5.83 5.81s5.83-2.46 5.83-5.81c0-3.37-2.62-5.81-5.83-5.81zm0 9.33c-1.76 0-3.28-1.45-3.28-3.52 0-2.09 1.52-3.52 3.28-3.52s3.28 1.43 3.28 3.52c0 2.07-1.52 3.52-3.28 3.52z" fill="#34A853"/>
+          <path d="M58 .24h2.51v17.57H58z" fill="#4285F4"/>
+          <path d="M68.26 15.52c-1.3 0-2.22-.59-2.82-1.76l7.77-3.21-.26-.66c-.48-1.3-1.96-3.7-4.97-3.7-2.99 0-5.48 2.35-5.48 5.81 0 3.26 2.46 5.81 5.76 5.81 2.66 0 4.2-1.63 4.84-2.57l-1.98-1.32c-.66.96-1.56 1.6-2.86 1.6zm-.18-7.15c1.03 0 1.91.53 2.2 1.28l-5.25 2.17c0-2.44 1.73-3.45 3.05-3.45z" fill="#EA4335"/>
+        </svg>
+        <div class="rating-info">
+          <div class="stars">
+            ${'★'.repeat(Math.floor(parseFloat(rating)))}${'☆'.repeat(5 - Math.floor(parseFloat(rating)))}
+          </div>
+          <span>${rating} stars · ${reviewCount} reviews</span>
+        </div>
+      </div>
+      <div class="recent-reviews">
+        <div class="review-card">
+          <strong>John D.</strong> <span class="stars">★★★★★</span>
+          <p>"Absolutely incredible service! They went above and beyond my expectations. Highly recommend to anyone looking for quality work."</p>
+          <span class="review-date">2 days ago</span>
+        </div>
+        <div class="review-card">
+          <strong>Sarah M.</strong> <span class="stars">★★★★★</span>
+          <p>"Best experience I've had. Professional, punctual, and the results speak for themselves. Will definitely return!"</p>
+          <span class="review-date">1 week ago</span>
+        </div>
+      </div>
+      <button class="btn-secondary">See All Reviews on Google</button>
+    </div>
+  `;
+}
+
+// Live Chat Bubble
+export function generateLiveChatBubble(phone: string): string {
+  const cleanPhone = phone.replace(/\D/g, '');
+  return `
+    <div class="live-chat-bubble" id="chatBubble">
+      <div class="chat-icon">💬</div>
+      <span>Chat Now</span>
+      <div class="chat-popup" id="chatPopup">
+        <a href="tel:${phone}" class="chat-option">📞 Call Us</a>
+        <a href="https://wa.me/1${cleanPhone}" target="_blank" class="chat-option">💬 WhatsApp</a>
+        <a href="sms:${phone}" class="chat-option">📱 Text Us</a>
+      </div>
+    </div>
+  `;
+}
+
+// Exit Intent Popup
+export function generateExitIntentPopup(businessName: string): string {
+  return `
+    <div class="exit-popup" id="exitPopup">
+      <div class="popup-content">
+        <button class="close-popup" onclick="document.getElementById('exitPopup').style.display='none'">×</button>
+        <h2>Wait! Special Offer 🎉</h2>
+        <p class="offer-text">Get 20% OFF your first service!</p>
+        <p>This offer expires in:</p>
+        <div class="countdown" id="countdown">48:00:00</div>
+        <button class="btn-premium pulse" onclick="document.getElementById('exitPopup').style.display='none'">Claim Your Discount</button>
+        <p class="disclaimer">*Limited time offer for new customers only</p>
+      </div>
+    </div>
+  `;
 }
 
 // AI Image Generation with Replicate
@@ -670,9 +993,15 @@ export function getCategoryTheme(type: string): CategoryTheme {
 }
 
 // New functions for enhanced content generation
-export function generateBusinessContent(business: any): BusinessContent {
+export async function generateBusinessContent(business: any): Promise<BusinessContent> {
   const name = business.business_name.toLowerCase();
   const businessType = detectBusinessType(name);
+  
+  // Generate logo
+  const logo = await generateBusinessLogo(business.business_name, businessType);
+  
+  // Try to generate video background
+  const videoBackground = await generateVideoBackground(businessType);
   
   return {
     tagline: generateTagline(businessType, business.business_name),
@@ -681,7 +1010,9 @@ export function generateBusinessContent(business: any): BusinessContent {
     testimonials: generateTestimonials(businessType),
     hours: generateBusinessHours(businessType),
     theme: getThemeForType(businessType),
-    businessType
+    businessType,
+    logo,
+    videoBackground
   };
 }
 
@@ -1011,4 +1342,47 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
   
   const businessPrompts = prompts[type] || prompts.general;
   return businessPrompts[imageType] || businessPrompts.hero;
+}
+
+// Helper function to get industry keywords
+function getIndustryKeywords(businessType: string): string[] {
+  const keywordMap: { [key: string]: string[] } = {
+    restaurant: [
+      'fresh', 'delicious', 'menu', 'dining', 'cuisine', 'chef',
+      'ingredients', 'atmosphere', 'reservation', 'takeout', 'delivery',
+      'locally sourced', 'homemade', 'authentic', 'flavors', 'gourmet',
+      'award-winning', 'signature dishes', 'craft cocktails'
+    ],
+    plumbing: [
+      'emergency', '24/7', 'licensed', 'insured', 'leak repair',
+      'drain cleaning', 'water heater', 'pipe replacement', 'certified',
+      'reliable', 'professional', 'fast response', 'guaranteed work',
+      'master plumber', 'residential', 'commercial'
+    ],
+    beauty: [
+      'luxury', 'pamper', 'transform', 'glamorous', 'trendy',
+      'professional stylists', 'premium products', 'relaxation',
+      'makeover', 'cutting-edge', 'personalized', 'rejuvenate',
+      'award-winning', 'celebrity stylist', 'organic products'
+    ],
+    auto: [
+      'certified mechanics', 'diagnostic', 'warranty', 'genuine parts',
+      'preventive maintenance', 'ASE certified', 'state-of-the-art',
+      'honest pricing', 'quick turnaround', 'all makes models',
+      'factory trained', 'computer diagnostics', 'fleet service'
+    ],
+    cleaning: [
+      'eco-friendly', 'spotless', 'sanitized', 'deep clean',
+      'professional grade', 'bonded', 'insured', 'thorough',
+      'attention to detail', 'green cleaning', 'satisfaction guaranteed',
+      'commercial grade', 'HEPA filtration', 'CDC compliant'
+    ],
+    service: [
+      'professional', 'reliable', 'experienced', 'licensed', 'insured',
+      'quality', 'affordable', 'trusted', 'expert', 'certified',
+      'emergency', 'available', 'satisfaction guaranteed', 'free estimate'
+    ]
+  };
+
+  return keywordMap[businessType] || keywordMap.service;
 }
