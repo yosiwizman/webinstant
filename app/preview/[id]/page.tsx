@@ -72,11 +72,10 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
-  // Add the edit mode script to the HTML content
-  const htmlWithEditScript = preview.html_content.replace(
-    '</body>',
-    `<script src="/edit-mode.js" data-preview-id="${preview.id}"></script></body>`
-  )
+  // Add the edit mode script properly to the HTML content
+  const htmlWithEditScript = preview.html_content
+    .replace('</head>', '<script src="/edit-mode.js"></script></head>')
+    .replace('<body', `<body data-preview-id="${id}"`)
 
   // Render the HTML content with edit mode script
   return (

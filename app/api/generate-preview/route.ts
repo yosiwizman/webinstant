@@ -237,6 +237,25 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   const email = business.email || '';
   const zip = business.zip_code || '';
   
+  // Add random variations for unique generations
+  const randomSeed = Math.random();
+  const layoutVersion = Math.floor(randomSeed * 3) + 1; // 1, 2, or 3
+  
+  // Vary hero alignment based on layoutVersion
+  const heroAlignment = layoutVersion === 1 ? 'left' : layoutVersion === 2 ? 'center' : 'right';
+  const heroTextAlign = layoutVersion === 1 ? 'text-align: left;' : layoutVersion === 2 ? 'text-align: center;' : 'text-align: right;';
+  
+  // Vary button styles
+  const buttonRadius = layoutVersion === 1 ? '50px' : layoutVersion === 2 ? '10px' : '0px';
+  
+  // Vary animation speeds
+  const animationSpeed = layoutVersion === 1 ? '0.8s' : layoutVersion === 2 ? '1s' : '1.2s';
+  
+  // Vary grid layouts
+  const gridColumns = layoutVersion === 1 ? 'repeat(auto-fit, minmax(350px, 1fr))' : 
+                      layoutVersion === 2 ? 'repeat(3, 1fr)' : 
+                      'repeat(auto-fit, minmax(300px, 1fr))';
+  
   // Get images (AI generated or stock)
   const images = content.images || {
     hero: `https://picsum.photos/1920/1080?random=${Math.random()}`,
@@ -265,28 +284,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     `;
   };
   
-  // Determine hero text color based on business type
-  const getHeroTextColor = () => {
-    switch(content.businessType) {
-      case 'restaurant':
-        return 'white'; // White text on orange background
-      case 'plumbing':
-        return 'white'; // White text on blue background
-      case 'beauty':
-        return 'white'; // White text on pink background
-      case 'automotive':
-        return 'white'; // White text on dark background
-      case 'cleaning':
-        return '#0C4A4D'; // Dark blue text on turquoise background
-      default:
-        return 'white'; // Default to white for safety
-    }
-  };
-  
-  const heroTextColor = getHeroTextColor();
-  const heroTextShadow = content.businessType === 'cleaning' 
-    ? '1px 1px 3px rgba(255,255,255,0.5)' // Light shadow for dark text
-    : '2px 2px 8px rgba(0,0,0,0.5)'; // Dark shadow for white text
+  // FIXED: Always use white text with strong shadows for hero sections
+  const heroTextColor = '#FFFFFF';
+  const heroTextShadow = '2px 2px 10px rgba(0,0,0,0.8)';
   
   // Get layout-specific hero section with FIXED text colors
   const getHeroSection = () => {
@@ -304,12 +304,12 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />`}
             </div>
             <div class="hero-overlay"></div>
-            <div class="hero-content animate-on-scroll" style="--delay: 0; color: ${heroTextColor};">
-              <h1 class="hero-title" style="color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${businessName}</h1>
-              <div class="tagline" style="color: ${heroTextColor}; text-shadow: ${heroTextShadow}; --delay: 1">${content.tagline}</div>
+            <div class="hero-content animate-on-scroll" style="--delay: 0; ${heroTextAlign}">
+              <h1 class="hero-title" style="color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important;">${businessName}</h1>
+              <div class="tagline" style="color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important; --delay: 1">${content.tagline}</div>
               <div class="hero-cta" style="--delay: 2">
                 <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
-                <a href="#contact" class="btn-secondary" style="border-color: ${heroTextColor}; color: ${heroTextColor};">Get Directions</a>
+                <a href="#contact" class="btn-secondary" style="border-color: ${heroTextColor}; color: ${heroTextColor} !important;">Get Directions</a>
               </div>
             </div>
           </section>`;
@@ -351,14 +351,14 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               ${videoBackground || `<img src="${images.hero}" alt="${businessName}" class="hero-video parallax" />`}
               <div class="hero-gradient-overlay"></div>
             </div>
-            <div class="hero-fullscreen-content" style="color: ${heroTextColor};">
-              <div class="hero-badge animate-on-scroll" style="--delay: 0; color: ${heroTextColor}; border-color: ${heroTextColor};">⭐ Top Rated ${content.businessType}</div>
-              <h1 class="hero-massive-title animate-on-scroll" style="--delay: 1">
-                <span style="color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${businessName}</span>
+            <div class="hero-fullscreen-content" style="${heroTextAlign}">
+              <div class="hero-badge animate-on-scroll" style="--delay: 0; color: ${heroTextColor} !important; border-color: ${heroTextColor} !important;">⭐ Top Rated ${content.businessType}</div>
+              <h1 class="hero-massive-title animate-on-scroll" style="--delay: 1; color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important;">
+                ${businessName}
               </h1>
-              <div class="hero-subtitle animate-on-scroll" style="--delay: 2; color: ${heroTextColor}; text-shadow: ${heroTextShadow};">${content.tagline}</div>
+              <div class="hero-subtitle animate-on-scroll" style="--delay: 2; color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important;">${content.tagline}</div>
               <div class="hero-features animate-on-scroll" style="--delay: 3">
-                ${content.services.slice(0, 3).map((s: string) => `<span class="feature-badge" style="color: ${heroTextColor}; border-color: ${heroTextColor};">${s.substring(2, 20)}...</span>`).join('')}
+                ${content.services.slice(0, 3).map((s: string) => `<span class="feature-badge" style="color: ${heroTextColor} !important; border-color: ${heroTextColor} !important;">${s.substring(2, 20)}...</span>`).join('')}
               </div>
               <div class="hero-cta animate-on-scroll" style="--delay: 4">
                 <a href="tel:${phone}" class="btn-premium btn-large pulse">
@@ -366,9 +366,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
                 </a>
               </div>
             </div>
-            <div class="scroll-indicator" style="color: ${heroTextColor};">
+            <div class="scroll-indicator" style="color: ${heroTextColor} !important;">
               <span>Scroll</span>
-              <div class="scroll-arrow" style="border-color: ${heroTextColor};"></div>
+              <div class="scroll-arrow" style="border-color: ${heroTextColor} !important;"></div>
             </div>
           </section>`;
     }
@@ -538,7 +538,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               <h2 class="section-title animate-on-scroll">Make a Reservation</h2>
               <div class="reservation-widget premium-card animate-on-scroll">
                 <form class="reservation-form">
-                  <input type="date" placeholder="Select Date" />
+                  <input type="date" placeholder="Select Date" min="2025-01-01" />
                   <input type="time" placeholder="Select Time" />
                   <input type="number" placeholder="Number of Guests" min="1" max="20" />
                   <button type="submit" class="btn-premium">Reserve Table</button>
@@ -725,6 +725,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       --heading-font: ${theme.fonts.heading};
       --body-font: ${theme.fonts.body};
       --accent-font: ${theme.fonts.accent || theme.fonts.heading};
+      --button-radius: ${buttonRadius};
+      --animation-speed: ${animationSpeed};
+      --grid-columns: ${gridColumns};
     }
 
     body {
@@ -753,7 +756,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
     .animate-on-scroll {
       opacity: 0;
-      animation: fadeInUp 0.8s ease forwards;
+      animation: fadeInUp var(--animation-speed) ease forwards;
       animation-delay: calc(var(--delay) * 0.1s);
     }
 
@@ -827,7 +830,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       background: var(--hero-gradient);
       color: white;
       padding: 0.75rem 2rem;
-      border-radius: 50px;
+      border-radius: var(--button-radius);
       text-decoration: none;
       font-weight: 600;
       transition: all 0.3s ease;
@@ -921,7 +924,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     .hero-classic .hero-content {
       max-width: 1200px;
       padding: 2rem;
-      text-align: center;
       z-index: 1;
     }
 
@@ -1012,7 +1014,6 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      text-align: center;
       padding: 2rem;
       z-index: 1;
     }
@@ -1101,7 +1102,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     .hero-cta {
       display: flex;
       gap: 1.5rem;
-      justify-content: center;
+      justify-content: ${heroAlignment};
       flex-wrap: wrap;
       margin-top: 3rem;
     }
@@ -1111,7 +1112,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       font-size: 1.1rem;
       font-weight: 600;
       border: none;
-      border-radius: 50px;
+      border-radius: var(--button-radius);
       cursor: pointer;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -1164,7 +1165,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       font-size: 1.1rem;
       font-weight: 600;
       border: 2px solid white;
-      border-radius: 50px;
+      border-radius: var(--button-radius);
       cursor: pointer;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -1174,9 +1175,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       display: inline-block;
     }
 
-    .btn-secondary: {
+    .btn-secondary:hover {
       background: white;
-      color: var(--primary);
+      color: var(--primary) !important;
     }
 
     .btn-secondary-alt {
@@ -1184,7 +1185,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       font-size: 1.1rem;
       font-weight: 600;
       border: 2px solid var(--primary);
-      border-radius: 50px;
+      border-radius: var(--button-radius);
       cursor: pointer;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -1757,7 +1758,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
     /* Services Grid */
     .services-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      grid-template-columns: var(--grid-columns);
       gap: 2rem;
       margin-top: 3rem;
     }
@@ -1895,6 +1896,17 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       overflow: hidden;
     }
 
+    .contact-section .section-title {
+      color: #FFFFFF !important;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.7) !important;
+      -webkit-text-fill-color: #FFFFFF !important;
+    }
+
+    .contact-section .section-subtitle {
+      color: #FFFFFF !important;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.5) !important;
+    }
+
     .contact-section::before {
       content: '';
       position: absolute;
@@ -1942,6 +1954,13 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
     .contact-card a:hover {
       text-decoration: underline;
+    }
+
+    /* Interactive Section */
+    .interactive-section .section-title {
+      color: #FFFFFF !important;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.7) !important;
+      -webkit-text-fill-color: #FFFFFF !important;
     }
 
     /* Hours */
@@ -2378,8 +2397,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
       to { transform: rotate(360deg); }
     }
   </style>
+  <script src="/edit-mode.js"></script>
 </head>
-<body>
+<body data-preview-id="${business.id}">
   <!-- Loading Screen -->
   <div class="loading" id="loading">
     <div class="spinner"></div>
@@ -2422,7 +2442,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   <!-- Interactive Elements Section -->
   <section class="interactive-section">
     <div class="container">
-      <h2 class="section-title animate-on-scroll">Get Started Today</h2>
+      <h2 class="section-title animate-on-scroll" style="color: #FFFFFF !important; text-shadow: 2px 2px 8px rgba(0,0,0,0.7) !important;">Get Started Today</h2>
       ${generateInteractiveElements(content.businessType)}
     </div>
   </section>
@@ -2491,8 +2511,8 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   <!-- Contact Section -->
   <section id="contact" class="contact-section">
     <div class="container">
-      <h2 class="section-title animate-on-scroll">Get In Touch</h2>
-      <p class="section-subtitle animate-on-scroll">We're Here to Help</p>
+      <h2 class="section-title animate-on-scroll" style="color: #FFFFFF !important; text-shadow: 2px 2px 8px rgba(0,0,0,0.7) !important;">Get In Touch</h2>
+      <p class="section-subtitle animate-on-scroll" style="color: #FFFFFF !important; text-shadow: 1px 1px 4px rgba(0,0,0,0.5) !important;">We're Here to Help</p>
       <div class="contact-grid">
         <div class="contact-card premium-card animate-on-scroll" style="--delay: 1">
           <h3>📍 Visit Us</h3>
@@ -2711,7 +2731,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         }
         
         if (countdownEl) {
-          countdownEl.textContent = \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
+          countdownEl.textContent =  \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
         }
       }, 1000);
     }

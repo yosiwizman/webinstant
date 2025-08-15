@@ -7,9 +7,9 @@
     return;
   }
 
-  // Get preview ID from URL path
-  const pathParts = window.location.pathname.split('/');
-  const previewId = pathParts[pathParts.length - 1];
+  // Get preview ID from body attribute or URL
+  const previewId = document.body.getAttribute('data-preview-id') || 
+                    window.location.pathname.split('/').pop();
 
   if (!previewId) {
     console.error('Edit mode: No preview ID found');
@@ -203,9 +203,31 @@
   // Initialize edit mode
   function initEditMode() {
     // Find all editable elements
-    const editableElements = document.querySelectorAll('[data-editable]');
+    let editableElements = document.querySelectorAll('[data-editable], [data-field]');
     
     console.log(`Found ${editableElements.length} editable elements`);
+    
+    // If no elements found, try searching for prices and menu items directly
+    if (editableElements.length === 0) {
+      console.log('No editable elements found, searching for price elements...');
+      
+      // Find all elements containing $ followed by numbers
+      const priceElements = Array.from(document.querySelectorAll('*')).filter(el => 
+        el.textContent.match(/^\$\d+/) && el.children.length === 0
+      );
+      
+      console.log(`Found ${priceElements.length} price elements`);
+      
+      priceElements.forEach((el, i) => {
+        el.setAttribute('data-editable', 'price');
+        el.setAttribute('data-field', `price-${i+1}`);
+      });
+      
+      // Re-query for editable elements
+      editableElements = document.querySelectorAll('[data-editable], [data-field]');
+    }
+    
+    console.log(`Total editable elements after search: ${editableElements.length}`);
     
     editableElements.forEach(element => {
       // Remove any existing event listeners by cloning
