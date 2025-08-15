@@ -406,7 +406,7 @@ export function generateInteractiveElements(businessType: string): string {
     beauty: `
       <div class="booking-widget premium-card">
         <h3>Book Your Appointment</h3>
-        <input type="date" min="${new Date().toISO String().split('T')[0]}" class="premium-input">
+        <input type="date" min="${new Date().toISOString().split('T')[0]}" class="premium-input">
         <select class="premium-select">
           <option>Haircut - $45</option>
           <option>Color - $120</option>
