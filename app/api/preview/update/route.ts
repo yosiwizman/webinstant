@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Get the current preview
     const { data: preview, error: fetchError } = await supabase
       .from('website_previews')
-      .select('html_content')
+      .select('html_content, custom_edits')
       .eq('id', previewId)
       .single()
 
@@ -82,12 +82,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Save the updated HTML back to the database
-    const { error: updateError } =  await supabase
+    // Merge existing custom_edits with new updates
+    const existingEdits = preview.custom_edits || {}
+    const mergedEdits = {
+      ...existingEdits,
+      ...updates,
+      last_modified: new Date().toISOString()
+    }
+
+    // Log what we're about to save for debugging
+    console.log('Updating preview with ID:', previewId)
+    console.log('Updates to save:', mergedEdits)
+
+    // Save the updated HTML and custom_edits back to the database
+    const { error: updateError } = await supabase
       .from('website_previews')
       .update({ 
         html_content: updatedHtml,
-        updated_at: new Date().toISOString()
+        custom_edits: mergedEdits,
+        last_edited_at: new Date().toISOString()
       })
       .eq('id', previewId)
 
@@ -119,7 +132,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Preview updated successfully',
-      updates: updates
+      updates: mergedEdits
     })
 
   } catch (error) {
