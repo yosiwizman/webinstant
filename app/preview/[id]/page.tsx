@@ -146,13 +146,15 @@ export default async function PreviewPage({ params }: PageProps) {
         }
 
         function initEditor() {
-          // Create floating edit button
+          console.log('Initializing editor...');
+          
+          // Create floating edit button - positioned higher to avoid chat bubble
           const editBtn = document.createElement('button');
           editBtn.innerHTML = '✏️ Edit Info';
           editBtn.className = 'floating-edit-btn';
           editBtn.style.cssText = \`
             position: fixed;
-            bottom: 20px;
+            bottom: 80px;
             right: 20px;
             z-index: 9999;
             padding: 12px 20px;
@@ -166,6 +168,8 @@ export default async function PreviewPage({ params }: PageProps) {
             font-size: 14px;
             font-weight: 500;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
           \`;
           
           editBtn.onmouseover = () => {
@@ -178,28 +182,43 @@ export default async function PreviewPage({ params }: PageProps) {
             editBtn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
           };
           
+          // Add touch events for mobile
+          editBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            this.style.transform = 'scale(0.95)';
+          });
+          
+          editBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            this.style.transform = 'scale(1)';
+          });
+          
           document.body.appendChild(editBtn);
 
           // Create edit panel
           const panel = document.createElement('div');
           panel.className = 'edit-panel';
-          panel.style.cssText = \`
-            position: fixed;
-            bottom: -100%;
-            left: 0;
-            right: 0;
-            background: white;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-            padding: 20px;
-            transition: bottom 0.3s ease;
-            z-index: 10000;
-            max-height: 70vh;
-            overflow-y: auto;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          \`;
+          panel.id = 'edit-panel';
           
-          // Media query for desktop
-          if (window.innerWidth > 768) {
+          // Set initial styles based on screen size
+          const isMobile = window.innerWidth <= 768;
+          
+          if (isMobile) {
+            panel.style.cssText = \`
+              position: fixed;
+              bottom: -100%;
+              left: 0;
+              right: 0;
+              background: white;
+              box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+              padding: 20px;
+              transition: bottom 0.3s ease;
+              z-index: 10000;
+              max-height: 70vh;
+              overflow-y: auto;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            \`;
+          } else {
             panel.style.cssText = \`
               position: fixed;
               right: -400px;
@@ -219,7 +238,7 @@ export default async function PreviewPage({ params }: PageProps) {
           panel.innerHTML = \`
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
               <h3 style="margin: 0; color: #333; font-size: 20px;">Edit Business Info</h3>
-              <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+              <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 5px; touch-action: manipulation;">×</button>
             </div>
             
             <div style="margin-bottom: 20px;">
@@ -282,8 +301,8 @@ export default async function PreviewPage({ params }: PageProps) {
             </div>
             
             <div style="display: flex; gap: 10px;">
-              <button id="save-changes" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer;">Save Changes</button>
-              <button id="cancel-edit" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer;">Cancel</button>
+              <button id="save-changes" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Save Changes</button>
+              <button id="cancel-edit" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Cancel</button>
             </div>
             
             <div id="save-status" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none; text-align: center; font-size: 14px;"></div>
@@ -371,13 +390,43 @@ export default async function PreviewPage({ params }: PageProps) {
             return prices.slice(0, 3); // Return first 3 prices found
           }
 
-          // Toggle panel
-          editBtn.onclick = () => {
-            if (window.innerWidth > 768) {
-              panel.style.right = '0';
-            } else {
+          // Function to show panel
+          function showPanel() {
+            console.log('Showing panel...');
+            const isMobile = window.innerWidth <= 768;
+            
+            if (isMobile) {
               panel.style.bottom = '0';
+              panel.style.right = '0';
+              panel.style.left = '0';
+              // Prevent body scroll when panel is open on mobile
+              document.body.style.overflow = 'hidden';
+            } else {
+              panel.style.right = '0';
             }
+          }
+
+          // Function to hide panel
+          function hidePanel() {
+            console.log('Hiding panel...');
+            const isMobile = window.innerWidth <= 768;
+            
+            if (isMobile) {
+              panel.style.bottom = '-100%';
+              // Restore body scroll
+              document.body.style.overflow = '';
+            } else {
+              panel.style.right = '-400px';
+            }
+          }
+
+          // Toggle panel - use both click and touch events
+          editBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Edit button clicked');
+            
+            showPanel();
             
             // Find and populate current values
             const phone = findPhoneNumber();
@@ -417,27 +466,33 @@ export default async function PreviewPage({ params }: PageProps) {
                 originalValues['price-' + (index + 1)] = price.value;
               }
             });
-          };
+          });
 
-          // Close panel
-          document.getElementById('close-panel').onclick = () => {
-            if (window.innerWidth > 768) {
-              panel.style.right = '-400px';
-            } else {
-              panel.style.bottom = '-100%';
+          // Also add touch event for mobile
+          editBtn.addEventListener('touchend', function(e) {
+            if (e.cancelable) {
+              e.preventDefault();
+              e.stopPropagation();
+              this.click();
             }
-          };
+          });
 
-          document.getElementById('cancel-edit').onclick = () => {
-            if (window.innerWidth > 768) {
-              panel.style.right = '-400px';
-            } else {
-              panel.style.bottom = '-100%';
-            }
-          };
+          // Close panel handlers
+          document.getElementById('close-panel').addEventListener('click', function(e) {
+            e.preventDefault();
+            hidePanel();
+          });
+
+          document.getElementById('cancel-edit').addEventListener('click', function(e) {
+            e.preventDefault();
+            hidePanel();
+          });
 
           // Save changes
-          document.getElementById('save-changes').onclick = async () => {
+          document.getElementById('save-changes').addEventListener('click', async function(e) {
+            e.preventDefault();
+            console.log('Save button clicked');
+            
             const statusDiv = document.getElementById('save-status');
             statusDiv.style.display = 'block';
             statusDiv.style.background = '#ffc107';
@@ -495,9 +550,13 @@ export default async function PreviewPage({ params }: PageProps) {
               updates.prices = priceUpdates;
             }
 
-            // Save to database with better error handling
+            // Save to database - send only the necessary data
             try {
-              console.log('Sending update request:', { previewId: window.PREVIEW_ID, updates });
+              console.log('Sending update request:', { 
+                previewId: window.PREVIEW_ID, 
+                businessId: window.BUSINESS_ID,
+                updates: updates 
+              });
               
               const response = await fetch('/api/preview/update', {
                 method: 'POST',
@@ -521,11 +580,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 Object.assign(originalValues, updates);
                 
                 setTimeout(() => {
-                  if (window.innerWidth > 768) {
-                    panel.style.right = '-400px';
-                  } else {
-                    panel.style.bottom = '-100%';
-                  }
+                  hidePanel();
                   statusDiv.style.display = 'none';
                 }, 2000);
               } else {
@@ -541,7 +596,52 @@ export default async function PreviewPage({ params }: PageProps) {
                 statusDiv.style.display = 'none';
               }, 5000);
             }
-          };
+          });
+
+          // Handle window resize
+          let resizeTimeout;
+          window.addEventListener('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+              const isMobile = window.innerWidth <= 768;
+              const isVisible = isMobile ? 
+                (panel.style.bottom === '0px' || panel.style.bottom === '0') : 
+                (panel.style.right === '0px' || panel.style.right === '0');
+              
+              // Update panel styles based on new screen size
+              if (isMobile) {
+                panel.style.cssText = \`
+                  position: fixed;
+                  bottom: \${isVisible ? '0' : '-100%'};
+                  left: 0;
+                  right: 0;
+                  background: white;
+                  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                  padding: 20px;
+                  transition: bottom 0.3s ease;
+                  z-index: 10000;
+                  max-height: 70vh;
+                  overflow-y: auto;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                \`;
+              } else {
+                panel.style.cssText = \`
+                  position: fixed;
+                  right: \${isVisible ? '0' : '-400px'};
+                  top: 0;
+                  bottom: 0;
+                  width: 400px;
+                  background: white;
+                  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+                  padding: 20px;
+                  transition: right 0.3s ease;
+                  z-index: 10000;
+                  overflow-y: auto;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                \`;
+              }
+            }, 250);
+          });
         }
       })();
     </script>
