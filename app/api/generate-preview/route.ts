@@ -480,33 +480,33 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               <h2 class="section-title animate-on-scroll">Our Signature Menu</h2>
               <div class="menu-grid">
                 <div class="menu-card premium-card animate-on-scroll" style="--delay: 1">
-                  <h3>Appetizers</h3>
+                  <h3 data-editable="text" data-field="menu-category-1">Appetizers</h3>
                   <div class="menu-item">
-                    <span>Truffle Arancini</span>
-                    <span class="price">$18</span>
+                    <span data-editable="text" data-field="menu-item-1">Truffle Arancini</span>
+                    <span class="price" data-editable="price" data-field="price-1">$18</span>
                   </div>
                   <div class="menu-item">
-                    <span>Oysters Rockefeller</span>
-                    <span class="price">$24</span>
+                    <span data-editable="text" data-field="menu-item-2">Oysters Rockefeller</span>
+                    <span class="price" data-editable="price" data-field="price-2">$24</span>
                   </div>
                   <div class="menu-item">
-                    <span>Wagyu Beef Carpaccio</span>
-                    <span class="price">$32</span>
+                    <span data-editable="text" data-field="menu-item-3">Wagyu Beef Carpaccio</span>
+                    <span class="price" data-editable="price" data-field="price-3">$32</span>
                   </div>
                 </div>
                 <div class="menu-card premium-card animate-on-scroll" style="--delay: 2">
-                  <h3>Main Courses</h3>
+                  <h3 data-editable="text" data-field="menu-category-2">Main Courses</h3>
                   <div class="menu-item">
-                    <span>Pan-Seared Duck Breast</span>
-                    <span class="price">$48</span>
+                    <span data-editable="text" data-field="menu-item-4">Pan-Seared Duck Breast</span>
+                    <span class="price" data-editable="price" data-field="price-4">$48</span>
                   </div>
                   <div class="menu-item">
-                    <span>Lobster Thermidor</span>
-                    <span class="price">$65</span>
+                    <span data-editable="text" data-field="menu-item-5">Lobster Thermidor</span>
+                    <span class="price" data-editable="price" data-field="price-5">$65</span>
                   </div>
                   <div class="menu-item">
-                    <span>Prime Ribeye (16oz)</span>
-                    <span class="price">$72</span>
+                    <span data-editable="text" data-field="menu-item-6">Prime Ribeye (16oz)</span>
+                    <span class="price" data-editable="price" data-field="price-6">$72</span>
                   </div>
                 </div>
               </div>
@@ -547,10 +547,10 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               <div class="calculator-widget premium-card animate-on-scroll">
                 <select id="service-type">
                   <option>Select Service Type</option>
-                  <option value="drain">Drain Cleaning ($150-300)</option>
-                  <option value="leak">Leak Repair ($200-500)</option>
-                  <option value="water-heater">Water Heater ($800-2000)</option>
-                  <option value="repipe">Repiping ($3000-8000)</option>
+                  <option value="drain" data-editable="text" data-field="service-option-1">Drain Cleaning ($150-300)</option>
+                  <option value="leak" data-editable="text" data-field="service-option-2">Leak Repair ($200-500)</option>
+                  <option value="water-heater" data-editable="text" data-field="service-option-3">Water Heater ($800-2000)</option>
+                  <option value="repipe" data-editable="text" data-field="service-option-4">Repiping ($3000-8000)</option>
                 </select>
                 <button class="btn-premium">Get Instant Quote</button>
               </div>
@@ -603,25 +603,25 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               <h2 class="section-title animate-on-scroll">Book Your Appointment</h2>
               <div class="booking-widget premium-card animate-on-scroll">
                 <div class="service-selector">
-                  <button class="service-btn active">Hair</button>
-                  <button class="service-btn">Nails</button>
-                  <button class="service-btn">Makeup</button>
-                  <button class="service-btn">Spa</button>
+                  <button class="service-btn active" data-editable="text" data-field="beauty-service-1">Hair</button>
+                  <button class="service-btn" data-editable="text" data-field="beauty-service-2">Nails</button>
+                  <button class="service-btn" data-editable="text" data-field="beauty-service-3">Makeup</button>
+                  <button class="service-btn" data-editable="text" data-field="beauty-service-4">Spa</button>
                 </div>
                 <div class="stylist-selector">
                   <h4>Choose Your Stylist</h4>
                   <div class="stylist-grid">
                     <div class="stylist-card">
                       <img src="${images.team}" alt="Stylist" />
-                      <p>Sarah</p>
+                      <p data-editable="text" data-field="stylist-name-1">Sarah</p>
                     </div>
                     <div class="stylist-card">
                       <img src="${images.team}" alt="Stylist" />
-                      <p>Jessica</p>
+                      <p data-editable="text" data-field="stylist-name-2">Jessica</p>
                     </div>
                     <div class="stylist-card">
                       <img src="${images.team}" alt="Stylist" />
-                      <p>Michelle</p>
+                      <p data-editable="text" data-field="stylist-name-3">Michelle</p>
                     </div>
                   </div>
                 </div>
@@ -656,7 +656,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   const servicesHTML = content.services.map((service: string, i: number) => `
     <div class="service-item premium-card animate-on-scroll" style="--delay: ${i + 1}">
       <div class="service-icon gradient-bg">${service.substring(0, 2)}</div>
-      <h4>${service.substring(2)}</h4>
+      <h4 data-editable="text" data-field="service-name-${i + 1}">${service.substring(2)}</h4>
       <p>Professional service with guaranteed satisfaction</p>
       <button class="btn-secondary">Learn More</button>
     </div>
@@ -1214,7 +1214,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
     @keyframes pulse {
       0% {
-        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+        box-shadow: 0 0 0 0 rgba(255,255, 255, 0.7);
       }
       70% {
         box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
