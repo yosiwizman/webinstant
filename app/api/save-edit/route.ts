@@ -1,28 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request: NextRequest) {
-  const { previewId, field, value } = await request.json();
-  
-  // Get current custom_edits
-  const { data: preview } = await supabase
-    .from('website_previews')
-    .select('custom_edits')
-    .eq('id', previewId)
-    .single();
-  
-  // Update with new value
-  const customEdits = preview?.custom_edits || {};
-  customEdits[field] = value;
-  
-  // Save back to database
-  await supabase
-    .from('website_previews')
-    .update({ 
-      custom_edits: customEdits,
-      last_edited_at: new Date().toISOString()
-    })
-    .eq('id', previewId);
-  
-  return NextResponse.json({ success: true });
+  try {
+    const body = await request.json();
+    const { previewId, field, value } = body;
+
+    console.log('Saving edit:', { previewId, field, value });
+
+    if (!previewId || !field || value === undefined) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Get current preview data
+    const { data: preview, error: fetchError } = await supabase
+      .from('website_previews')
+      .select('custom_edits')
+      .eq('id', previewId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching preview:', fetchError);
+      return NextResponse.json(
+        { success: false, error: 'Preview not found' },
+        { status: 404 }
+      );
+    }
+
+    // Update custom_edits object
+    const customEdits = preview?.custom_edits || {};
+    customEdits[field] = value;
+
+    // Save back to database
+    const { error: updateError } = await supabase
+      .from('website_previews')
+      .update({ 
+        custom_edits: customEdits,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', previewId);
+
+    if (updateError) {
+      console.error('Error updating preview:', updateError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to save changes' },
+        { status: 500 }
+      );
+    }
+
+    console.log('Successfully saved edit for field:', field);
+
+    return NextResponse.json({ 
+      success: true,
+      field: field,
+      value: value
+    });
+  } catch (error) {
+    console.error('Error in save-edit route:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    message: 'Edit save endpoint',
+    method: 'POST',
+    requiredFields: ['previewId', 'field', 'value']
+  });
 }

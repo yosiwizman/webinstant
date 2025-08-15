@@ -7,79 +7,46 @@
     return;
   }
 
-  // Get preview ID from the script tag
-  const scriptTag = document.currentScript || document.querySelector('script[src="/edit-mode.js"]');
-  const previewId = scriptTag ? scriptTag.getAttribute('data-preview-id') : null;
+  // Get preview ID from URL path
+  const pathParts = window.location.pathname.split('/');
+  const previewId = pathParts[pathParts.length - 1];
 
   if (!previewId) {
     console.error('Edit mode: No preview ID found');
     return;
   }
 
+  console.log('Edit mode activated for preview:', previewId);
+
   // Create styles for edit mode
   const style = document.createElement('style');
   style.textContent = `
     [data-editable] {
       position: relative;
-      transition: background-color 0.2s ease;
+      transition: all 0.2s ease;
+      cursor: pointer !important;
     }
     
     [data-editable]:hover {
       background-color: rgba(59, 130, 246, 0.1) !important;
-      outline: 2px dashed rgba(59, 130, 246, 0.5);
+      outline: 2px dashed #3b82f6 !important;
       outline-offset: 2px;
-      cursor: pointer;
     }
     
-    .edit-icon {
-      position: absolute;
-      top: -8px;
-      right: -8px;
-      width: 24px;
-      height: 24px;
-      background: #3b82f6;
-      border-radius: 50%;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 10000;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-    
-    [data-editable]:hover .edit-icon {
-      display: flex;
-    }
-    
-    .edit-input {
+    .edit-mode-input {
       font: inherit;
-      color: inherit;
-      background: rgba(255, 255, 255, 0.95);
+      color: #000;
+      background: #fff;
       border: 2px solid #3b82f6;
       padding: 4px 8px;
       border-radius: 4px;
-      width: 100%;
-      box-sizing: border-box;
       outline: none;
-    }
-    
-    .edit-textarea {
-      font: inherit;
-      color: inherit;
-      background: rgba(255, 255, 255, 0.95);
-      border: 2px solid #3b82f6;
-      padding: 4px 8px;
-      border-radius: 4px;
-      width: 100%;
-      box-sizing: border-box;
-      outline: none;
-      resize: vertical;
-      min-height: 60px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     .save-indicator {
       position: fixed;
-      top: 20px;
+      top: 60px;
       right: 20px;
       background: #10b981;
       color: white;
@@ -111,7 +78,7 @@
       right: 0;
       background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
       color: white;
-      padding: 8px;
+      padding: 12px;
       text-align: center;
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 14px;
@@ -131,7 +98,7 @@
   // Create edit mode banner
   const banner = document.createElement('div');
   banner.className = 'edit-mode-banner';
-  banner.innerHTML = '✏️ Edit Mode Active - Click any highlighted text to edit';
+  banner.innerHTML = '✏️ Edit Mode Active - Click any highlighted text to edit (prices, menu items, descriptions, etc.)';
   document.body.appendChild(banner);
 
   // Show save indicator
@@ -144,19 +111,17 @@
   }
 
   // Save content to API
-  async function saveContent(element, newContent) {
-    const fieldName = element.getAttribute('data-editable');
-    
+  async function saveContent(field, newContent) {
     try {
-      const response = await fetch('/api/update-preview', {
+      const response = await fetch('/api/save-edit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           previewId: previewId,
-          field: fieldName,
-          content: newContent
+          field: field,
+          value: newContent
         })
       });
 
@@ -164,6 +129,8 @@
         throw new Error('Failed to save');
       }
 
+      const data = await response.json();
+      console.log('Saved successfully:', field, newContent);
       showSaveIndicator(true);
       return true;
     } catch (error) {
@@ -175,24 +142,24 @@
 
   // Make element editable
   function makeEditable(element) {
-    // Skip if already being edited
-    if (element.querySelector('.edit-input, .edit-textarea')) {
+    // Prevent multiple edits at once
+    if (element.querySelector('.edit-mode-input')) {
       return;
     }
 
     const originalContent = element.textContent.trim();
-    const computedStyle = window.getComputedStyle(element);
-    const isMultiline = element.offsetHeight > parseInt(computedStyle.lineHeight) * 1.5;
-
+    const field = element.getAttribute('data-field') || element.getAttribute('data-editable');
+    
     // Create input element
-    const input = document.createElement(isMultiline ? 'textarea' : 'input');
-    input.className = isMultiline ? 'edit-textarea' : 'edit-input';
+    const input = document.createElement('input');
+    input.className = 'edit-mode-input';
+    input.type = 'text';
     input.value = originalContent;
     
-    if (!isMultiline) {
-      input.type = 'text';
-    }
-
+    // Match the width of the original element
+    const elementWidth = element.offsetWidth;
+    input.style.width = Math.max(elementWidth, 100) + 'px';
+    
     // Store original HTML
     const originalHTML = element.innerHTML;
 
@@ -202,65 +169,35 @@
     input.focus();
     input.select();
 
-    // Handle save on blur or enter
+    // Handle save
     const saveAndRestore = async () => {
       const newContent = input.value.trim();
       
-      if (newContent !== originalContent) {
-        const saved = await saveContent(element, newContent);
+      if (newContent !== originalContent && newContent !== '') {
+        const saved = await saveContent(field, newContent);
         if (saved) {
-          element.innerHTML = newContent;
+          element.textContent = newContent;
         } else {
           element.innerHTML = originalHTML;
         }
       } else {
         element.innerHTML = originalHTML;
       }
-      
-      // Re-add edit icon
-      addEditIcon(element);
     };
 
+    // Save on blur
     input.addEventListener('blur', saveAndRestore);
     
-    if (!isMultiline) {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          input.blur();
-        } else if (e.key === 'Escape') {
-          input.value = originalContent;
-          input.blur();
-        }
-      });
-    } else {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          input.value = originalContent;
-          input.blur();
-        }
-      });
-    }
-  }
-
-  // Add edit icon to element
-  function addEditIcon(element) {
-    // Skip if icon already exists
-    if (element.querySelector('.edit-icon')) {
-      return;
-    }
-
-    const icon = document.createElement('div');
-    icon.className = 'edit-icon';
-    icon.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-      </svg>
-    `;
-    
-    element.style.position = 'relative';
-    element.appendChild(icon);
+    // Save on Enter, cancel on Escape
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      } else if (e.key === 'Escape') {
+        input.value = originalContent;
+        input.blur();
+      }
+    });
   }
 
   // Initialize edit mode
@@ -268,29 +205,30 @@
     // Find all editable elements
     const editableElements = document.querySelectorAll('[data-editable]');
     
+    console.log(`Found ${editableElements.length} editable elements`);
+    
     editableElements.forEach(element => {
-      // Add edit icon
-      addEditIcon(element);
+      // Remove any existing event listeners by cloning
+      const newElement = element.cloneNode(true);
+      element.parentNode.replaceChild(newElement, element);
       
       // Add click handler
-      element.addEventListener('click', (e) => {
-        // Don't trigger if clicking on the icon itself
-        if (!e.target.closest('.edit-icon') && !e.target.closest('.edit-input') && !e.target.closest('.edit-textarea')) {
-          e.preventDefault();
-          e.stopPropagation();
-          makeEditable(element);
-        }
+      newElement.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        makeEditable(newElement);
       });
     });
 
-    console.log(`Edit mode activated: ${editableElements.length} editable elements found`);
+    // Also add body padding to account for the banner
+    document.body.style.paddingTop = '50px';
   }
 
   // Wait for DOM to be ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initEditMode);
   } else {
-    // DOM is already ready
+    // DOM is already ready, wait a bit for dynamic content
     setTimeout(initEditMode, 100);
   }
 })();
