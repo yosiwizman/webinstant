@@ -502,10 +502,18 @@ export default async function PreviewPage({ params }: PageProps) {
             // Prepare updates object for API
             const updates = {};
             
+            // Store the old and new values for DOM updates
+            const domUpdates = {
+              phone: null,
+              hours: {},
+              prices: []
+            };
+            
             // Check phone changes
             const newPhone = document.getElementById('edit-phone').value;
             if (newPhone && newPhone !== originalValues.phone) {
               updates.phone = newPhone;
+              domUpdates.phone = { old: originalValues.phone, new: newPhone };
             }
             
             // Check hours changes
@@ -525,6 +533,7 @@ export default async function PreviewPage({ params }: PageProps) {
               const originalValue = originalValues['hours-' + shortDay];
               if (input && input.value && input.value !== originalValue) {
                 hoursUpdates[fullDay] = input.value;
+                domUpdates.hours[shortDay] = { old: originalValue, new: input.value };
               }
             }
             
@@ -538,7 +547,9 @@ export default async function PreviewPage({ params }: PageProps) {
               const input = document.getElementById('price-' + (index + 1));
               const originalValue = originalValues['price-' + (index + 1)];
               if (input && input.value && input.value !== originalValue) {
-                priceUpdates.push({ old: originalValue, new: input.value });
+                const update = { old: originalValue, new: input.value };
+                priceUpdates.push(update);
+                domUpdates.prices.push(update);
               }
             });
             
@@ -568,10 +579,11 @@ export default async function PreviewPage({ params }: PageProps) {
               console.log('Response:', data);
               
               if (response.ok && data.success) {
-                // NOW update the DOM after successful save
+                console.log('Save successful, updating DOM...');
                 
                 // Update phone number in the DOM
-                if (updates.phone) {
+                if (domUpdates.phone) {
+                  console.log('Updating phone from', domUpdates.phone.old, 'to', domUpdates.phone.new);
                   const walker = document.createTreeWalker(
                     document.body,
                     NodeFilter.SHOW_TEXT,
@@ -580,65 +592,78 @@ export default async function PreviewPage({ params }: PageProps) {
                   );
                   
                   let node;
+                  let phoneUpdated = false;
                   while (node = walker.nextNode()) {
-                    if (node.textContent.includes(originalValues.phone) && !node.parentElement.closest('.edit-panel')) {
-                      node.textContent = node.textContent.replace(originalValues.phone, updates.phone);
+                    if (node.textContent.includes(domUpdates.phone.old) && !node.parentElement.closest('.edit-panel')) {
+                      node.textContent = node.textContent.replace(domUpdates.phone.old, domUpdates.phone.new);
+                      phoneUpdated = true;
                     }
                   }
                   
-                  // Update the stored original value
-                  originalValues.phone = updates.phone;
+                  if (phoneUpdated) {
+                    // Update the stored original value
+                    originalValues.phone = domUpdates.phone.new;
+                    console.log('Phone number updated in DOM');
+                  }
                 }
                 
                 // Update hours in the DOM
-                if (updates.hours) {
-                  for (const [fullDay, newHours] of Object.entries(updates.hours)) {
-                    const shortDay = Object.entries(dayMap).find(([short, full]) => full === fullDay)?.[0];
-                    if (shortDay) {
-                      const oldHours = originalValues['hours-' + shortDay];
+                if (Object.keys(domUpdates.hours).length > 0) {
+                  console.log('Updating hours:', domUpdates.hours);
+                  for (const [shortDay, hourUpdate] of Object.entries(domUpdates.hours)) {
+                    if (hourUpdate.old) {
+                      const walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                      );
                       
-                      if (oldHours) {
-                        // Find and update hours text
-                        const walker = document.createTreeWalker(
-                          document.body,
-                          NodeFilter.SHOW_TEXT,
-                          null,
-                          false
-                        );
-                        
-                        let node;
-                        while (node = walker.nextNode()) {
-                          if (node.textContent.includes(oldHours) && !node.parentElement.closest('.edit-panel')) {
-                            node.textContent = node.textContent.replace(oldHours, newHours);
-                          }
+                      let node;
+                      let hoursUpdated = false;
+                      while (node = walker.nextNode()) {
+                        if (node.textContent.includes(hourUpdate.old) && !node.parentElement.closest('.edit-panel')) {
+                          node.textContent = node.textContent.replace(hourUpdate.old, hourUpdate.new);
+                          hoursUpdated = true;
                         }
-                        
+                      }
+                      
+                      if (hoursUpdated) {
                         // Update stored value
-                        originalValues['hours-' + shortDay] = newHours;
+                        originalValues['hours-' + shortDay] = hourUpdate.new;
+                        console.log('Hours updated for', shortDay);
                       }
                     }
                   }
                 }
                 
                 // Update prices in the DOM
-                if (updates.prices) {
-                  updates.prices.forEach((priceUpdate, index) => {
-                    const walker = document.createTreeWalker(
-                      document.body,
-                      NodeFilter.SHOW_TEXT,
-                      null,
-                      false
-                    );
-                    
-                    let node;
-                    while (node = walker.nextNode()) {
-                      if (node.textContent.includes(priceUpdate.old) && !node.parentElement.closest('.edit-panel')) {
-                        node.textContent = node.textContent.replace(priceUpdate.old, priceUpdate.new);
+                if (domUpdates.prices.length > 0) {
+                  console.log('Updating prices:', domUpdates.prices);
+                  domUpdates.prices.forEach((priceUpdate, index) => {
+                    if (priceUpdate.old) {
+                      const walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                      );
+                      
+                      let node;
+                      let priceUpdated = false;
+                      while (node = walker.nextNode()) {
+                        if (node.textContent.includes(priceUpdate.old) && !node.parentElement.closest('.edit-panel')) {
+                          node.textContent = node.textContent.replace(priceUpdate.old, priceUpdate.new);
+                          priceUpdated = true;
+                        }
+                      }
+                      
+                      if (priceUpdated) {
+                        // Update stored value
+                        originalValues['price-' + (index + 1)] = priceUpdate.new;
+                        console.log('Price', index + 1, 'updated');
                       }
                     }
-                    
-                    // Update stored value
-                    originalValues['price-' + (index + 1)] = priceUpdate.new;
                   });
                 }
                 
@@ -651,6 +676,8 @@ export default async function PreviewPage({ params }: PageProps) {
                 phoneElement = findPhoneNumber();
                 hoursElements = findHours();
                 priceElements = findPrices();
+                
+                console.log('DOM updates complete');
                 
                 setTimeout(() => {
                   hidePanel();
