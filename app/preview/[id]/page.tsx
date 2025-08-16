@@ -247,6 +247,11 @@ export default async function PreviewPage({ params }: PageProps) {
             </div>
             
             <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 5px; color: #555; font-size: 14px; font-weight: 500;">Email:</label>
+              <input type="email" id="edit-email" placeholder="business@example.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
               <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Business Hours:</label>
               <div id="hours-grid" style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                 <div style="margin-bottom: 10px;">
@@ -312,6 +317,7 @@ export default async function PreviewPage({ params }: PageProps) {
           // Store original values
           let originalValues = {};
           let phoneElement = null;
+          let emailElement = null;
           let hoursElements = {};
           let priceElements = [];
 
@@ -329,6 +335,24 @@ export default async function PreviewPage({ params }: PageProps) {
             while (node = walker.nextNode()) {
               if (phoneRegex.test(node.textContent) && !node.parentElement.closest('.edit-panel')) {
                 return { node, value: node.textContent.match(phoneRegex)[0] };
+              }
+            }
+            return null;
+          }
+
+          function findEmail() {
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/;
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+              null,
+              false
+            );
+            
+            let node;
+            while (node = walker.nextNode()) {
+              if (emailRegex.test(node.textContent) && !node.parentElement.closest('.edit-panel')) {
+                return { node, value: node.textContent.match(emailRegex)[0] };
               }
             }
             return null;
@@ -436,6 +460,14 @@ export default async function PreviewPage({ params }: PageProps) {
               document.getElementById('edit-phone').value = phone.value;
             }
             
+            // Find and populate email
+            const email = findEmail();
+            if (email) {
+              emailElement = email;
+              originalValues.email = email.value;
+              document.getElementById('edit-email').value = email.value;
+            }
+            
             const hours = findHours();
             hoursElements = hours;
             const dayMap = {
@@ -505,6 +537,7 @@ export default async function PreviewPage({ params }: PageProps) {
             // Store the old and new values for DOM updates
             const domUpdates = {
               phone: null,
+              email: null,
               hours: {},
               prices: []
             };
@@ -514,6 +547,13 @@ export default async function PreviewPage({ params }: PageProps) {
             if (newPhone && newPhone !== originalValues.phone) {
               updates.phone = newPhone;
               domUpdates.phone = { old: originalValues.phone, new: newPhone };
+            }
+            
+            // Check email changes
+            const newEmail = document.getElementById('edit-email').value;
+            if (newEmail && newEmail !== originalValues.email) {
+              updates.email = newEmail;
+              domUpdates.email = { old: originalValues.email, new: newEmail };
             }
             
             // Check hours changes
@@ -533,7 +573,7 @@ export default async function PreviewPage({ params }: PageProps) {
               const originalValue = originalValues['hours-' + shortDay];
               if (input && input.value && input.value !== originalValue) {
                 hoursUpdates[fullDay] = input.value;
-                domUpdates.hours[shortDay] = { old: originalValue, new: input.value };
+                domUpdates.hours[fullDay] = { old: originalValue, new: input.value };
               }
             }
             
@@ -607,32 +647,130 @@ export default async function PreviewPage({ params }: PageProps) {
                   }
                 }
                 
-                // Update hours in the DOM
+                // Update email in the DOM
+                if (domUpdates.email) {
+                  console.log('Updating email from', domUpdates.email.old, 'to', domUpdates.email.new);
+                  const walker = document.createTreeWalker(
+                    document.body,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                  );
+                  
+                  let node;
+                  let emailUpdated = false;
+                  while (node = walker.nextNode()) {
+                    if (node.textContent.includes(domUpdates.email.old) && !node.parentElement.closest('.edit-panel')) {
+                      node.textContent = node.textContent.replace(domUpdates.email.old, domUpdates.email.new);
+                      emailUpdated = true;
+                    }
+                  }
+                  
+                  if (emailUpdated) {
+                    // Update the stored original value
+                    originalValues.email = domUpdates.email.new;
+                    console.log('Email updated in DOM');
+                  }
+                }
+                
+                // Update hours in the DOM - improved logic
                 if (Object.keys(domUpdates.hours).length > 0) {
                   console.log('Updating hours:', domUpdates.hours);
-                  for (const [shortDay, hourUpdate] of Object.entries(domUpdates.hours)) {
-                    if (hourUpdate.old) {
-                      const walker = document.createTreeWalker(
-                        document.body,
-                        NodeFilter.SHOW_TEXT,
-                        null,
-                        false
-                      );
+                  
+                  for (const [fullDay, hourUpdate] of Object.entries(domUpdates.hours)) {
+                    console.log('Looking for hours to update...');
+                    console.log('Day:', fullDay, 'Old hours:', hourUpdate.old, 'New hours:', hourUpdate.new);
+                    
+                    // Create multiple patterns to match different hour formats
+                    const timePatterns = [
+                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*[-–—]\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
+                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*to\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
+                      /Closed/gi
+                    ];
+                    
+                    // Walk through all elements to find the day
+                    const walker = document.createTreeWalker(
+                      document.body,
+                      NodeFilter.SHOW_ELEMENT,
+                      null,
+                      false
+                    );
+                    
+                    let element;
+                    let hoursUpdated = false;
+                    
+                    while (element = walker.nextNode()) {
+                      // Skip edit panel
+                      if (element.closest('.edit-panel')) continue;
                       
-                      let node;
-                      let hoursUpdated = false;
-                      while (node = walker.nextNode()) {
-                        if (node.textContent.includes(hourUpdate.old) && !node.parentElement.closest('.edit-panel')) {
-                          node.textContent = node.textContent.replace(hourUpdate.old, hourUpdate.new);
-                          hoursUpdated = true;
+                      // Check if element contains the day name
+                      if (element.textContent && element.textContent.toLowerCase().includes(fullDay)) {
+                        console.log('Found element containing', fullDay, ':', element.tagName, element.textContent.substring(0, 100));
+                        
+                        // Function to update hours in a text node
+                        const updateHoursInNode = (node) => {
+                          if (node.nodeType === Node.TEXT_NODE) {
+                            let updated = false;
+                            let newText = node.textContent;
+                            
+                            // Try each pattern
+                            for (const pattern of timePatterns) {
+                              if (pattern.test(node.textContent)) {
+                                newText = node.textContent.replace(pattern, hourUpdate.new);
+                                updated = true;
+                                break;
+                              }
+                            }
+                            
+                            // Also try direct replacement if old value exists
+                            if (!updated && hourUpdate.old && node.textContent.includes(hourUpdate.old)) {
+                              newText = node.textContent.replace(hourUpdate.old, hourUpdate.new);
+                              updated = true;
+                            }
+                            
+                            if (updated) {
+                              node.textContent = newText;
+                              console.log('Updated hours in node for', fullDay);
+                              return true;
+                            }
+                          }
+                          return false;
+                        };
+                        
+                        // Check all child nodes recursively
+                        const checkChildNodes = (parent) => {
+                          for (let child of parent.childNodes) {
+                            if (updateHoursInNode(child)) {
+                              hoursUpdated = true;
+                            }
+                            if (child.nodeType === Node.ELEMENT_NODE) {
+                              checkChildNodes(child);
+                            }
+                          }
+                        };
+                        
+                        checkChildNodes(element);
+                        
+                        // Also check next siblings for hours
+                        let sibling = element.nextElementSibling;
+                        let siblingCount = 0;
+                        while (sibling && siblingCount < 3) {
+                          checkChildNodes(sibling);
+                          sibling = sibling.nextElementSibling;
+                          siblingCount++;
                         }
                       }
-                      
-                      if (hoursUpdated) {
-                        // Update stored value
+                    }
+                    
+                    if (hoursUpdated) {
+                      // Update stored value
+                      const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
+                      if (shortDay) {
                         originalValues['hours-' + shortDay] = hourUpdate.new;
-                        console.log('Hours updated for', shortDay);
                       }
+                      console.log('Hours updated for', fullDay);
+                    } else {
+                      console.log('Could not find hours to update for', fullDay);
                     }
                   }
                 }
@@ -674,6 +812,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 
                 // Re-find elements with new values for future edits
                 phoneElement = findPhoneNumber();
+                emailElement = findEmail();
                 hoursElements = findHours();
                 priceElements = findPrices();
                 
