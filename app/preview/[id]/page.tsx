@@ -290,6 +290,21 @@ export default async function PreviewPage({ params }: PageProps) {
             </div>
             
             <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 5px; color: #555; font-size: 14px; font-weight: 500;">Business Logo:</label>
+              <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
+                <div id="logo-preview" style="margin-bottom: 10px; text-align: center;">
+                  <div id="current-logo" style="width: 120px; height: 120px; margin: 0 auto; background: #fff; border: 2px dashed #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">
+                    No logo
+                  </div>
+                </div>
+                <input type="file" id="logo-upload" accept=".png,.jpg,.jpeg,.svg" style="display: none;">
+                <button id="upload-logo-btn" style="width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 3px; font-size: 13px; cursor: pointer;">📤 Upload Logo</button>
+                <div id="logo-upload-status" style="margin-top: 8px; font-size: 12px; color: #666; text-align: center; display: none;"></div>
+                <div style="margin-top: 8px; font-size: 11px; color: #999; text-align: center;">Max 5MB • PNG, JPG, or SVG</div>
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
               <label style="display: block; margin-bottom: 5px; color: #555; font-size: 14px; font-weight: 500;">Phone Number:</label>
               <input type="tel" id="edit-phone" placeholder="(555) 123-4567" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
             </div>
@@ -440,6 +455,188 @@ export default async function PreviewPage({ params }: PageProps) {
           let servicesElements = [];
           let socialElements = {};
           let serviceCounter = 0;
+          let currentLogoUrl = null;
+          let logoElements = [];
+
+          // Find logo elements in the page
+          function findLogos() {
+            const logos = [];
+            
+            // Find img elements that might be logos
+            const images = document.querySelectorAll('img');
+            images.forEach(img => {
+              if (img.closest('.edit-panel')) return;
+              
+              const src = img.src || '';
+              const alt = (img.alt || '').toLowerCase();
+              const className = (img.className || '').toLowerCase();
+              const id = (img.id || '').toLowerCase();
+              
+              // Check if this looks like a logo
+              if (alt.includes('logo') || className.includes('logo') || id.includes('logo') ||
+                  src.includes('logo') || img.parentElement.className.includes('logo')) {
+                logos.push(img);
+              }
+            });
+            
+            // Also find SVG logos
+            const svgs = document.querySelectorAll('svg');
+            svgs.forEach(svg => {
+              if (svg.closest('.edit-panel')) return;
+              
+              const parent = svg.parentElement;
+              if (parent && (parent.className.includes('logo') || parent.id.includes('logo'))) {
+                logos.push(svg);
+              }
+            });
+            
+            // Find text-based logos (h1, h2, etc. in header/nav)
+            const headers = document.querySelectorAll('header h1, header h2, nav h1, nav h2, .logo, #logo');
+            headers.forEach(header => {
+              if (header.closest('.edit-panel')) return;
+              if (!logos.some(logo => logo === header || header.contains(logo))) {
+                logos.push(header);
+              }
+            });
+            
+            return logos;
+          }
+
+          // Display current logo in preview
+          function displayCurrentLogo() {
+            const logoPreview = document.getElementById('current-logo');
+            if (!logoPreview) return;
+            
+            if (currentLogoUrl) {
+              logoPreview.innerHTML = \`<img src="\${currentLogoUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="Current logo">\`;
+            } else if (logoElements.length > 0) {
+              const firstLogo = logoElements[0];
+              if (firstLogo.tagName === 'IMG') {
+                logoPreview.innerHTML = \`<img src="\${firstLogo.src}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="Current logo">\`;
+              } else if (firstLogo.tagName === 'SVG') {
+                logoPreview.innerHTML = firstLogo.outerHTML;
+                const svg = logoPreview.querySelector('svg');
+                if (svg) {
+                  svg.style.maxWidth = '100%';
+                  svg.style.maxHeight = '100%';
+                }
+              } else {
+                logoPreview.innerHTML = \`<div style="font-size: 14px; font-weight: bold;">\${firstLogo.textContent}</div>\`;
+              }
+            } else {
+              logoPreview.innerHTML = 'No logo';
+            }
+          }
+
+          // Handle logo upload button click
+          document.getElementById('upload-logo-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('logo-upload').click();
+          });
+
+          // Handle logo file selection
+          document.getElementById('logo-upload').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Validate file size (5MB max)
+            if (file.size > 5 * 1024 * 1024) {
+              const statusDiv = document.getElementById('logo-upload-status');
+              statusDiv.style.display = 'block';
+              statusDiv.style.color = '#dc3545';
+              statusDiv.textContent = 'File too large. Maximum size is 5MB.';
+              setTimeout(() => {
+                statusDiv.style.display = 'none';
+              }, 3000);
+              return;
+            }
+            
+            // Validate file type
+            const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+            if (!validTypes.includes(file.type)) {
+              const statusDiv = document.getElementById('logo-upload-status');
+              statusDiv.style.display = 'block';
+              statusDiv.style.color = '#dc3545';
+              statusDiv.textContent = 'Invalid file type. Please upload PNG, JPG, or SVG.';
+              setTimeout(() => {
+                statusDiv.style.display = 'none';
+              }, 3000);
+              return;
+            }
+            
+            // Show uploading status
+            const statusDiv = document.getElementById('logo-upload-status');
+            statusDiv.style.display = 'block';
+            statusDiv.style.color = '#007bff';
+            statusDiv.textContent = 'Uploading logo...';
+            
+            // Create FormData and upload
+            const formData = new FormData();
+            formData.append('logo', file);
+            formData.append('previewId', window.PREVIEW_ID);
+            formData.append('businessId', window.BUSINESS_ID);
+            
+            try {
+              const response = await fetch('/api/upload-logo', {
+                method: 'POST',
+                body: formData
+              });
+              
+              const data = await response.json();
+              
+              if (response.ok && data.success) {
+                currentLogoUrl = data.logoUrl;
+                
+                // Update preview
+                displayCurrentLogo();
+                
+                // Update all logo elements in the page
+                logoElements.forEach(logo => {
+                  if (logo.tagName === 'IMG') {
+                    logo.src = currentLogoUrl;
+                  } else if (logo.tagName === 'SVG') {
+                    // Replace SVG with img
+                    const img = document.createElement('img');
+                    img.src = currentLogoUrl;
+                    img.alt = 'Business Logo';
+                    img.style.cssText = logo.style.cssText;
+                    img.className = logo.className;
+                    logo.parentElement.replaceChild(img, logo);
+                  } else {
+                    // Replace text logo with image
+                    const img = document.createElement('img');
+                    img.src = currentLogoUrl;
+                    img.alt = 'Business Logo';
+                    img.style.maxHeight = '60px';
+                    img.style.width = 'auto';
+                    logo.innerHTML = '';
+                    logo.appendChild(img);
+                  }
+                });
+                
+                // Re-find logos after update
+                logoElements = findLogos();
+                
+                statusDiv.style.color = '#28a745';
+                statusDiv.textContent = '✓ Logo uploaded successfully!';
+                setTimeout(() => {
+                  statusDiv.style.display = 'none';
+                }, 3000);
+              } else {
+                throw new Error(data.error || 'Upload failed');
+              }
+            } catch (error) {
+              console.error('Logo upload failed:', error);
+              statusDiv.style.color = '#dc3545';
+              statusDiv.textContent = '✗ ' + (error.message || 'Upload failed. Please try again.');
+              setTimeout(() => {
+                statusDiv.style.display = 'none';
+              }, 5000);
+            }
+            
+            // Reset file input
+            e.target.value = '';
+          });
 
           // Find and extract current values
           function findPhoneNumber() {
@@ -727,6 +924,10 @@ export default async function PreviewPage({ params }: PageProps) {
             
             showPanel();
             
+            // Find logos
+            logoElements = findLogos();
+            displayCurrentLogo();
+            
             // Clear services container
             const servicesContainer = document.getElementById('services-container');
             servicesContainer.innerHTML = '';
@@ -800,7 +1001,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 });
               });
             } else {
-              // Add at least one empty service field
+              //  Add at least one empty service field
               const serviceField = createServiceField();
               servicesContainer.appendChild(serviceField);
             }
@@ -1218,6 +1419,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 hoursElements = findHours();
                 servicesElements = findServices();
                 socialElements = findSocialLinks();
+                logoElements = findLogos();
                 
                 console.log('DOM updates complete');
                 
