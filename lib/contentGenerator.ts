@@ -659,9 +659,9 @@ export async function generateBusinessImages(businessType: string, businessName:
         }
       }
       if (compressedCount > 0) {
-        console.log(`  ✓ Compressed ${comp
+        console.log(`  ✓ Compressed ${compressedCount} images with T
 
-Count} images with TinyPNG`);
+PNG`);
       }
     }
 
@@ -1090,18 +1090,22 @@ export function createContentGenerator(togetherKey?: string, replicateToken?: st
   return new ContentGenerator(togetherKey, replicateToken);
 }
 
-// Enhanced Category Theme Functions
+// Enhanced Category Theme Functions - FIXED to return correct colors for each type
 export function getCategoryTheme(type: string): CategoryTheme {
+  // First detect the business type to ensure we're using the right category
+  const businessType = type.toLowerCase();
+  
+  // Define themes with DISTINCT colors for each business type
   const themes: { [key: string]: CategoryTheme } = {
     restaurant: {
       colors: {
-        primary: '#D2691E',
-        secondary: '#FF6347',
-        accent: '#FFD700',
-        hero: 'linear-gradient(135deg, #8B4513 0%, #D2691E 50%, #FF6347 100%)',
-        text: '#2C1810',
-        light: '#FFF8DC',
-        dark: '#4A2C17'
+        primary: '#D2691E',  // Warm brown/orange
+        secondary: '#FF6347', // Tomato red
+        accent: '#FFD700',    // Gold
+        hero: 'linear-gradient(135deg, #8B4513 0%, #D2691E 50%, #FF6347 100%)', // Brown to orange gradient
+        text: '#2C1810',      // Dark brown
+        light: '#FFF8DC',     // Cornsilk
+        dark: '#4A2C17'       // Very dark brown
       },
       fonts: {
         heading: '"Playfair Display", serif',
@@ -1112,13 +1116,13 @@ export function getCategoryTheme(type: string): CategoryTheme {
     },
     plumbing: {
       colors: {
-        primary: '#0066CC',
-        secondary: '#00AA44',
-        accent: '#FF9900',
-        hero: 'linear-gradient(135deg, #003D7A 0%, #0066CC 50%, #0099FF 100%)',
-        text: '#333333',
-        light: '#E6F2FF',
-        dark: '#002244'
+        primary: '#0066CC',   // Blue (as specified)
+        secondary: '#00AA44', // Green
+        accent: '#FF9900',    // Orange
+        hero: 'linear-gradient(135deg, #003D7A 0%, #0066CC 50%, #0099FF 100%)', // Blue gradient
+        text: '#333333',      // Dark gray
+        light: '#E6F2FF',     // Light blue
+        dark: '#002244'       // Dark blue
       },
       fonts: {
         heading: '"Oswald", sans-serif',
@@ -1129,13 +1133,13 @@ export function getCategoryTheme(type: string): CategoryTheme {
     },
     beauty: {
       colors: {
-        primary: '#FF1493',
-        secondary: '#DDA0DD',
-        accent: '#FFB6C1',
-        hero: 'linear-gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)',
-        text: '#4A0E2E',
-        light: '#FFF0F5',
-        dark: '#8B008B'
+        primary: '#FF1493',   // Deep pink (as specified)
+        secondary: '#DDA0DD', // Plum
+        accent: '#FFB6C1',    // Light pink
+        hero: 'linear-gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)', // Pink gradient
+        text: '#4A0E2E',      // Dark purple
+        light: '#FFF0F5',     // Lavender blush
+        dark: '#8B008B'       // Dark magenta
       },
       fonts: {
         heading: '"Dancing Script", cursive',
@@ -1146,13 +1150,13 @@ export function getCategoryTheme(type: string): CategoryTheme {
     },
     auto: {
       colors: {
-        primary: '#2C3E50',
-        secondary: '#E74C3C',
-        accent: '#F39C12',
-        hero: 'linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%)',
-        text: '#333333',
-        light: '#ECF0F1',
-        dark: '#0C0C1E'
+        primary: '#2C3E50',   // Dark gray (as specified)
+        secondary: '#E74C3C', // Red
+        accent: '#F39C12',    // Orange
+        hero: 'linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%)', // Dark gradient
+        text: '#333333',      // Dark gray
+        light: '#ECF0F1',     // Light gray
+        dark: '#0C0C1E'       // Very dark blue
       },
       fonts: {
         heading: '"Russo One", sans-serif',
@@ -1163,13 +1167,13 @@ export function getCategoryTheme(type: string): CategoryTheme {
     },
     cleaning: {
       colors: {
-        primary: '#00CED1',
-        secondary: '#40E0D0',
-        accent: '#AFEEEE',
-        hero: 'linear-gradient(135deg, #00CED1 0%, #40E0D0 50%, #7FFFD4 100%)',
-        text: '#0C4A4D',
-        light: '#F0FFFF',
-        dark: '#008B8B'
+        primary: '#00CED1',   // Cyan/turquoise (as specified)
+        secondary: '#40E0D0', // Turquoise
+        accent: '#AFEEEE',    // Pale turquoise
+        hero: 'linear-gradient(135deg, #00CED1 0%, #40E0D0 50%, #7FFFD4 100%)', // Cyan gradient
+        text: '#0C4A4D',      // Dark teal
+        light: '#F0FFFF',     // Azure
+        dark: '#008B8B'       // Dark cyan
       },
       fonts: {
         heading: '"Comfortaa", cursive',
@@ -1180,13 +1184,30 @@ export function getCategoryTheme(type: string): CategoryTheme {
     },
     service: {
       colors: {
-        primary: '#667EEA',
-        secondary: '#764BA2',
-        accent: '#F093FB',
-        hero: 'linear-gradient(135deg, #667EEA 0%, #764BA2 50%, #F093FB 100%)',
-        text: '#333333',
-        light: '#F3E5F5',
-        dark: '#4A148C'
+        primary: '#667EEA',   // Purple-blue
+        secondary: '#764BA2', // Purple
+        accent: '#F093FB',    // Light purple
+        hero: 'linear-gradient(135deg, #667EEA 0%, #764BA2 50%, #F093FB 100%)', // Purple gradient
+        text: '#333333',      // Dark gray
+        light: '#F3E5F5',     // Light purple
+        dark: '#4A148C'       // Dark purple
+      },
+      fonts: {
+        heading: '"Rubik", sans-serif',
+        body: '"Karla", sans-serif',
+        accent: '"Righteous", cursive'
+      },
+      style: 'modern'
+    },
+    general: {
+      colors: {
+        primary: '#667EEA',   // Purple-blue (default/fallback)
+        secondary: '#764BA2', // Purple
+        accent: '#F093FB',    // Light purple
+        hero: 'linear-gradient(135deg, #667EEA 0%, #764BA2 50%, #F093FB 100%)', // Purple gradient
+        text: '#333333',      // Dark gray
+        light: '#F3E5F5',     // Light purple
+        dark: '#4A148C'       // Dark purple
       },
       fonts: {
         heading: '"Rubik", sans-serif',
@@ -1197,7 +1218,13 @@ export function getCategoryTheme(type: string): CategoryTheme {
     }
   };
   
-  return themes[type] || themes.service;
+  // Return the specific theme or fall back to general (not service)
+  const selectedTheme = themes[businessType] || themes.general;
+  
+  // Log which theme is being returned for debugging
+  console.log(`getCategoryTheme: Returning '${businessType}' theme with primary color: ${selectedTheme.colors.primary}`);
+  
+  return selectedTheme;
 }
 
 // New functions for enhanced content generation
@@ -1252,7 +1279,9 @@ export function detectBusinessType(businessName: string): string {
     detectedType = 'cleaning';
   }
   // Electrical keywords
-  else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electrician/.test(name)) {
+  else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electric
+
+/.test(name)) {
     detectedType = 'electrical';
   }
   // Construction keywords
@@ -1547,7 +1576,7 @@ export function getThemeForType(type: string): BusinessTheme {
     }
   };
   
-  return themes[type] ||themes.general;
+  return themes[type] || themes.general;
 }
 
 export function createSlug(businessName: string): string {
