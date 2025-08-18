@@ -156,6 +156,7 @@ export async function checkExistingWebsite(business: any): Promise<boolean> {
 
 // Premium content generation with Claude or Together AI
 export async function generatePremiumContent(business: any): Promise<BusinessContent> {
+  console.log('🚀 API CALL: Starting content generation for:', business.business_name);
   console.log(`🎨 Generating content for ${business.business_name}...`);
   
   try {
@@ -246,6 +247,7 @@ Format your response as JSON with these fields:
   ]
 }`;
 
+    console.log('🚀 Calling Together AI API...');
     const completion = await together.chat.completions.create({
       model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
       messages: [
@@ -313,6 +315,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       cleaning: 'sparkle and broom icon, cleaning service logo, fresh, minimalist, svg'
     };
 
+    console.log('🚀 Calling Replicate API...');
     const output = await replicate.run(
       "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
       {
@@ -392,6 +395,7 @@ async function generateVideoBackground(businessType: string): Promise<string | n
     };
 
     // Generate short video clip
+    console.log('🚀 Calling Replicate API...');
     const output = await replicate.run(
       "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438",
       {
@@ -624,6 +628,7 @@ export function generateExitIntentPopup(businessName: string): string {
 
 // AI Image Generation with Replicate
 export async function generateBusinessImages(businessType: string, businessName: string): Promise<BusinessImages> {
+  console.log('🚀 API CALL: Starting image generation for:', businessType);
   console.log(`📸 Generating images for ${businessName}...`);
   
   try {
@@ -673,6 +678,7 @@ export async function generateBusinessImages(businessType: string, businessName:
 async function generateImage(prompt: string, type: string): Promise<string> {
   try {
     console.log(`    - Generating ${type} image...`);
+    console.log('🚀 Calling Replicate API...');
     const output = await replicate.run(
       "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
       {
@@ -826,6 +832,7 @@ export class ContentGenerator {
       
       // Use Together AI with Mixtral for better quality and cost efficiency
       console.log('  → Using Together AI...');
+      console.log('🚀 Calling Together AI API...');
       const completion = await this.together.chat.completions.create({
         model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
         messages: [
@@ -1518,7 +1525,7 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
 }
 
 // Helper function to get industry keywords
-function getIndustry Keywords(businessType: string): string[] {
+function getIndustryKeywords(businessType: string): string[] {
   const keywordMap: { [key: string]: string[] } = {
     restaurant: [
       'fresh', 'delicious', 'menu', 'dining', 'cuisine', 'chef',
