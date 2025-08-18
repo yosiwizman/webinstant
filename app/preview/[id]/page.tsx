@@ -219,45 +219,34 @@ export default async function PreviewPage({ params }: PageProps) {
           panel.className = 'edit-panel';
           panel.id = 'edit-panel';
           
-          // Set initial styles based on screen size
-          const isMobile = window.innerWidth <= 768;
+          // Set panel styles - responsive and no horizontal scroll
+          panel.style.cssText = \`
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            transition: right 0.3s ease;
+            z-index: 10000;
+            overflow-y: auto;
+            overflow-x: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-sizing: border-box;
+          \`;
           
-          if (isMobile) {
-            panel.style.cssText = \`
-              position: fixed;
-              bottom: -100%;
-              left: 0;
-              right: 0;
-              background: white;
-              box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-              padding: 20px;
-              transition: bottom 0.3s ease;
-              z-index: 10000;
-              max-height: 70vh;
-              overflow-y: auto;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            \`;
-          } else {
-            panel.style.cssText = \`
-              position: fixed;
-              right: -400px;
-              top: 0;
-              bottom: 0;
-              width: 400px;
-              background: white;
-              box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-              padding: 20px;
-              transition: right 0.3s ease;
-              z-index: 10000;
-              overflow-y: auto;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            \`;
+          // Responsive panel width for mobile
+          if (window.innerWidth <= 768) {
+            panel.style.maxWidth = '100%';
           }
           
           panel.innerHTML = \`
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <h3 style="margin: 0; color: #333; font-size: 20px;">Edit Business Info</h3>
-              <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 5px; touch-action: manipulation;">×</button>
+              <h3 style="margin: 0; color: #333; font-size: 18px;">Edit Business Info</h3>
+              <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 5px; min-width: 30px; touch-action: manipulation;">×</button>
             </div>
             
             <div style="margin-bottom: 20px;">
@@ -276,84 +265,84 @@ export default async function PreviewPage({ params }: PageProps) {
                 <div style="margin-bottom: 10px;">
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Monday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-mon-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-mon-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-mon-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-mon-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Tuesday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-tue-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-tue-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-tue-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-tue-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Wednesday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-wed-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-wed-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-wed-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-wed-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Thursday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-thu-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-thu-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-thu-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-thu-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
-                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Friday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-fri-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Friday: </span>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-fri-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-fri-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-fri-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Saturday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-sat-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-sat-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-sat-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-sat-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
                   </div>
                   <div style="margin-bottom: 12px;">
                     <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Sunday:</span>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <select id="hours-sun-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                      <select id="hours-sun-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(false)}
                       </select>
-                      <span style="color: #999;">to</span>
-                      <select id="hours-sun-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                      <span style="color: #999; flex-shrink: 0;">to</span>
+                      <select id="hours-sun-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                         \${generateTimeOptions(true)}
                       </select>
                     </div>
@@ -366,27 +355,21 @@ export default async function PreviewPage({ params }: PageProps) {
               <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Edit Services:</label>
               <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                 <div style="margin-bottom: 10px;">
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
-                    <input type="text" id="service-1-name" placeholder="Haircut" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
-                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
-                    <input type="text" id="service-1-price" placeholder="$45" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="service-1-name" placeholder="Service name (e.g., Haircut)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                    <input type="text" id="service-1-price" placeholder="Price (e.g., $45)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                   </div>
                 </div>
                 <div style="margin-bottom: 10px;">
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
-                    <input type="text" id="service-2-name" placeholder="Color" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
-                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
-                    <input type="text" id="service-2-price" placeholder="$120" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="service-2-name" placeholder="Service name (e.g., Color)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                    <input type="text" id="service-2-price" placeholder="Price (e.g., $120)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                   </div>
                 </div>
                 <div>
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
-                    <input type="text" id="service-3-name" placeholder="Extensions" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
-                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
-                    <input type="text" id="service-3-price" placeholder="$200" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="service-3-name" placeholder="Service name (e.g., Extensions)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                    <input type="text" id="service-3-price" placeholder="Price (e.g., $200)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                   </div>
                 </div>
               </div>
@@ -395,28 +378,28 @@ export default async function PreviewPage({ params }: PageProps) {
             <div style="margin-bottom: 20px;">
               <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Social Media Links:</label>
               <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span style="width: 100px; font-size: 13px; color: #666;">Facebook:</span>
-                  <input type="url" id="social-facebook" placeholder="https://facebook.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Facebook:</label>
+                  <input type="url" id="social-facebook" placeholder="https://facebook.com/yourbusiness" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span style="width: 100px; font-size: 13px; color: #666;">Instagram:</span>
-                  <input type="url" id="social-instagram" placeholder="https://instagram.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Instagram:</label>
+                  <input type="url" id="social-instagram" placeholder="https://instagram.com/yourbusiness" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span style="width: 100px; font-size: 13px; color: #666;">Twitter/X:</span>
-                  <input type="url" id="social-twitter" placeholder="https://twitter.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Twitter/X:</label>
+                  <input type="url" id="social-twitter" placeholder="https://twitter.com/yourbusiness" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
-                <div style="display: flex; align-items: center;">
-                  <span style="width: 100px; font-size: 13px; color: #666;">Website:</span>
-                  <input type="url" id="social-website" placeholder="https://yourbusiness.com" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                <div>
+                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Website:</label>
+                  <input type="url" id="social-website" placeholder="https://yourbusiness.com" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
               </div>
             </div>
             
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
               <button id="save-changes" style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Save Changes</button>
-              <button id="cancel-edit" style="flex: 1;padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Cancel</button>
+              <button id="cancel-edit" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; touch-action: manipulation;">Cancel</button>
             </div>
             
             <div id="save-status" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none; text-align: center; font-size: 14px;"></div>
@@ -584,30 +567,24 @@ export default async function PreviewPage({ params }: PageProps) {
           // Function to show panel
           function showPanel() {
             console.log('Showing panel...');
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile) {
-              panel.style.bottom = '0';
-              panel.style.right = '0';
-              panel.style.left = '0';
-              // Prevent body scroll when panel is open on mobile
+            panel.style.right = '0';
+            // Prevent body scroll when panel is open on mobile
+            if (window.innerWidth <= 768) {
               document.body.style.overflow = 'hidden';
-            } else {
-              panel.style.right = '0';
+              document.body.style.position = 'fixed';
+              document.body.style.width = '100%';
             }
           }
 
           // Function to hide panel
           function hidePanel() {
             console.log('Hiding panel...');
-            const isMobile = window.innerWidth <= 768;
-            
-            if (isMobile) {
-              panel.style.bottom = '-100%';
-              // Restore body scroll
+            panel.style.right = '-100%';
+            // Restore body scroll
+            if (window.innerWidth <= 768) {
               document.body.style.overflow = '';
-            } else {
-              panel.style.right = '-400px';
+              document.body.style.position = '';
+              document.body.style.width = '';
             }
           }
 
@@ -1057,41 +1034,12 @@ export default async function PreviewPage({ params }: PageProps) {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
               const isMobile = window.innerWidth <= 768;
-              const isVisible = isMobile ? 
-                (panel.style.bottom === '0px' || panel.style.bottom === '0') : 
-                (panel.style.right === '0px' || panel.style.right === '0');
               
-              // Update panel styles based on new screen size
+              // Update panel max-width based on screen size
               if (isMobile) {
-                panel.style.cssText = \`
-                  position: fixed;
-                  bottom: \${isVisible ? '0' : '-100%'};
-                  left: 0;
-                  right: 0;
-                  background: white;
-                  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-                  padding: 20px;
-                  transition: bottom 0.3s ease;
-                  z-index: 10000;
-                  max-height: 70vh;
-                  overflow-y: auto;
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                \`;
+                panel.style.maxWidth = '100%';
               } else {
-                panel.style.cssText = \`
-                  position: fixed;
-                  right: \${isVisible ? '0' : '-400px'};
-                  top: 0;
-                  bottom: 0;
-                  width: 400px;
-                  background: white;
-                  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-                  padding: 20px;
-                  transition: right 0.3s ease;
-                  z-index: 10000;
-                  overflow-y: auto;
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                \`;
+                panel.style.maxWidth = '400px';
               }
             }, 250);
           });
