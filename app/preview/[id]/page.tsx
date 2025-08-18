@@ -352,26 +352,12 @@ export default async function PreviewPage({ params }: PageProps) {
             </div>
             
             <div style="margin-bottom: 20px;">
-              <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Edit Services:</label>
+              <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Services & Pricing:</label>
               <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
-                <div style="margin-bottom: 10px;">
-                  <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="service-1-name" placeholder="Service name (e.g., Haircut)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                    <input type="text" id="service-1-price" placeholder="Price (e.g., $45)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                  </div>
+                <div id="services-container">
+                  <!-- Services will be dynamically added here -->
                 </div>
-                <div style="margin-bottom: 10px;">
-                  <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="service-2-name" placeholder="Service name (e.g., Color)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                    <input type="text" id="service-2-price" placeholder="Price (e.g., $120)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                  </div>
-                </div>
-                <div>
-                  <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="service-3-name" placeholder="Service name (e.g., Extensions)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                    <input type="text" id="service-3-price" placeholder="Price (e.g., $200)" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
-                  </div>
-                </div>
+                <button id="add-service-btn" style="width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 3px; font-size: 13px; cursor: pointer; margin-top: 10px;">+ Add Service</button>
               </div>
             </div>
             
@@ -411,8 +397,9 @@ export default async function PreviewPage({ params }: PageProps) {
           let phoneElement = null;
           let emailElement = null;
           let hoursElements = {};
-          let priceElements = [];
+          let servicesElements = [];
           let socialElements = {};
+          let serviceCounter = 0;
 
           // Find and extract current values
           function findPhoneNumber() {
@@ -508,27 +495,71 @@ export default async function PreviewPage({ params }: PageProps) {
             return hours;
           }
 
-          function findPrices() {
-            const priceRegex = /\\$\\d+(\\.\\d{2})?/g;
-            const prices = [];
-            const walker = document.createTreeWalker(
-              document.body,
-              NodeFilter.SHOW_TEXT,
-              null,
-              false
-            );
+          function findServices() {
+            const services = [];
+            const priceRegex = /\\$\\d+(\\.\\d{2})?/;
             
-            let node;
-            while (node = walker.nextNode()) {
-              const matches = node.textContent.match(priceRegex);
-              if (matches && !node.parentElement.closest('.edit-panel')) {
-                matches.forEach(price => {
-                  prices.push({ node, value: price });
-                });
+            // Look for elements that contain both text and a price
+            const allElements = Array.from(document.querySelectorAll('*'));
+            
+            for (const element of allElements) {
+              if (element.closest('.edit-panel')) continue;
+              
+              const text = element.textContent || '';
+              if (priceRegex.test(text)) {
+                // Check if this element contains a service name and price
+                const priceMatch = text.match(priceRegex);
+                if (priceMatch) {
+                  // Try to extract service name - it's usually the text before the price
+                  const priceIndex = text.indexOf(priceMatch[0]);
+                  let serviceName = text.substring(0, priceIndex).trim();
+                  
+                  // Clean up the service name
+                  serviceName = serviceName.replace(/[:\\-–]\\s*$/, '').trim();
+                  
+                  // Skip if service name is too short or too long
+                  if (serviceName.length > 2 && serviceName.length < 100) {
+                    // Check if this looks like a service (not a sentence)
+                    if (!serviceName.includes('.') || serviceName.split(' ').length < 10) {
+                      services.push({
+                        element: element,
+                        name: serviceName,
+                        price: priceMatch[0],
+                        fullText: text
+                      });
+                    }
+                  }
+                }
               }
             }
             
-            return prices.slice(0, 3); // Return first 3 prices found
+            // If we didn't find services with names, just look for prices
+            if (services.length === 0) {
+              const walker = document.createTreeWalker(
+                document.body,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+              );
+              
+              let node;
+              while (node = walker.nextNode()) {
+                const matches = node.textContent.match(priceRegex);
+                if (matches && !node.parentElement.closest('.edit-panel')) {
+                  matches.forEach(price => {
+                    services.push({
+                      node: node,
+                      element: node.parentElement,
+                      name: '',
+                      price: price,
+                      fullText: node.textContent
+                    });
+                  });
+                }
+              }
+            }
+            
+            return services;
           }
 
           function findSocialLinks() {
@@ -562,6 +593,29 @@ export default async function PreviewPage({ params }: PageProps) {
             });
             
             return links;
+          }
+
+          // Function to create a service field
+          function createServiceField(name = '', price = '', serviceId = null) {
+            if (!serviceId) {
+              serviceId = 'service-' + (++serviceCounter);
+            }
+            
+            const serviceDiv = document.createElement('div');
+            serviceDiv.id = serviceId + '-container';
+            serviceDiv.style.cssText = 'margin-bottom: 10px; position: relative;';
+            
+            serviceDiv.innerHTML = \`
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                  <input type="text" id="\${serviceId}-name" placeholder="Service name" value="\${name}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                  <input type="text" id="\${serviceId}-price" placeholder="Price (e.g., $45)" value="\${price}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" style="background: #dc3545; color: white;  border: none; border-radius: 3px; width: 24px; height: 24px; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; margin-top: 6px;">×</button>
+              </div>
+            \`;
+            
+            return serviceDiv;
           }
 
           // Function to show panel
@@ -610,6 +664,14 @@ export default async function PreviewPage({ params }: PageProps) {
             return \`\${open} - \${close}\`;
           }
 
+          // Add service button handler
+          document.getElementById('add-service-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            const servicesContainer = document.getElementById('services-container');
+            const newService = createServiceField();
+            servicesContainer.appendChild(newService);
+          });
+
           // Toggle panel - use both click and touch events
           editBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -617,6 +679,11 @@ export default async function PreviewPage({ params }: PageProps) {
             console.log('Edit button clicked');
             
             showPanel();
+            
+            // Clear services container
+            const servicesContainer = document.getElementById('services-container');
+            servicesContainer.innerHTML = '';
+            serviceCounter = 0;
             
             // Find and populate current values
             const phone = findPhoneNumber();
@@ -667,16 +734,29 @@ export default async function PreviewPage({ params }: PageProps) {
               originalValues['hours-' + shortDay] = data.value;
             }
             
-            // Find and populate prices
-            const prices = findPrices();
-            priceElements = prices;
-            prices.forEach((price, index) => {
-              const priceInput = document.getElementById('service-' + (index + 1) + '-price');
-              if (priceInput) {
-                priceInput.value = price.value;
-                originalValues['service-' + (index + 1) + '-price'] = price.value;
-              }
-            });
+            // Find and populate services
+            const services = findServices();
+            servicesElements = services;
+            originalValues.services = [];
+            
+            if (services.length > 0) {
+              services.forEach((service, index) => {
+                const serviceField = createServiceField(service.name, service.price, 'service-' + (index + 1));
+                servicesContainer.appendChild(serviceField);
+                serviceCounter = index + 1;
+                originalValues.services.push({
+                  name: service.name,
+                  price: service.price,
+                  element: service.element,
+                  node: service.node,
+                  fullText: service.fullText
+                });
+              });
+            } else {
+              // Add at least one empty service field
+              const serviceField = createServiceField();
+              servicesContainer.appendChild(serviceField);
+            }
             
             // Find and populate social links
             const socialLinks = findSocialLinks();
@@ -729,7 +809,7 @@ export default async function PreviewPage({ params }: PageProps) {
               phone: null,
               email: null,
               hours: {},
-              prices: [],
+              services: [],
               social: {}
             };
             
@@ -747,7 +827,7 @@ export default async function PreviewPage({ params }: PageProps) {
               domUpdates.email = { old: originalValues.email, new: newEmail };
             }
             
-            // Check hours changes - FIXED LOGIC
+            // Check hours changes
             const dayMap = {
               'mon': 'monday',
               'tue': 'tuesday',
@@ -782,21 +862,31 @@ export default async function PreviewPage({ params }: PageProps) {
               updates.hours = hoursUpdates;
             }
             
-            // Check price changes
-            const priceUpdates = [];
-            priceElements.forEach((price, index) => {
-              const priceInput = document.getElementById('service-' + (index + 1) + '-price');
-              const originalValue = originalValues['service-' + (index + 1) + '-price'];
-              if (priceInput && priceInput.value && priceInput.value !== originalValue) {
-                const update = { old: originalValue, new: priceInput.value };
-                priceUpdates.push(update);
-                domUpdates.prices.push(update);
+            // Collect all services from the form
+            const servicesContainer = document.getElementById('services-container');
+            const serviceFields = servicesContainer.querySelectorAll('[id$="-container"]');
+            const newServices = [];
+            
+            serviceFields.forEach((field) => {
+              const nameInput = field.querySelector('[id$="-name"]');
+              const priceInput = field.querySelector('[id$="-price"]');
+              
+              if (nameInput && priceInput) {
+                const name = nameInput.value.trim();
+                const price = priceInput.value.trim();
+                
+                if (name || price) {
+                  newServices.push({ name, price });
+                }
               }
             });
             
-            if (priceUpdates.length > 0) {
-              updates.prices = priceUpdates;
-            }
+            // Always update services if there are any changes
+            updates.services = newServices;
+            domUpdates.services = {
+              old: originalValues.services || [],
+              new: newServices
+            };
             
             // Check social media changes
             const socialUpdates = {};
@@ -889,7 +979,7 @@ export default async function PreviewPage({ params }: PageProps) {
                   }
                 }
                 
-                // Update hours in the DOM - FIXED INDEPENDENT UPDATING
+                // Update hours in the DOM
                 if (Object.keys(domUpdates.hours).length > 0) {
                   console.log('Updating hours independently for each day:', domUpdates.hours);
                   
@@ -948,34 +1038,48 @@ export default async function PreviewPage({ params }: PageProps) {
                   }
                 }
                 
-                // Update prices in the DOM
-                if (domUpdates.prices.length > 0) {
-                  console.log('Updating prices:', domUpdates.prices);
-                  domUpdates.prices.forEach((priceUpdate, index) => {
-                    if (priceUpdate.old) {
-                      const walker = document.createTreeWalker(
-                        document.body,
-                        NodeFilter.SHOW_TEXT,
-                        null,
-                        false
-                      );
+                // Update services in the DOM
+                if (domUpdates.services) {
+                  console.log('Updating services:', domUpdates.services);
+                  
+                  // For services, we need a more complex update since they can be added/removed
+                  // Try to update existing service elements
+                  const oldServices = domUpdates.services.old;
+                  const newServices = domUpdates.services.new;
+                  
+                  // Update existing services
+                  oldServices.forEach((oldService, index) => {
+                    if (oldService.element && newServices[index]) {
+                      const newService = newServices[index];
+                      const element = oldService.element;
                       
-                      let node;
-                      let priceUpdated = false;
-                      while (node = walker.nextNode()) {
-                        if (node.textContent.includes(priceUpdate.old) && !node.parentElement.closest('.edit-panel')) {
-                          node.textContent = node.textContent.replace(priceUpdate.old, priceUpdate.new);
-                          priceUpdated = true;
+                      // Try to update the element's text content
+                      if (element.textContent.includes(oldService.price)) {
+                        let newText = element.textContent;
+                        
+                        // Update price
+                        if (newService.price && oldService.price) {
+                          newText = newText.replace(oldService.price, newService.price);
                         }
-                      }
-                      
-                      if (priceUpdated) {
-                        // Update stored value
-                        originalValues['service-' + (index + 1) + '-price'] = priceUpdate.new;
-                        console.log('Price', index + 1, 'updated');
+                        
+                        // Update name if it exists
+                        if (newService.name && oldService.name) {
+                          newText = newText.replace(oldService.name, newService.name);
+                        }
+                        
+                        element.textContent = newText;
                       }
                     }
                   });
+                  
+                  // Update stored services
+                  originalValues.services = newServices.map(s => ({
+                    name: s.name,
+                    price: s.price,
+                    fullText: \`\${s.name} \${s.price}\`
+                  }));
+                  
+                  console.log('Services updated');
                 }
                 
                 // Update social links in the DOM
@@ -1004,7 +1108,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 phoneElement = findPhoneNumber();
                 emailElement = findEmail();
                 hoursElements = findHours();
-                priceElements = findPrices();
+                servicesElements = findServices();
                 socialElements = findSocialLinks();
                 
                 console.log('DOM updates complete');
