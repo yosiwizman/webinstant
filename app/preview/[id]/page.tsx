@@ -363,43 +363,26 @@ export default async function PreviewPage({ params }: PageProps) {
             const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
             const hoursRegex = /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*[-–]\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?|Closed|closed/i;
             
-            // Look for each day individually
-            for (const day of daysOfWeek) {
-              const walker = document.createTreeWalker(
-                document.body,
-                NodeFilter.SHOW_ELEMENT,
-                null,
-                false
-              );
-              
-              let element;
-              while (element = walker.nextNode()) {
-                if (element.closest('.edit-panel')) continue;
-                
-                const text = element.textContent ? element.textContent.toLowerCase() : '';
-                if (text.includes(day)) {
-                  // Look for hours in the same element or nearby
-                  let hoursText = '';
-                  
-                  // Check the element itself
-                  for (let child of element.childNodes) {
-                    if (child.nodeType === Node.TEXT_NODE) {
-                      hoursText += child.textContent + ' ';
-                    }
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+              null,
+              false
+            );
+            
+            let node;
+            while (node = walker.nextNode()) {
+              const text = node.textContent.toLowerCase();
+              for (const day of daysOfWeek) {
+                if (text.includes(day) && !node.parentElement.closest('.edit-panel')) {
+                  // Look for hours in the same element or next sibling
+                  let hoursText = node.textContent;
+                  if (node.nextSibling && node.nextSibling.textContent) {
+                    hoursText += ' ' + node.nextSibling.textContent;
                   }
-                  
-                  // Check next sibling
-                  if (element.nextElementSibling) {
-                    hoursText += element.nextElementSibling.textContent || '';
-                  }
-                  
                   const hoursMatch = hoursText.match(hoursRegex);
                   if (hoursMatch) {
-                    hours[day] = { 
-                      element: element,
-                      value: hoursMatch[0].trim()
-                    };
-                    break; // Found this day's hours, move to next day
+                    hours[day] = { node, value: hoursMatch[0] };
                   }
                 }
               }
@@ -485,7 +468,6 @@ export default async function PreviewPage({ params }: PageProps) {
               document.getElementById('edit-email').value = email.value;
             }
             
-            // Find and populate hours - each day separately
             const hours = findHours();
             hoursElements = hours;
             const dayMap = {
@@ -498,13 +480,12 @@ export default async function PreviewPage({ params }: PageProps) {
               'sunday': 'sun'
             };
             
-            // Store each day's hours separately
             for (const [day, data] of Object.entries(hours)) {
               const inputId = 'hours-' + dayMap[day];
               const input = document.getElementById(inputId);
               if (input) {
                 input.value = data.value;
-                originalValues[inputId] = data.value; // Store each day's original hours separately
+                originalValues[inputId] = data.value;
               }
             }
             
@@ -575,7 +556,7 @@ export default async function PreviewPage({ params }: PageProps) {
               domUpdates.email = { old: originalValues.email, new: newEmail };
             }
             
-            // Check hours changes - each day independently
+            // Check hours changes
             const dayMap = {
               'mon': 'monday',
               'tue': 'tuesday',
@@ -692,78 +673,104 @@ export default async function PreviewPage({ params }: PageProps) {
                   }
                 }
                 
-                // Update hours in the DOM - FIXED: Each day updates independently
+                // Update hours in the DOM - improved logic
                 if (Object.keys(domUpdates.hours).length > 0) {
                   console.log('Updating hours:', domUpdates.hours);
                   
                   for (const [fullDay, hourUpdate] of Object.entries(domUpdates.hours)) {
-                    if (!hourUpdate.old) continue; // Skip if no original value
+                    console.log('Looking for hours to update...');
+                    console.log('Day:', fullDay, 'Old hours:', hourUpdate.old, 'New hours:', hourUpdate.new);
                     
-                    console.log(\`Updating \${fullDay} from "\${hourUpdate.old}" to "\${hourUpdate.new}"\`);
+                    // Create multiple patterns to match different hour formats
+                    const timePatterns = [
+                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*[-–—]\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
+                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*to\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
+                      /Closed/gi
+                    ];
                     
-                    // Find elements containing this specific day
-                    const allElements = document.querySelectorAll('*');
-                    let dayUpdated = false;
+                    // Walk through all elements to find the day
+                    const walker = document.createTreeWalker(
+                      document.body,
+                      NodeFilter.SHOW_ELEMENT,
+                      null,
+                      false
+                    );
                     
-                    for (let element of allElements) {
+                    let element;
+                    let hoursUpdated = false;
+                    
+                    while (element = walker.nextNode()) {
                       // Skip edit panel
                       if (element.closest('.edit-panel')) continue;
                       
-                      const elementText = element.textContent || '';
-                      
-                      // Check if this element contains the day name
-                      if (elementText.toLowerCase().includes(fullDay.toLowerCase())) {
-                        console.log(\`Found element with \${fullDay}\`);
+                      // Check if element contains the day name
+                      if (element.textContent && element.textContent.toLowerCase().includes(fullDay)) {
+                        console.log('Found element containing', fullDay, ':', element.tagName, element.textContent.substring(0, 100));
                         
-                        // Function to update hours in a specific context
-                        const updateHoursInContext = (contextElement) => {
-                          // Check all text nodes within this context
-                          const walker = document.createTreeWalker(
-                            contextElement,
-                            NodeFilter.SHOW_TEXT,
-                            null,
-                            false
-                          );
-                          
-                          let textNode;
-                          while (textNode = walker.nextNode()) {
-                            // Only update if this text node contains the old hours
-                            if (textNode.textContent && textNode.textContent.includes(hourUpdate.old)) {
-                              console.log(\`Found old hours "\${hourUpdate.old}" in text node\`);
-                              textNode.textContent = textNode.textContent.replace(hourUpdate.old, hourUpdate.new);
-                              dayUpdated = true;
-                              return true; // Stop after first update for this day
+                        // Function to update hours in a text node
+                        const updateHoursInNode = (node) => {
+                          if (node.nodeType === Node.TEXT_NODE) {
+                            let updated = false;
+                            let newText = node.textContent;
+                            
+                            // Try each pattern
+                            for (const pattern of timePatterns) {
+                              if (pattern.test(node.textContent)) {
+                                newText = node.textContent.replace(pattern, hourUpdate.new);
+                                updated = true;
+                                break;
+                              }
+                            }
+                            
+                            // Also try direct replacement if old value exists
+                            if (!updated && hourUpdate.old && node.textContent.includes(hourUpdate.old)) {
+                              newText = node.textContent.replace(hourUpdate.old, hourUpdate.new);
+                              updated = true;
+                            }
+                            
+                            if (updated) {
+                              node.textContent = newText;
+                              console.log('Updated hours in node for', fullDay);
+                              return true;
                             }
                           }
                           return false;
                         };
                         
-                        // Try updating in the element itself
-                        if (updateHoursInContext(element)) {
-                          break; // Found and updated, move to next day
-                        }
+                        // Check all child nodes recursively
+                        const checkChildNodes = (parent) => {
+                          for (let child of parent.childNodes) {
+                            if (updateHoursInNode(child)) {
+                              hoursUpdated = true;
+                            }
+                            if (child.nodeType === Node.ELEMENT_NODE) {
+                              checkChildNodes(child);
+                            }
+                          }
+                        };
                         
-                        // Try parent element (common pattern: day in one element, hours in parent)
-                        if (element.parentElement && updateHoursInContext(element.parentElement)) {
-                          break;
-                        }
+                        checkChildNodes(element);
                         
-                        // Try next sibling (common pattern: day in one element, hours in next)
-                        if (element.nextElementSibling && updateHoursInContext(element.nextElementSibling)) {
-                          break;
+                        // Also check next siblings for hours
+                        let sibling = element.nextElementSibling;
+                        let siblingCount = 0;
+                        while (sibling && siblingCount < 3) {
+                          checkChildNodes(sibling);
+                          sibling = sibling.nextElementSibling;
+                          siblingCount++;
                         }
                       }
                     }
                     
-                    if (dayUpdated) {
-                      // Update stored value for this specific day
+                    if (hoursUpdated) {
+                      // Update stored value
                       const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
                       if (shortDay) {
                         originalValues['hours-' + shortDay] = hourUpdate.new;
                       }
-                      console.log(\`Successfully updated \${fullDay} hours\`);
+                      console.log('Hours updated for', fullDay);
                     } else {
-                      console.log(\`Could not find hours to update for \${fullDay}\`);
+                      console.log('Could not find hours to update for', fullDay);
                     }
                   }
                 }
