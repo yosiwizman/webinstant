@@ -377,8 +377,8 @@ export default async function PreviewPage({ params }: PageProps) {
                   <input type="url" id="social-twitter" placeholder="https://twitter.com/yourbusiness" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
                 <div>
-                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Website:</label>
-                  <input type="url" id="social-website" placeholder="https://yourbusiness.com" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
+                  <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">LinkedIn:</label>
+                  <input type="url" id="social-linkedin" placeholder="https://linkedin.com/company/yourbusiness" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                 </div>
               </div>
             </div>
@@ -564,31 +564,35 @@ export default async function PreviewPage({ params }: PageProps) {
 
           function findSocialLinks() {
             const links = {};
-            const socialPatterns = {
-              facebook: /facebook\\.com\\/[^\\s"']*/i,
-              instagram: /instagram\\.com\\/[^\\s"']*/i,
-              twitter: /twitter\\.com\\/[^\\s"']*/i,
-              website: /https?:\\/\\/[^\\s"']*/i
-            };
             
-            // Check all links
-            const allLinks = document.querySelectorAll('a[href]');
+            // Find all social media links/icons
+            const allLinks = document.querySelectorAll('a[href*="facebook"], a[href*="instagram"], a[href*="twitter"], a[href*="linkedin"], a[href*="#"]');
+            
             allLinks.forEach(link => {
               if (link.closest('.edit-panel')) return;
               
               const href = link.getAttribute('href') || '';
-              for (const [platform, pattern] of Object.entries(socialPatterns)) {
-                if (platform === 'website') {
-                  // Skip social media links for website
-                  if (!href.includes('facebook') && !href.includes('instagram') && !href.includes('twitter')) {
-                    if (pattern.test(href)) {
-                      links[platform] = { element: link, value: href };
-                      break;
-                    }
-                  }
-                } else if (href.includes(platform)) {
-                  links[platform] = { element: link, value: href };
-                }
+              const linkText = link.textContent.toLowerCase();
+              const hasIcon = link.querySelector('svg, i, img');
+              
+              // Determine platform based on href or content
+              let platform = null;
+              if (href.includes('facebook') || linkText.includes('facebook') || link.className.includes('facebook')) {
+                platform = 'facebook';
+              } else if (href.includes('instagram') || linkText.includes('instagram') || link.className.includes('instagram')) {
+                platform = 'instagram';
+              } else if (href.includes('twitter') || linkText.includes('twitter') || link.className.includes('twitter')) {
+                platform = 'twitter';
+              } else if (href.includes('linkedin') || linkText.includes('linkedin') || link.className.includes('linkedin')) {
+                platform = 'linkedin';
+              }
+              
+              if (platform && !links[platform]) {
+                links[platform] = { 
+                  element: link, 
+                  value: href.startsWith('#') ? '' : href,
+                  container: link.parentElement 
+                };
               }
             });
             
@@ -761,13 +765,20 @@ export default async function PreviewPage({ params }: PageProps) {
             // Find and populate social links
             const socialLinks = findSocialLinks();
             socialElements = socialLinks;
-            for (const [platform, data] of Object.entries(socialLinks)) {
+            originalValues.social = {};
+            
+            ['facebook', 'instagram', 'twitter', 'linkedin'].forEach(platform => {
               const input = document.getElementById('social-' + platform);
               if (input) {
-                input.value = data.value;
-                originalValues['social-' + platform] = data.value;
+                if (socialLinks[platform] && socialLinks[platform].value) {
+                  input.value = socialLinks[platform].value;
+                  originalValues.social[platform] = socialLinks[platform].value;
+                } else {
+                  input.value = '';
+                  originalValues.social[platform] = '';
+                }
               }
-            }
+            });
           });
 
           // Also add touch event for mobile
@@ -890,18 +901,20 @@ export default async function PreviewPage({ params }: PageProps) {
             
             // Check social media changes
             const socialUpdates = {};
-            ['facebook', 'instagram', 'twitter', 'website'].forEach(platform => {
+            ['facebook', 'instagram', 'twitter', 'linkedin'].forEach(platform => {
               const input = document.getElementById('social-' + platform);
-              const originalValue = originalValues['social-' + platform];
-              if (input && input.value && input.value !== originalValue) {
-                socialUpdates[platform] = input.value;
-                domUpdates.social[platform] = { old: originalValue, new: input.value };
+              const newValue = input ? input.value.trim() : '';
+              const oldValue = originalValues.social[platform] || '';
+              
+              // Always include the social value (even if empty) to handle removals
+              socialUpdates[platform] = newValue;
+              
+              if (newValue !== oldValue) {
+                domUpdates.social[platform] = { old: oldValue, new: newValue };
               }
             });
             
-            if (Object.keys(socialUpdates).length > 0) {
-              updates.social = socialUpdates;
-            }
+            updates.social = socialUpdates;
 
             // Save to database
             try {
@@ -1085,17 +1098,66 @@ export default async function PreviewPage({ params }: PageProps) {
                 // Update social links in the DOM
                 if (Object.keys(domUpdates.social).length > 0) {
                   console.log('Updating social links:', domUpdates.social);
+                  
                   for (const [platform, socialUpdate] of Object.entries(domUpdates.social)) {
-                    if (socialElements[platform] && socialElements[platform].element) {
-                      socialElements[platform].element.href = socialUpdate.new;
-                      // Update text if it contains the URL
-                      if (socialElements[platform].element.textContent.includes(socialUpdate.old)) {
-                        socialElements[platform].element.textContent = 
-                          socialElements[platform].element.textContent.replace(socialUpdate.old, socialUpdate.new);
+                    const socialElement = socialElements[platform];
+                    
+                    if (socialElement && socialElement.element) {
+                      const link = socialElement.element;
+                      
+                      if (socialUpdate.new) {
+                        // Update the href
+                        link.href = socialUpdate.new;
+                        link.setAttribute('target', '_blank');
+                        link.setAttribute('rel', 'noopener noreferrer');
+                        
+                        // Make sure the link is visible
+                        link.style.display = '';
+                        if (socialElement.container) {
+                          socialElement.container.style.display = '';
+                        }
+                        
+                        console.log(\`Updated \${platform} link to: \${socialUpdate.new}\`);
+                      } else {
+                        // Hide the link if no URL provided
+                        link.style.display = 'none';
+                        if (socialElement.container) {
+                          socialElement.container.style.display = 'none';
+                        }
+                        
+                        console.log(\`Hidden \${platform} link (no URL)\`);
                       }
-                      originalValues['social-' + platform] = socialUpdate.new;
-                      console.log('Social link updated for', platform);
+                    } else if (socialUpdate.new) {
+                      // Try to find a social links container to add new links
+                      const socialContainers = document.querySelectorAll('[class*="social"], [id*="social"]');
+                      
+                      if (socialContainers.length > 0) {
+                        const container = socialContainers[0];
+                        
+                        // Create a new link element
+                        const newLink = document.createElement('a');
+                        newLink.href = socialUpdate.new;
+                        newLink.target = '_blank';
+                        newLink.rel = 'noopener noreferrer';
+                        
+                        // Add appropriate icon or text based on platform
+                        const iconMap = {
+                          facebook: '📘',
+                          instagram: '📷',
+                          twitter: '🐦',
+                          linkedin: '💼'
+                        };
+                        
+                        newLink.textContent = iconMap[platform] || platform;
+                        newLink.style.marginRight = '10px';
+                        
+                        container.appendChild(newLink);
+                        console.log(\`Added new \${platform} link\`);
+                      }
                     }
+                    
+                    // Update stored value
+                    originalValues.social[platform] = socialUpdate.new;
                   }
                 }
                 
