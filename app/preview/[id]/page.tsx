@@ -195,6 +195,25 @@ export default async function PreviewPage({ params }: PageProps) {
           
           document.body.appendChild(editBtn);
 
+          // Generate time options for dropdowns
+          function generateTimeOptions(isClosing = false) {
+            const options = ['<option value="Closed">Closed</option>'];
+            const startHour = isClosing ? 12 : 5; // Start at noon for closing, 5 AM for opening
+            const endHour = isClosing ? 23 : 12; // End at 11 PM for closing, noon for opening
+            
+            for (let hour = startHour; hour <= endHour; hour++) {
+              for (let min = 0; min < 60; min += 30) {
+                const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                const ampm = hour < 12 ? 'AM' : 'PM';
+                const minStr = min.toString().padStart(2, '0');
+                const timeStr = \`\${h12}:\${minStr} \${ampm}\`;
+                options.push(\`<option value="\${timeStr}">\${timeStr}</option>\`);
+              }
+            }
+            
+            return options.join('');
+          }
+
           // Create edit panel
           const panel = document.createElement('div');
           panel.className = 'edit-panel';
@@ -255,52 +274,142 @@ export default async function PreviewPage({ params }: PageProps) {
               <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Business Hours:</label>
               <div id="hours-grid" style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                 <div style="margin-bottom: 10px;">
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Monday:</span>
-                    <input type="text" id="hours-mon" placeholder="9:00 AM - 5:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Monday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-mon-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-mon-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Tuesday:</span>
-                    <input type="text" id="hours-tue" placeholder="9:00 AM - 5:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Tuesday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-tue-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-tue-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Wednesday:</span>
-                    <input type="text" id="hours-wed" placeholder="9:00 AM - 5:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Wednesday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-wed-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-wed-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Thursday:</span>
-                    <input type="text" id="hours-thu" placeholder="9:00 AM - 5:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Thursday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-thu-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-thu-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Friday:</span>
-                    <input type="text" id="hours-fri" placeholder="9:00 AM - 5:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Friday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-fri-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-fri-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Saturday:</span>
-                    <input type="text" id="hours-sat" placeholder="10:00 AM - 3:00 PM" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Saturday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-sat-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-sat-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
-                  <div style="display: flex; align-items: center;">
-                    <span style="width: 100px; font-size: 13px; color: #666;">Sunday:</span>
-                    <input type="text" id="hours-sun" placeholder="Closed" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <div style="margin-bottom: 12px;">
+                    <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Sunday:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <select id="hours-sun-open" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(false)}
+                      </select>
+                      <span style="color: #999;">to</span>
+                      <select id="hours-sun-close" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        \${generateTimeOptions(true)}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
             <div style="margin-bottom: 20px;">
-              <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Common Prices:</label>
+              <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Edit Services:</label>
+              <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
+                <div style="margin-bottom: 10px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
+                    <input type="text" id="service-1-name" placeholder="Haircut" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
+                    <input type="text" id="service-1-price" placeholder="$45" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  </div>
+                </div>
+                <div style="margin-bottom: 10px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
+                    <input type="text" id="service-2-name" placeholder="Color" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
+                    <input type="text" id="service-2-price" placeholder="$120" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="width: 60px; font-size: 13px; color: #666;">Service:</span>
+                    <input type="text" id="service-3-name" placeholder="Extensions" style="flex: 2; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                    <span style="width: 35px; font-size: 13px; color: #666;">Cost:</span>
+                    <input type="text" id="service-3-price" placeholder="$200" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 10px; color: #555; font-size: 14px; font-weight: 500;">Social Media Links:</label>
               <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span style="width: 120px; font-size: 13px; color: #666;">Service 1:</span>
-                  <input type="text" id="price-1" placeholder="$45" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <span style="width: 100px; font-size: 13px; color: #666;">Facebook:</span>
+                  <input type="url" id="social-facebook" placeholder="https://facebook.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                 </div>
                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span style="width: 120px; font-size: 13px; color: #666;">Service 2:</span>
-                  <input type="text" id="price-2" placeholder="$120" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <span style="width: 100px; font-size: 13px; color: #666;">Instagram:</span>
+                  <input type="url" id="social-instagram" placeholder="https://instagram.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                  <span style="width: 100px; font-size: 13px; color: #666;">Twitter/X:</span>
+                  <input type="url" id="social-twitter" placeholder="https://twitter.com/yourbusiness" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                 </div>
                 <div style="display: flex; align-items: center;">
-                  <span style="width: 120px; font-size: 13px; color: #666;">Service 3:</span>
-                  <input type="text" id="price-3" placeholder="$200" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                  <span style="width: 100px; font-size: 13px; color: #666;">Website:</span>
+                  <input type="url" id="social-website" placeholder="https://yourbusiness.com" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                 </div>
               </div>
             </div>
@@ -320,6 +429,7 @@ export default async function PreviewPage({ params }: PageProps) {
           let emailElement = null;
           let hoursElements = {};
           let priceElements = [];
+          let socialElements = {};
 
           // Find and extract current values
           function findPhoneNumber() {
@@ -363,27 +473,51 @@ export default async function PreviewPage({ params }: PageProps) {
             const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
             const hoursRegex = /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*[-–]\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?|Closed|closed/i;
             
-            const walker = document.createTreeWalker(
-              document.body,
-              NodeFilter.SHOW_TEXT,
-              null,
-              false
-            );
+            // Find all elements that might contain hours
+            const allElements = Array.from(document.querySelectorAll('*'));
             
-            let node;
-            while (node = walker.nextNode()) {
-              const text = node.textContent.toLowerCase();
-              for (const day of daysOfWeek) {
-                if (text.includes(day) && !node.parentElement.closest('.edit-panel')) {
-                  // Look for hours in the same element or next sibling
-                  let hoursText = node.textContent;
-                  if (node.nextSibling && node.nextSibling.textContent) {
-                    hoursText += ' ' + node.nextSibling.textContent;
+            for (const day of daysOfWeek) {
+              for (const element of allElements) {
+                if (element.closest('.edit-panel')) continue;
+                
+                const text = element.textContent || '';
+                if (text.toLowerCase().includes(day)) {
+                  // Check if this element or its parent contains hours
+                  let container = element;
+                  let maxLevels = 3; // Check up to 3 parent levels
+                  
+                  while (container && maxLevels > 0) {
+                    const containerText = container.textContent || '';
+                    const hoursMatch = containerText.match(hoursRegex);
+                    
+                    if (hoursMatch) {
+                      // Find the specific text node containing the hours
+                      const walker = document.createTreeWalker(
+                        container,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                      );
+                      
+                      let textNode;
+                      while (textNode = walker.nextNode()) {
+                        if (hoursRegex.test(textNode.textContent)) {
+                          hours[day] = { 
+                            node: textNode, 
+                            value: textNode.textContent.match(hoursRegex)[0],
+                            container: container
+                          };
+                          break;
+                        }
+                      }
+                      break;
+                    }
+                    
+                    container = container.parentElement;
+                    maxLevels--;
                   }
-                  const hoursMatch = hoursText.match(hoursRegex);
-                  if (hoursMatch) {
-                    hours[day] = { node, value: hoursMatch[0] };
-                  }
+                  
+                  if (hours[day]) break;
                 }
               }
             }
@@ -412,6 +546,39 @@ export default async function PreviewPage({ params }: PageProps) {
             }
             
             return prices.slice(0, 3); // Return first 3 prices found
+          }
+
+          function findSocialLinks() {
+            const links = {};
+            const socialPatterns = {
+              facebook: /facebook\\.com\\/[^\\s"']*/i,
+              instagram: /instagram\\.com\\/[^\\s"']*/i,
+              twitter: /twitter\\.com\\/[^\\s"']*/i,
+              website: /https?:\\/\\/[^\\s"']*/i
+            };
+            
+            // Check all links
+            const allLinks = document.querySelectorAll('a[href]');
+            allLinks.forEach(link => {
+              if (link.closest('.edit-panel')) return;
+              
+              const href = link.getAttribute('href') || '';
+              for (const [platform, pattern] of Object.entries(socialPatterns)) {
+                if (platform === 'website') {
+                  // Skip social media links for website
+                  if (!href.includes('facebook') && !href.includes('instagram') && !href.includes('twitter')) {
+                    if (pattern.test(href)) {
+                      links[platform] = { element: link, value: href };
+                      break;
+                    }
+                  }
+                } else if (href.includes(platform)) {
+                  links[platform] = { element: link, value: href };
+                }
+              }
+            });
+            
+            return links;
           }
 
           // Function to show panel
@@ -444,6 +611,28 @@ export default async function PreviewPage({ params }: PageProps) {
             }
           }
 
+          // Helper function to parse hours string into open/close times
+          function parseHours(hoursStr) {
+            if (!hoursStr || hoursStr.toLowerCase().includes('closed')) {
+              return { open: 'Closed', close: 'Closed' };
+            }
+            
+            const match = hoursStr.match(/(\\d{1,2}:\\d{2}\\s*(?:AM|PM|am|pm)?)\\s*[-–]\\s*(\\d{1,2}:\\d{2}\\s*(?:AM|PM|am|pm)?)/);
+            if (match) {
+              return { open: match[1].trim(), close: match[2].trim() };
+            }
+            
+            return { open: '', close: '' };
+          }
+
+          // Helper function to combine open/close times into hours string
+          function combineHours(open, close) {
+            if (open === 'Closed' || close === 'Closed') {
+              return 'Closed';
+            }
+            return \`\${open} - \${close}\`;
+          }
+
           // Toggle panel - use both click and touch events
           editBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -468,6 +657,7 @@ export default async function PreviewPage({ params }: PageProps) {
               document.getElementById('edit-email').value = email.value;
             }
             
+            // Find and populate hours with dropdowns
             const hours = findHours();
             hoursElements = hours;
             const dayMap = {
@@ -481,23 +671,46 @@ export default async function PreviewPage({ params }: PageProps) {
             };
             
             for (const [day, data] of Object.entries(hours)) {
-              const inputId = 'hours-' + dayMap[day];
-              const input = document.getElementById(inputId);
-              if (input) {
-                input.value = data.value;
-                originalValues[inputId] = data.value;
+              const shortDay = dayMap[day];
+              const parsed = parseHours(data.value);
+              
+              const openSelect = document.getElementById('hours-' + shortDay + '-open');
+              const closeSelect = document.getElementById('hours-' + shortDay + '-close');
+              
+              if (openSelect) {
+                openSelect.value = parsed.open || 'Closed';
+                originalValues['hours-' + shortDay + '-open'] = parsed.open || 'Closed';
               }
+              if (closeSelect) {
+                closeSelect.value = parsed.close || 'Closed';
+                originalValues['hours-' + shortDay + '-close'] = parsed.close || 'Closed';
+              }
+              
+              // Store the original combined value
+              originalValues['hours-' + shortDay] = data.value;
             }
             
+            // Find and populate prices
             const prices = findPrices();
             priceElements = prices;
             prices.forEach((price, index) => {
-              const input = document.getElementById('price-' + (index + 1));
-              if (input) {
-                input.value = price.value;
-                originalValues['price-' + (index + 1)] = price.value;
+              const priceInput = document.getElementById('service-' + (index + 1) + '-price');
+              if (priceInput) {
+                priceInput.value = price.value;
+                originalValues['service-' + (index + 1) + '-price'] = price.value;
               }
             });
+            
+            // Find and populate social links
+            const socialLinks = findSocialLinks();
+            socialElements = socialLinks;
+            for (const [platform, data] of Object.entries(socialLinks)) {
+              const input = document.getElementById('social-' + platform);
+              if (input) {
+                input.value = data.value;
+                originalValues['social-' + platform] = data.value;
+              }
+            }
           });
 
           // Also add touch event for mobile
@@ -539,7 +752,8 @@ export default async function PreviewPage({ params }: PageProps) {
               phone: null,
               email: null,
               hours: {},
-              prices: []
+              prices: [],
+              social: {}
             };
             
             // Check phone changes
@@ -556,7 +770,7 @@ export default async function PreviewPage({ params }: PageProps) {
               domUpdates.email = { old: originalValues.email, new: newEmail };
             }
             
-            // Check hours changes
+            // Check hours changes - FIXED LOGIC
             const dayMap = {
               'mon': 'monday',
               'tue': 'tuesday',
@@ -569,11 +783,21 @@ export default async function PreviewPage({ params }: PageProps) {
             
             const hoursUpdates = {};
             for (const [shortDay, fullDay] of Object.entries(dayMap)) {
-              const input = document.getElementById('hours-' + shortDay);
-              const originalValue = originalValues['hours-' + shortDay];
-              if (input && input.value && input.value !== originalValue) {
-                hoursUpdates[fullDay] = input.value;
-                domUpdates.hours[fullDay] = { old: originalValue, new: input.value };
+              const openSelect = document.getElementById('hours-' + shortDay + '-open');
+              const closeSelect = document.getElementById('hours-' + shortDay + '-close');
+              
+              if (openSelect && closeSelect) {
+                const newHours = combineHours(openSelect.value, closeSelect.value);
+                const originalHours = originalValues['hours-' + shortDay];
+                
+                if (newHours !== originalHours && originalHours) {
+                  hoursUpdates[fullDay] = newHours;
+                  domUpdates.hours[fullDay] = { 
+                    old: originalHours, 
+                    new: newHours,
+                    element: hoursElements[fullDay]
+                  };
+                }
               }
             }
             
@@ -584,10 +808,10 @@ export default async function PreviewPage({ params }: PageProps) {
             // Check price changes
             const priceUpdates = [];
             priceElements.forEach((price, index) => {
-              const input = document.getElementById('price-' + (index + 1));
-              const originalValue = originalValues['price-' + (index + 1)];
-              if (input && input.value && input.value !== originalValue) {
-                const update = { old: originalValue, new: input.value };
+              const priceInput = document.getElementById('service-' + (index + 1) + '-price');
+              const originalValue = originalValues['service-' + (index + 1) + '-price'];
+              if (priceInput && priceInput.value && priceInput.value !== originalValue) {
+                const update = { old: originalValue, new: priceInput.value };
                 priceUpdates.push(update);
                 domUpdates.prices.push(update);
               }
@@ -595,6 +819,21 @@ export default async function PreviewPage({ params }: PageProps) {
             
             if (priceUpdates.length > 0) {
               updates.prices = priceUpdates;
+            }
+            
+            // Check social media changes
+            const socialUpdates = {};
+            ['facebook', 'instagram', 'twitter', 'website'].forEach(platform => {
+              const input = document.getElementById('social-' + platform);
+              const originalValue = originalValues['social-' + platform];
+              if (input && input.value && input.value !== originalValue) {
+                socialUpdates[platform] = input.value;
+                domUpdates.social[platform] = { old: originalValue, new: input.value };
+              }
+            });
+            
+            if (Object.keys(socialUpdates).length > 0) {
+              updates.social = socialUpdates;
             }
 
             // Save to database
@@ -673,104 +912,61 @@ export default async function PreviewPage({ params }: PageProps) {
                   }
                 }
                 
-                // Update hours in the DOM - improved logic
+                // Update hours in the DOM - FIXED INDEPENDENT UPDATING
                 if (Object.keys(domUpdates.hours).length > 0) {
-                  console.log('Updating hours:', domUpdates.hours);
+                  console.log('Updating hours independently for each day:', domUpdates.hours);
                   
                   for (const [fullDay, hourUpdate] of Object.entries(domUpdates.hours)) {
-                    console.log('Looking for hours to update...');
-                    console.log('Day:', fullDay, 'Old hours:', hourUpdate.old, 'New hours:', hourUpdate.new);
+                    if (!hourUpdate.element || !hourUpdate.element.node) continue;
                     
-                    // Create multiple patterns to match different hour formats
-                    const timePatterns = [
-                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*[-–—]\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
-                      /\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?\\s*to\\s*\\d{1,2}:\\d{2}\\s*(AM|PM|am|pm)?/gi,
-                      /Closed/gi
-                    ];
+                    console.log(\`Updating \${fullDay}: "\${hourUpdate.old}" -> "\${hourUpdate.new}"\`);
                     
-                    // Walk through all elements to find the day
-                    const walker = document.createTreeWalker(
-                      document.body,
-                      NodeFilter.SHOW_ELEMENT,
-                      null,
-                      false
-                    );
-                    
-                    let element;
-                    let hoursUpdated = false;
-                    
-                    while (element = walker.nextNode()) {
-                      // Skip edit panel
-                      if (element.closest('.edit-panel')) continue;
-                      
-                      // Check if element contains the day name
-                      if (element.textContent && element.textContent.toLowerCase().includes(fullDay)) {
-                        console.log('Found element containing', fullDay, ':', element.tagName, element.textContent.substring(0, 100));
+                    // Update the specific text node for this day's hours
+                    const targetNode = hourUpdate.element.node;
+                    if (targetNode && targetNode.nodeType === Node.TEXT_NODE) {
+                      // Replace only this specific day's hours
+                      if (targetNode.textContent.includes(hourUpdate.old)) {
+                        targetNode.textContent = targetNode.textContent.replace(hourUpdate.old, hourUpdate.new);
+                        console.log(\`Successfully updated \${fullDay} hours\`);
                         
-                        // Function to update hours in a text node
-                        const updateHoursInNode = (node) => {
-                          if (node.nodeType === Node.TEXT_NODE) {
-                            let updated = false;
-                            let newText = node.textContent;
-                            
-                            // Try each pattern
-                            for (const pattern of timePatterns) {
-                              if (pattern.test(node.textContent)) {
-                                newText = node.textContent.replace(pattern, hourUpdate.new);
-                                updated = true;
-                                break;
+                        // Update stored values
+                        const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
+                        if (shortDay) {
+                          originalValues['hours-' + shortDay] = hourUpdate.new;
+                          const parsed = parseHours(hourUpdate.new);
+                          originalValues['hours-' + shortDay + '-open'] = parsed.open;
+                          originalValues['hours-' + shortDay + '-close'] = parsed.close;
+                        }
+                      } else {
+                        // Try to find and update in the container
+                        const container = hourUpdate.element.container;
+                        if (container) {
+                          const walker = document.createTreeWalker(
+                            container,
+                            NodeFilter.SHOW_TEXT,
+                            null,
+                            false
+                          );
+                          
+                          let textNode;
+                          while (textNode = walker.nextNode()) {
+                            if (textNode.textContent.includes(hourUpdate.old)) {
+                              textNode.textContent = textNode.textContent.replace(hourUpdate.old, hourUpdate.new);
+                              console.log(\`Successfully updated \${fullDay} hours in container\`);
+                              
+                              // Update stored values
+                              const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
+                              if (shortDay) {
+                                originalValues['hours-' + shortDay] = hourUpdate.new;
+                                const parsed = parseHours(hourUpdate.new);
+                                originalValues['hours-' + shortDay + '-open'] = parsed.open;
+                                originalValues['hours-' + shortDay + '-close'] = parsed.close;
                               }
-                            }
-                            
-                            // Also try direct replacement if old value exists
-                            if (!updated && hourUpdate.old && node.textContent.includes(hourUpdate.old)) {
-                              newText = node.textContent.replace(hourUpdate.old, hourUpdate.new);
-                              updated = true;
-                            }
-                            
-                            if (updated) {
-                              node.textContent = newText;
-                              console.log('Updated hours in node for', fullDay);
-                              return true;
+                              break;
                             }
                           }
-                          return false;
-                        };
-                        
-                        // Check all child nodes recursively
-                        const checkChildNodes = (parent) => {
-                          for (let child of parent.childNodes) {
-                            if (updateHoursInNode(child)) {
-                              hoursUpdated = true;
-                            }
-                            if (child.nodeType === Node.ELEMENT_NODE) {
-                              checkChildNodes(child);
-                            }
-                          }
-                        };
-                        
-                        checkChildNodes(element);
-                        
-                        // Also check next siblings for hours
-                        let sibling = element.nextElementSibling;
-                        let siblingCount = 0;
-                        while (sibling && siblingCount < 3) {
-                          checkChildNodes(sibling);
-                          sibling = sibling.nextElementSibling;
-                          siblingCount++;
                         }
                       }
-                    }
-                    
-                    if (hoursUpdated) {
-                      // Update stored value
-                      const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
-                      if (shortDay) {
-                        originalValues['hours-' + shortDay] = hourUpdate.new;
-                      }
-                      console.log('Hours updated for', fullDay);
-                    } else {
-                      console.log('Could not find hours to update for', fullDay);
                     }
                   }
                 }
@@ -798,11 +994,28 @@ export default async function PreviewPage({ params }: PageProps) {
                       
                       if (priceUpdated) {
                         // Update stored value
-                        originalValues['price-' + (index + 1)] = priceUpdate.new;
+                        originalValues['service-' + (index + 1) + '-price'] = priceUpdate.new;
                         console.log('Price', index + 1, 'updated');
                       }
                     }
                   });
+                }
+                
+                // Update social links in the DOM
+                if (Object.keys(domUpdates.social).length > 0) {
+                  console.log('Updating social links:', domUpdates.social);
+                  for (const [platform, socialUpdate] of Object.entries(domUpdates.social)) {
+                    if (socialElements[platform] && socialElements[platform].element) {
+                      socialElements[platform].element.href = socialUpdate.new;
+                      // Update text if it contains the URL
+                      if (socialElements[platform].element.textContent.includes(socialUpdate.old)) {
+                        socialElements[platform].element.textContent = 
+                          socialElements[platform].element.textContent.replace(socialUpdate.old, socialUpdate.new);
+                      }
+                      originalValues['social-' + platform] = socialUpdate.new;
+                      console.log('Social link updated for', platform);
+                    }
+                  }
                 }
                 
                 // Show success message
@@ -815,6 +1028,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 emailElement = findEmail();
                 hoursElements = findHours();
                 priceElements = findPrices();
+                socialElements = findSocialLinks();
                 
                 console.log('DOM updates complete');
                 
