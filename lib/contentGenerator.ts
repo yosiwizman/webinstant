@@ -659,7 +659,9 @@ export async function generateBusinessImages(businessType: string, businessName:
         }
       }
       if (compressedCount > 0) {
-        console.log(`  ✓ Compressed ${compressedCount} images with TinyPNG`);
+        console.log(`  ✓ Compressed ${comp
+
+Count} images with TinyPNG`);
       }
     }
 
@@ -886,62 +888,90 @@ export class ContentGenerator {
   }
 
   private inferBusinessType(businessInfo: BusinessInfo): string {
-    const name = businessInfo.businessName.toLowerCase();
-    const type = (businessInfo.businessType || '').toLowerCase();
-    const combined = `${name} ${type}`;
-
-    // Restaurant keywords
-    if (/restaurant|pizza|food|cafe|bakery|diner|grill|bistro|kitchen|eat|cuisine|dining/.test(combined)) {
-      return 'restaurant';
-    }
+    // Check the business name FIRST (this is the main fix)
+    const businessName = businessInfo.businessName.toLowerCase();
     
+    // Also check businessType field if provided
+    const businessTypeField = (businessInfo.businessType || '').toLowerCase();
+    
+    // Combine both for better detection
+    const combined = `${businessName} ${businessTypeField}`;
+    
+    let detectedType = 'general'; // Default
+    
+    // Restaurant keywords - check name patterns
+    if (/restaurant|pizza|burger|cafe|coffee|bakery|deli|grill|kitchen|food|eat|dining|bistro|bar|pub|cuisine|taco|sushi|bbq|steakhouse/.test(combined)) {
+      detectedType = 'restaurant';
+    }
     // Plumbing keywords
-    if (/plumber|plumbing|pipe|drain|water|leak|sewer|faucet|toilet|sink/.test(combined)) {
-      return 'plumbing';
+    else if (/plumb|pipe|drain|water|leak|sewer|faucet|toilet|sink|rooter|hydro/.test(combined)) {
+      detectedType = 'plumbing';
     }
-    
     // Beauty keywords
-    if (/salon|beauty|hair|nail|spa|barber|styling|cuts|color|makeup|cosmetic/.test(combined)) {
-      return 'beauty';
+    else if (/salon|beauty|hair|nail|spa|barber|styling|cuts|color|makeup|cosmetic|lash|brow|wax/.test(combined)) {
+      detectedType = 'beauty';
     }
-    
     // Auto keywords
-    if (/auto|car|mechanic|repair|tire|brake|oil|transmission|automotive|garage|motor/.test(combined)) {
-      return 'auto';
+    else if (/auto|car|mechanic|repair|tire|brake|oil|transmission|automotive|garage|motor|vehicle|muffler/.test(combined)) {
+      detectedType = 'auto';
     }
-    
     // Cleaning keywords
-    if (/clean|maid|janitorial|housekeeping|sanitiz|wash|spotless/.test(combined)) {
-      return 'cleaning';
+    else if (/clean|maid|janitorial|housekeeping|sanitiz|wash|spotless|sparkle|dust/.test(combined)) {
+      detectedType = 'cleaning';
     }
-    
     // Electrical keywords
-    if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit/.test(combined)) {
-      return 'electrical';
+    else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electrician/.test(combined)) {
+      detectedType = 'electrical';
     }
-    
     // Construction keywords
-    if (/construct|build|contractor|remodel|renovation|carpenter/.test(combined)) {
-      return 'construction';
+    else if (/construct|build|contractor|remodel|renovation|carpenter|roofing/.test(combined)) {
+      detectedType = 'construction';
     }
-    
     // Retail keywords
-    if (/store|shop|mart|market|boutique|retail|mall/.test(combined)) {
-      return 'retail';
+    else if (/store|shop|mart|market|boutique|retail|mall/.test(combined)) {
+      detectedType = 'retail';
     }
-    
     // Dental keywords
-    if (/dental|dentist|teeth|orthodont|oral/.test(combined)) {
-      return 'dental';
+    else if (/dental|dentist|teeth|orthodont|oral/.test(combined)) {
+      detectedType = 'dental';
+    }
+    // Medical keywords
+    else if (/medical|clinic|doctor|health|care|wellness|hospital|physician/.test(combined)) {
+      detectedType = 'medical';
+    }
+    // HVAC keywords
+    else if (/hvac|heating|cooling|air condition|ac |furnace/.test(combined)) {
+      detectedType = 'hvac';
+    }
+    // Landscaping keywords
+    else if (/landscap|lawn|garden|tree|grass|yard/.test(combined)) {
+      detectedType = 'landscaping';
+    }
+    // Moving keywords
+    else if (/moving|movers|relocation|hauling/.test(combined)) {
+      detectedType = 'moving';
+    }
+    // Legal keywords
+    else if (/law|legal|attorney|lawyer/.test(combined)) {
+      detectedType = 'legal';
+    }
+    // Real Estate keywords
+    else if (/real estate|realty|property|homes/.test(combined)) {
+      detectedType = 'realestate';
     }
     
-    // Medical keywords
-    if (/medical|clinic|doctor|health|care|wellness|hospital/.test(combined)) {
-      return 'medical';
+    // Log the detection result
+    console.log('Detected type:', detectedType, 'for', businessInfo.businessName);
+    
+    // Map some detected types to our supported categories
+    if (['electrical', 'construction', 'hvac', 'landscaping', 'moving'].includes(detectedType)) {
+      detectedType = 'service'; // Group these as general service
     }
-
-    // Default to service
-    return 'service';
+    if (['retail', 'dental', 'medical', 'legal', 'realestate'].includes(detectedType)) {
+      detectedType = 'general'; // Group these as general business
+    }
+    
+    return detectedType;
   }
 
   private getIndustryKeywords(businessType: string): string[] {
@@ -1172,19 +1202,19 @@ export function getCategoryTheme(type: string): CategoryTheme {
 
 // New functions for enhanced content generation
 export async function generateBusinessContent(business: any): Promise<BusinessContent> {
-  const name = business.business_name.toLowerCase();
-  const businessType = detectBusinessType(name);
+  const businessName = business.business_name || business.businessName || '';
+  const businessType = detectBusinessType(businessName);
   
   console.log(`  📝 Generating fallback content for ${businessType} business...`);
   
   // Generate logo
-  const logo = await generateBusinessLogo(business.business_name, businessType);
+  const logo = await generateBusinessLogo(businessName, businessType);
   
   // Try to generate video background
   const videoBackground = await generateVideoBackground(businessType);
   
   return {
-    tagline: generateTagline(businessType, business.business_name),
+    tagline: generateTagline(businessType, businessName),
     description: generateDescription(businessType, business),
     services: generateServices(businessType),
     testimonials: generateTestimonials(businessType),
@@ -1196,18 +1226,64 @@ export async function generateBusinessContent(business: any): Promise<BusinessCo
   };
 }
 
-export function detectBusinessType(name: string): string {
-  if (/restaurant|pizza|burger|cafe|coffee|bakery|deli|grill|kitchen|food|eat|dining|bistro|bar|pub|cuisine/.test(name)) return 'restaurant';
-  if (/plumb|pipe|drain|water|leak|sewer|faucet|toilet|sink/.test(name)) return 'plumbing';
-  if (/salon|beauty|hair|nail|spa|barber|styling|cuts|color|makeup|cosmetic/.test(name)) return 'beauty';
-  if (/auto|car|mechanic|repair|tire|brake|oil|transmission|automotive|garage|motor/.test(name)) return 'auto';
-  if (/clean|maid|janitorial|housekeeping|sanitiz|wash|spotless/.test(name)) return 'cleaning';
-  if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit/.test(name)) return 'electrical';
-  if (/construct|build|contractor|remodel|renovation|carpenter/.test(name)) return 'construction';
-  if (/store|shop|mart|market|boutique|retail|mall/.test(name)) return 'retail';
-  if (/dental|dentist|teeth|orthodont|oral/.test(name)) return 'dental';
-  if (/medical|clinic|doctor|health|care|wellness|hospital/.test(name)) return 'medical';
-  return 'general';
+export function detectBusinessType(businessName: string): string {
+  const name = businessName.toLowerCase();
+  
+  let detectedType = 'general'; // Default
+  
+  // Restaurant keywords - more comprehensive
+  if (/restaurant|pizza|burger|cafe|coffee|bakery|deli|grill|kitchen|food|eat|dining|bistro|bar|pub|cuisine|taco|sushi|bbq|steakhouse|sandwich|bagel|donut|ice cream/.test(name)) {
+    detectedType = 'restaurant';
+  }
+  // Plumbing keywords
+  else if (/plumb|pipe|drain|water|leak|sewer|faucet|toilet|sink|rooter|hydro|septic/.test(name)) {
+    detectedType = 'plumbing';
+  }
+  // Beauty keywords
+  else if (/salon|beauty|hair|nail|spa|barber|styling|cuts|color|makeup|cosmetic|lash|brow|wax|aesthet/.test(name)) {
+    detectedType = 'beauty';
+  }
+  // Auto keywords
+  else if (/auto|car|mechanic|repair|tire|brake|oil|transmission|automotive|garage|motor|vehicle|muffler|body shop|detail/.test(name)) {
+    detectedType = 'auto';
+  }
+  // Cleaning keywords
+  else if (/clean|maid|janitorial|housekeeping|sanitiz|wash|spotless|sparkle|dust|sweep/.test(name)) {
+    detectedType = 'cleaning';
+  }
+  // Electrical keywords
+  else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electrician/.test(name)) {
+    detectedType = 'electrical';
+  }
+  // Construction keywords
+  else if (/construct|build|contractor|remodel|renovation|carpenter|roofing/.test(name)) {
+    detectedType = 'construction';
+  }
+  // Retail keywords
+  else if (/store|shop|mart|market|boutique|retail|mall/.test(name)) {
+    detectedType = 'retail';
+  }
+  // Dental keywords
+  else if (/dental|dentist|teeth|orthodont|oral/.test(name)) {
+    detectedType = 'dental';
+  }
+  // Medical keywords
+  else if (/medical|clinic|doctor|health|care|wellness|hospital|physician/.test(name)) {
+    detectedType = 'medical';
+  }
+  
+  // Log the detection
+  console.log('Detected type:', detectedType, 'for', businessName);
+  
+  // Map some types to our main categories
+  if (['electrical', 'construction'].includes(detectedType)) {
+    return 'service';
+  }
+  if (['retail', 'dental', 'medical'].includes(detectedType)) {
+    return 'general';
+  }
+  
+  return detectedType;
 }
 
 export function generateTagline(type: string, businessName: string): string {
@@ -1262,18 +1338,20 @@ export function generateTagline(type: string, businessName: string): string {
 
 export function generateDescription(type: string, business: any): string {
   const city = business.city || 'the area';
+  const businessName = business.business_name || business.businessName || 'Our business';
+  
   const descriptions: { [key: string]: string } = {
-    restaurant: `Welcome to ${business.business_name}, where culinary excellence meets warm hospitality in the heart of ${city}. Our award-winning chefs prepare every dish with fresh, locally-sourced ingredients, creating unforgettable flavors that keep our guests coming back. From our signature dishes to daily specials, every meal is a celebration of taste and tradition. Whether you're joining us for a romantic dinner, family gathering, or quick lunch, we promise an exceptional dining experience that delights all your senses.`,
+    restaurant: `Welcome to ${businessName}, where culinary excellence meets warm hospitality in the heart of ${city}. Our award-winning chefs prepare every dish with fresh, locally-sourced ingredients, creating unforgettable flavors that keep our guests coming back. From our signature dishes to daily specials, every meal is a celebration of taste and tradition. Whether you're joining us for a romantic dinner, family gathering, or quick lunch, we promise an exceptional dining experience that delights all your senses.`,
     
-    plumbing: `${business.business_name} is ${city}'s most trusted plumbing service, available 24/7 for all your plumbing emergencies. With over 15 years of experience, our licensed master plumbers handle everything from simple repairs to complete system overhauls. We pride ourselves on transparent pricing, rapid response times, and guaranteed workmanship. Our team uses the latest technology including video pipe inspection and hydro-jetting to diagnose and fix problems quickly, saving you time and money.`,
+    plumbing: `${businessName} is ${city}'s most trusted plumbing service, available 24/7 for all your plumbing emergencies. With over 15 years of experience, our licensed master plumbers handle everything from simple repairs to complete system overhauls. We pride ourselves on transparent pricing, rapid response times, and guaranteed workmanship. Our team uses the latest technology including video pipe inspection and hydro-jetting to diagnose and fix problems quickly, saving you time and money.`,
     
-    beauty: `At ${business.business_name}, we believe beauty is an art form that enhances your natural radiance. Our award-winning stylists and aestheticians are dedicated to helping you look and feel your absolute best. Using premium products from leading brands and the latest techniques including balayage, keratin treatments, and microblading, we create personalized beauty experiences tailored to your unique style. Step into our luxurious salon and leave feeling refreshed, renewed, and absolutely beautiful.`,
+    beauty: `At ${businessName}, we believe beauty is an art form that enhances your natural radiance. Our award-winning stylists and aestheticians are dedicated to helping you look and feel your absolute best. Using premium products from leading brands and the latest techniques including balayage, keratin treatments, and microblading, we create personalized beauty experiences tailored to your unique style. Step into our luxurious salon and leave feeling refreshed, renewed, and absolutely beautiful.`,
     
-    auto: `${business.business_name} is your premier destination for all automotive needs in ${city}. Our ASE-certified master mechanics use state-of-the-art diagnostic equipment to keep your vehicle running at peak performance. From routine maintenance to major repairs, we treat every car like our own, ensuring safety and reliability on every drive. With factory-trained technicians, genuine OEM parts, and comprehensive warranties, we've earned the trust of thousands of satisfied customers.`,
+    auto: `${businessName} is your premier destination for all automotive needs in ${city}. Our ASE-certified master mechanics use state-of-the-art diagnostic equipment to keep your vehicle running at peak performance. From routine maintenance to major repairs, we treat every car like our own, ensuring safety and reliability on every drive. With factory-trained technicians, genuine OEM parts, and comprehensive warranties, we've earned the trust of thousands of satisfied customers.`,
     
-    cleaning: `${business.business_name} delivers spotless results for homes and businesses throughout ${city}. Our professionally trained and background-checked team uses eco-friendly, EPA-approved products and HEPA-filtered equipment to create healthier, more beautiful spaces. Whether you need regular maintenance, deep cleaning, or specialized services, we customize our approach to exceed your expectations. With flexible scheduling, competitive rates, and a 200% satisfaction guarantee, we make it easy to maintain a pristine environment.`,
+    cleaning: `${businessName} delivers spotless results for homes and businesses throughout ${city}. Our professionally trained and background-checked team uses eco-friendly, EPA-approved products and HEPA-filtered equipment to create healthier, more beautiful spaces. Whether you need regular maintenance, deep cleaning, or specialized services, we customize our approach to exceed your expectations. With flexible scheduling, competitive rates, and a 200% satisfaction guarantee, we make it easy to maintain a pristine environment.`,
     
-    general: `${business.business_name} has been proudly serving ${city} with dedication and excellence for over a decade. Our commitment to quality service and customer satisfaction has made us a trusted name in the community. We go above and beyond to ensure every client receives personalized attention and outstanding results. With competitive pricing, professional expertise, and genuine care for our customers' needs, we've built lasting relationships based on trust and exceptional service.`
+    general: `${businessName} has been proudly serving ${city} with dedication and excellence for over a decade. Our commitment to quality service and customer satisfaction has made us a trusted name in the community. We go above and beyond to ensure every client receives personalized attention and outstanding results. With competitive pricing, professional expertise, and genuine care for our customers' needs, we've built lasting relationships based on trust and exceptional service.`
   };
   
   return descriptions[type] || descriptions.general;
@@ -1469,7 +1547,7 @@ export function getThemeForType(type: string): BusinessTheme {
     }
   };
   
-  return themes[type] || themes.general;
+  return themes[type] ||themes.general;
 }
 
 export function createSlug(businessName: string): string {
