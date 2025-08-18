@@ -138,15 +138,55 @@ export default async function PreviewPage({ params }: PageProps) {
       window.BUSINESS_ID = '${preview.business_id}';
       
       (function() {
+        // Fix SVG inherit values on page load
+        function fixSVGAttributes() {
+          const svgs = document.querySelectorAll('svg');
+          svgs.forEach(svg => {
+            // Fix width attribute
+            if (svg.getAttribute('width') === 'inherit' || svg.getAttribute('width') === '') {
+              svg.setAttribute('width', '24');
+            }
+            // Fix height attribute
+            if (svg.getAttribute('height') === 'inherit' || svg.getAttribute('height') === '') {
+              svg.setAttribute('height', '24');
+            }
+            
+            // Also check for viewBox if missing
+            if (!svg.getAttribute('viewBox')) {
+              const width = svg.getAttribute('width') || '24';
+              const height = svg.getAttribute('height') || '24';
+              svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+            }
+          });
+          
+          // Also fix any rect, circle, or path elements with inherit
+          const elements = document.querySelectorAll('rect[width="inherit"], rect[height="inherit"], circle[r="inherit"], path[d*="inherit"]');
+          elements.forEach(el => {
+            if (el.getAttribute('width') === 'inherit') {
+              el.setAttribute('width', '24');
+            }
+            if (el.getAttribute('height') === 'inherit') {
+              el.setAttribute('height', '24');
+            }
+          });
+        }
+        
         // Wait for DOM to be fully loaded
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initEditor);
+          document.addEventListener('DOMContentLoaded', function() {
+            fixSVGAttributes();
+            initEditor();
+          });
         } else {
+          fixSVGAttributes();
           setTimeout(initEditor, 100);
         }
 
         function initEditor() {
           console.log('Initializing editor...');
+          
+          // Fix SVGs again after editor loads
+          fixSVGAttributes();
           
           // Create floating edit button - positioned higher to avoid chat bubble
           const editBtn = document.createElement('button');
@@ -682,6 +722,9 @@ export default async function PreviewPage({ params }: PageProps) {
             e.stopPropagation();
             console.log('Edit button clicked');
             
+            // Fix SVGs when panel opens
+            fixSVGAttributes();
+            
             showPanel();
             
             // Clear services container
@@ -939,6 +982,9 @@ export default async function PreviewPage({ params }: PageProps) {
               
               if (response.ok && data.success) {
                 console.log('Save successful, updating DOM...');
+                
+                // Fix SVGs after save
+                fixSVGAttributes();
                 
                 // Update phone number in the DOM
                 if (domUpdates.phone) {
@@ -1210,12 +1256,19 @@ export default async function PreviewPage({ params }: PageProps) {
             }, 250);
           });
         }
+        
+        // Run SVG fix periodically to catch dynamically added content
+        setInterval(fixSVGAttributes, 2000);
       })();
     </script>
   `;
 
   // Process HTML to ensure proper structure
   let processedHtml = preview.html_content;
+  
+  // Fix SVG attributes in the HTML content before rendering
+  processedHtml = processedHtml.replace(/width="inherit"/gi, 'width="24"');
+  processedHtml = processedHtml.replace(/height="inherit"/gi, 'height="24"');
   
   // Ensure DOCTYPE is at the beginning
   if (!processedHtml.trim().toLowerCase().startsWith('<!doctype')) {
