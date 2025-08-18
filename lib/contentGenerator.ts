@@ -659,9 +659,7 @@ export async function generateBusinessImages(businessType: string, businessName:
         }
       }
       if (compressedCount > 0) {
-        console.log(`  ✓ Compressed ${compressedCount} images with T
-
-PNG`);
+        console.log(`  ✓ Compressed ${compressedCount} images with TinyPNG`);
       }
     }
 
@@ -1276,12 +1274,10 @@ export function detectBusinessType(businessName: string): string {
   }
   // Cleaning keywords
   else if (/clean|maid|janitorial|housekeeping|sanitiz|wash|spotless|sparkle|dust|sweep/.test(name)) {
-    detectedType = 'cleaning';
+    detecte dType = 'cleaning';
   }
   // Electrical keywords
-  else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electric
-
-/.test(name)) {
+  else if (/electric|electrical|wire|wiring|power|voltage|outlet|circuit|electrician/.test(name)) {
     detectedType = 'electrical';
   }
   // Construction keywords
