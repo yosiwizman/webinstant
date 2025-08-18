@@ -10,6 +10,43 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN || '',
 });
 
+// Dynamic imports for optional dependencies
+let Anthropic: any = null;
+let getJson: any = null;
+let tinify: any = null;
+
+async function initializeOptionalDependencies() {
+  try {
+    const anthropicModule = await import('@anthropic-ai/sdk');
+    Anthropic = anthropicModule.default;
+    console.log('✓ Anthropic SDK loaded');
+  } catch (e) {
+    console.log('✗ Anthropic SDK not available');
+  }
+
+  try {
+    const serpModule = await import('serpapi');
+    getJson = serpModule.getJson;
+    console.log('✓ SerpAPI loaded');
+  } catch (e) {
+    console.log('✗ SerpAPI not available');
+  }
+
+  try {
+    const tinifyModule = await import('tinify');
+    tinify = tinifyModule.default;
+    if (process.env.TINYPNG_API_KEY) {
+      tinify.key = process.env.TINYPNG_API_KEY;
+      console.log('✓ TinyPNG configured');
+    }
+  } catch (e) {
+    console.log('✗ TinyPNG not available');
+  }
+}
+
+// Initialize on module load
+initializeOptionalDependencies();
+
 export interface GeneratedContent {
   tagline: string;
   aboutUs: string;
@@ -83,18 +120,56 @@ export function getLayoutVariation(businessName: string): number {
   return hash % 3;
 }
 
+// Check existing website using SerpAPI
+export async function checkExistingWebsite(business: any): Promise<boolean> {
+  if (!process.env.SERPAPI_KEY || !getJson) {
+    console.log('⚠️ SerpAPI not configured, skipping website check');
+    return false;
+  }
+  
+  console.log(`🔍 Checking if ${business.business_name} has existing website...`);
+  
+  try {
+    console.log('  → Using SerpAPI...');
+    const results = await getJson({
+      api_key: process.env.SERPAPI_KEY,
+      engine: "google",
+      q: `${business.business_name} ${business.city || ''} official website`,
+      location: business.city || 'United States',
+      num: 3
+    });
+    
+    const hasWebsite = results.organic_results?.some((result: any) => {
+      const url = result.link?.toLowerCase() || '';
+      const businessNameClean = business.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return url.includes(businessNameClean);
+    });
+    
+    console.log(hasWebsite ? '  ✓ Has existing website' : '  ✓ No website found - good candidate!');
+    return hasWebsite;
+    
+  } catch (error) {
+    console.error('  ✗ SerpAPI check failed:', error);
+    return false;
+  }
+}
+
 // Premium content generation with Claude or Together AI
 export async function generatePremiumContent(business: any): Promise<BusinessContent> {
+  console.log(`🎨 Generating content for ${business.business_name}...`);
+  
   try {
     // Try Claude first if API key is available
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.ANTHROPIC_API_KEY && Anthropic) {
+      console.log('  → Using Anthropic Claude...');
       return await generateContentWithClaude(business);
     }
     
     // Fallback to Together AI
+    console.log('  → Using Together AI...');
     return await generateContentWithTogether(business);
   } catch (error) {
-    console.error('AI content generation failed, using premium fallback:', error);
+    console.error('  ✗ AI content generation failed, using premium fallback:', error);
     // Use premium fallback content
     return generateBusinessContent(business);
   }
@@ -102,8 +177,6 @@ export async function generatePremiumContent(business: any): Promise<BusinessCon
 
 async function generateContentWithClaude(business: any): Promise<BusinessContent> {
   try {
-    // Dynamic import for optional dependency
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY!,
     });
@@ -130,6 +203,7 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
       }]
     });
 
+    console.log('  ✓ Anthropic Claude content generated successfully');
     const content = JSON.parse(response.content[0].text);
     
     // Generate logo and video background
@@ -148,7 +222,7 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
       videoBackground
     };
   } catch (error) {
-    console.error('Claude generation failed:', error);
+    console.error('  ✗ Claude generation failed:', error);
     throw error;
   }
 }
@@ -193,6 +267,8 @@ Format your response as JSON with these fields:
       throw new Error('Failed to generate content');
     }
 
+    console.log('  ✓ Together AI content generated successfully');
+
     try {
       const content = JSON.parse(response);
       
@@ -212,19 +288,23 @@ Format your response as JSON with these fields:
         videoBackground
       };
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
+      console.error('  ✗ Failed to parse AI response:', parseError);
       throw parseError;
     }
   } catch (error) {
-    console.error('Together AI generation failed:', error);
+    console.error('  ✗ Together AI generation failed:', error);
     throw error;
   }
 }
 
 // AI Logo Generation
 async function generateBusinessLogo(businessName: string, businessType: string): Promise<BusinessLogo> {
+  console.log('  🎨 Generating logo...');
+  
   // Option A: Try AI-generated logo first
   try {
+    console.log('    → Using Replicate for logo generation...');
+    
     const logoPrompts: { [key: string]: string } = {
       restaurant: 'minimalist pizza slice icon, simple geometric logo, flat design, svg style',
       plumbing: 'water drop with wrench icon, minimalist plumbing logo, blue, simple svg',
@@ -246,6 +326,20 @@ async function generateBusinessLogo(businessName: string, businessType: string):
     );
     
     if (Array.isArray(output) && output.length > 0) {
+      console.log('    ✓ Logo generated with Replicate');
+      
+      // Try to compress with TinyPNG
+      if (tinify && process.env.TINYPNG_API_KEY) {
+        try {
+          console.log('    → Using TinyPNG to compress logo...');
+          const source = tinify.fromUrl(output[0]);
+          const compressed = await source.toBuffer();
+          console.log('    ✓ Logo compressed with TinyPNG');
+        } catch (e) {
+          console.log('    ⚠️ TinyPNG compression failed, using original');
+        }
+      }
+      
       return {
         type: 'image',
         url: output[0]
@@ -254,7 +348,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
     throw new Error('No logo generated');
   } catch (error) {
     // Option B: Fallback to premium typography logo
-    console.log('Using typography logo fallback');
+    console.log('    ⚠️ AI logo generation failed, using typography logo fallback');
     return {
       type: 'text',
       html: generateTypographyLogo(businessName, businessType)
@@ -284,7 +378,11 @@ function generateTypographyLogo(name: string, type: string): string {
 
 // Video Background Generation
 async function generateVideoBackground(businessType: string): Promise<string | null> {
+  console.log('  🎬 Generating video background...');
+  
   try {
+    console.log('    → Using Replicate for video generation...');
+    
     const videoPrompts: { [key: string]: string } = {
       restaurant: 'chef cooking pasta, steam rising, kitchen, professional cooking, cinematic',
       plumbing: 'water flowing through modern faucet, slow motion, crystal clear',
@@ -309,9 +407,10 @@ async function generateVideoBackground(businessType: string): Promise<string | n
       }
     );
     
+    console.log('    ✓ Video background generated with Replicate');
     return output as string || null;
   } catch (error) {
-    console.log('Video generation failed, using static image');
+    console.log('    ⚠️ Video generation failed, using static image');
     return null;
   }
 }
@@ -525,13 +624,39 @@ export function generateExitIntentPopup(businessName: string): string {
 
 // AI Image Generation with Replicate
 export async function generateBusinessImages(businessType: string, businessName: string): Promise<BusinessImages> {
+  console.log(`📸 Generating images for ${businessName}...`);
+  
   try {
+    console.log('  → Using Replicate for image generation...');
     const prompts = getImagePrompts(businessType, businessName);
+    
     const images = await Promise.all([
-      generateImage(prompts.hero),
-      generateImage(prompts.service),
-      generateImage(prompts.team)
+      generateImage(prompts.hero, 'hero'),
+      generateImage(prompts.service, 'service'),
+      generateImage(prompts.team, 'team')
     ]);
+
+    console.log(`  ✓ Generated ${images.filter(img => img).length} images with Replicate`);
+
+    // Try to compress images with TinyPNG
+    if (tinify && process.env.TINYPNG_API_KEY) {
+      console.log('  → Using TinyPNG to compress images...');
+      let compressedCount = 0;
+      for (let i = 0; i < images.length; i++) {
+        if (images[i]) {
+          try {
+            const source = tinify.fromUrl(images[i]);
+            await source.toBuffer();
+            compressedCount++;
+          } catch (e) {
+            // Keep original if compression fails
+          }
+        }
+      }
+      if (compressedCount > 0) {
+        console.log(`  ✓ Compressed ${compressedCount} images with TinyPNG`);
+      }
+    }
 
     return {
       hero: images[0],
@@ -540,13 +665,14 @@ export async function generateBusinessImages(businessType: string, businessName:
       gallery: images
     };
   } catch (error) {
-    console.error('Image generation failed, using premium stock photos:', error);
+    console.error('  ✗ Image generation failed, using premium stock photos:', error);
     return getPremiumStockImages(businessType);
   }
 }
 
-async function generateImage(prompt: string): Promise<string> {
+async function generateImage(prompt: string, type: string): Promise<string> {
   try {
+    console.log(`    - Generating ${type} image...`);
     const output = await replicate.run(
       "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
       {
@@ -563,11 +689,12 @@ async function generateImage(prompt: string): Promise<string> {
     );
     
     if (Array.isArray(output) && output.length > 0) {
+      console.log(`    ✓ ${type} image generated`);
       return output[0];
     }
     throw new Error('No image generated');
   } catch (error) {
-    console.error('Individual image generation failed:', error);
+    console.error(`    ✗ Failed to generate ${type} image:`, error);
     // Return a high-quality placeholder
     return `https://picsum.photos/1024/768?random=${Math.random()}`;
   }
@@ -650,6 +777,9 @@ function getPremiumStockImages(businessType: string): BusinessImages {
 export class ContentGenerator {
   private together: Together;
   private replicate: Replicate;
+  private anthropic: any;
+  private serpApiAvailable: boolean = false;
+  private tinifyAvailable: boolean = false;
 
   constructor(togetherKey?: string, replicateToken?: string) {
     this.together = new Together({
@@ -659,9 +789,35 @@ export class ContentGenerator {
     this.replicate = new Replicate({
       auth: replicateToken || process.env.REPLICATE_API_TOKEN || '',
     });
+
+    console.log('🚀 ContentGenerator initialized with:');
+    console.log('  - Together AI:', !!process.env.TOGETHER_API_KEY);
+    console.log('  - Replicate:', !!process.env.REPLICATE_API_TOKEN);
+    console.log('  - Anthropic:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('  - TinyPNG:', !!process.env.TINYPNG_API_KEY);
+    console.log('  - SerpAPI:', !!process.env.SERPAPI_KEY);
+    
+    this.initializeOptionalServices();
+  }
+
+  private async initializeOptionalServices() {
+    // Initialize Anthropic if available
+    if (process.env.ANTHROPIC_API_KEY && Anthropic) {
+      this.anthropic = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    }
+    
+    // Check SerpAPI availability
+    this.serpApiAvailable = !!process.env.SERPAPI_KEY && !!getJson;
+    
+    // Check TinyPNG availability
+    this.tinifyAvailable = !!process.env.TINYPNG_API_KEY && !!tinify;
   }
 
   async generateContent(businessInfo: BusinessInfo): Promise<GeneratedContent> {
+    console.log(`🎨 Generating content for ${businessInfo.businessName}...`);
+    
     try {
       const businessType = this.inferBusinessType(businessInfo);
       const industryKeywords = this.getIndustryKeywords(businessType);
@@ -669,6 +825,7 @@ export class ContentGenerator {
       const prompt = this.buildPrompt(businessInfo, businessType, industryKeywords);
       
       // Use Together AI with Mixtral for better quality and cost efficiency
+      console.log('  → Using Together AI...');
       const completion = await this.together.chat.completions.create({
         model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
         messages: [
@@ -690,12 +847,26 @@ export class ContentGenerator {
         throw new Error('Failed to generate content');
       }
 
+      console.log('  ✓ Together AI content generated successfully');
       return this.parseResponse(response);
     } catch (error) {
-      console.error('Error generating content:', error);
+      console.error('  ✗ Error generating content:', error);
       // Fallback to default content if AI fails
       return this.getDefaultContent(businessInfo);
     }
+  }
+
+  async checkWebsite(business: any): Promise<boolean> {
+    if (!this.serpApiAvailable) {
+      console.log('⚠️ SerpAPI not available for website check');
+      return false;
+    }
+    
+    return await checkExistingWebsite(business);
+  }
+
+  async generateImages(businessType: string, businessName: string): Promise<BusinessImages> {
+    return await generateBusinessImages(businessType, businessName);
   }
 
   private getDefaultContent(businessInfo: BusinessInfo): GeneratedContent {
@@ -784,7 +955,7 @@ export class ContentGenerator {
         'luxury', 'pamper', 'transform', 'glamorous', 'trendy',
         'professional stylists', 'premium products', 'relaxation',
         'makeover', 'cutting-edge', 'personalized', 'rejuvenate',
-        'award-winning', 'celebrity stylist', 'organic products'
+        'award-winning', 'celebrity stylist',  'organic products'
       ],
       auto: [
         'certified mechanics', 'diagnostic', 'warranty', 'genuine parts',
@@ -996,6 +1167,8 @@ export function getCategoryTheme(type: string): CategoryTheme {
 export async function generateBusinessContent(business: any): Promise<BusinessContent> {
   const name = business.business_name.toLowerCase();
   const businessType = detectBusinessType(name);
+  
+  console.log(`  📝 Generating fallback content for ${businessType} business...`);
   
   // Generate logo
   const logo = await generateBusinessLogo(business.business_name, businessType);
@@ -1340,7 +1513,7 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
     }
   };
   
-  const businessPrompts = prompts[type] || prompts.general;
+  const businessPrompts = prompts[type] || prom prompts.general;
   return businessPrompts[imageType] || businessPrompts.hero;
 }
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { getJson } from 'serpapi';
 import { 
   generateBusinessContent, 
   detectBusinessType, 
@@ -14,7 +13,9 @@ import {
   generateInteractiveElements,
   generateReviewsWidget,
   generateLiveChatBubble,
-  generateExitIntentPopup
+  generateExitIntentPopup,
+  checkExistingWebsite,
+  ContentGenerator
 } from '@/lib/contentGenerator';
 
 function generateSlug(name: string): string {
@@ -44,101 +45,15 @@ async function generateUniqueSlug(baseName: string): Promise<string> {
   }
 }
 
-// Add this function to check if business has website
-async function checkExistingWebsite(businessName: string, city: string, state: string): Promise<boolean> {
-  try {
-    // Skip check if no API key
-    if (!process.env.SERPAPI_KEY) {
-      console.log('  ⚠️ SerpAPI key not configured, skipping website check');
-      return false;
-    }
-
-    console.log(`  🔍 Checking if ${businessName} already has a website...`);
-    
-    const results = await getJson({
-      api_key: process.env.SERPAPI_KEY,
-      engine: "google",
-      q: `${businessName} ${city} ${state} official website`,
-      location: `${city}, ${state}`,
-      num: 10
-    });
-    
-    // Check if any results look like the business's official website
-    const businessNameLower = businessName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const businessNameWords = businessName.toLowerCase().split(/\s+/).filter(word => word.length > 3);
-    
-    const hasWebsite = results.organic_results?.some((result: any) => {
-      const url = result.link?.toLowerCase() || '';
-      const title = result.title?.toLowerCase() || '';
-      const snippet = result.snippet?.toLowerCase() || '';
-      
-      // Skip social media and directory sites
-      const isDirectory = /yelp|yellowpages|facebook|instagram|twitter|linkedin|tripadvisor|foursquare|google\.com\/maps/i.test(url);
-      if (isDirectory) return false;
-      
-      // Check if URL contains business name (strong indicator)
-      if (url.includes(businessNameLower)) {
-        console.log(`    ✓ Found likely website: ${result.link}`);
-        return true;
-      }
-      
-      // Check if most business name words appear in title
-      const titleMatches = businessNameWords.filter(word => title.includes(word)).length;
-      if (titleMatches >= Math.max(2, businessNameWords.length * 0.7)) {
-        // Also check if it's a .com, .net, .org, etc (not a directory)
-        if (/\.(com|net|org|biz|info|us|co)/.test(url) && !isDirectory) {
-          console.log(`    ✓ Found likely website: ${result.link}`);
-          return true;
-        }
-      }
-      
-      return false;
-    });
-    
-    if (hasWebsite) {
-      console.log(`  ❌ ${businessName} appears to already have a website`);
-      
-      // Update database to mark business as having website
-      await supabase
-        .from('businesses')
-        .update({ 
-          has_existing_website: true,
-          website_check_date: new Date().toISOString()
-        })
-        .eq('business_name', businessName)
-        .eq('city', city);
-        
-    } else {
-      console.log(`  ✅ ${businessName} needs a website - perfect candidate!`);
-      
-      // Update database to mark as checked
-      await supabase
-        .from('businesses')
-        .update({ 
-          has_existing_website: false,
-          website_check_date: new Date().toISOString()
-        })
-        .eq('business_name', businessName)
-        .eq('city', city);
-    }
-    
-    return hasWebsite;
-  } catch (error) {
-    console.error('  ⚠️ SerpAPI error:', error);
-    // If API fails, assume they don't have a website to be safe
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
+  console.log('\n🚀 Starting preview generation process');
+  console.log('================================================');
+  
   try {
     let businessId: string | undefined;
-    let skipWebsiteCheck = false;
-    
     try {
       const body = await request.json();
       businessId = body.businessId;
-      skipWebsiteCheck = body.skipWebsiteCheck || false;
     } catch {
       businessId = undefined;
     }
@@ -146,7 +61,7 @@ export async function POST(request: NextRequest) {
     let businessesToProcess = [];
     
     if (businessId) {
-      console.log('Generating premium preview for business:', businessId);
+      console.log(`📋 Generating premium preview for business ID: ${businessId}`);
       
       const { data: business, error: fetchError } = await supabase
         .from('businesses')
@@ -155,7 +70,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (fetchError || !business) {
-        console.error('Error fetching business:', fetchError);
+        console.error('❌ Error fetching business:', fetchError);
         return NextResponse.json(
           { success: false, error: 'Business not found' },
           { status: 404 }
@@ -164,14 +79,14 @@ export async function POST(request: NextRequest) {
       
       businessesToProcess = [business];
     } else {
-      console.log('Finding businesses without previews');
+      console.log('📋 Finding businesses without previews...');
       
       const { data: allBusinesses, error: fetchError } = await supabase
         .from('businesses')
         .select('*');
 
       if (fetchError) {
-        console.error('Error fetching businesses:', fetchError);
+        console.error('❌ Error fetching businesses:', fetchError);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch businesses' },
           { status: 500 }
@@ -183,7 +98,7 @@ export async function POST(request: NextRequest) {
         .select('business_id');
 
       if (previewError) {
-        console.error('Error fetching existing previews:', previewError);
+        console.error('❌ Error fetching existing previews:', previewError);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch existing previews' },
           { status: 500 }
@@ -193,58 +108,40 @@ export async function POST(request: NextRequest) {
       const existingBusinessIds = new Set(existingPreviews?.map(p => p.business_id) || []);
       businessesToProcess = (allBusinesses || []).filter(b => !existingBusinessIds.has(b.id));
 
-      console.log(`Found ${businessesToProcess.length} businesses without previews`);
+      console.log(`📊 Found ${businessesToProcess.length} businesses without previews`);
     }
 
     let generatedCount = 0;
     let failedCount = 0;
-    let skippedCount = 0;
-    const skippedBusinesses: string[] = [];
+
+    // Initialize content generator
+    const generator = new ContentGenerator();
 
     for (const business of businessesToProcess) {
       try {
-        console.log(`\nProcessing: ${business.business_name}`);
+        console.log(`\n🏢 Processing: ${business.business_name}`);
+        console.log('------------------------------------------------');
         
-        // Check if business already has a website (unless explicitly skipped)
-        if (!skipWebsiteCheck && business.city && business.state) {
-          // Check if we've already verified this recently (within 30 days)
-          if (business.website_check_date) {
-            const lastCheck = new Date(business.website_check_date);
-            const daysSinceCheck = (Date.now() - lastCheck.getTime()) / (1000 * 60 * 60 * 24);
-            
-            if (daysSinceCheck < 30) {
-              if (business.has_existing_website) {
-                console.log(`  ⏭️ Skipping - already verified to have website (checked ${Math.floor(daysSinceCheck)} days ago)`);
-                skippedCount++;
-                skippedBusinesses.push(business.business_name);
-                continue;
-              } else {
-                console.log(`  ✓ Previously verified as needing website (${Math.floor(daysSinceCheck)} days ago)`);
-              }
-            }
-          }
-          
-          // Perform fresh check
-          const hasWebsite = await checkExistingWebsite(
-            business.business_name, 
-            business.city, 
-            business.state
-          );
-          
-          if (hasWebsite) {
-            console.log(`  ⏭️ Skipping - business already has website`);
-            skippedCount++;
-            skippedBusinesses.push(business.business_name);
-            continue;
-          }
+        // 1. CHECK IF THEY ALREADY HAVE A WEBSITE
+        const hasWebsite = await checkExistingWebsite(business);
+        if (hasWebsite) {
+          console.log('  ⚠️ Business already has website, but generating preview anyway...');
         }
         
-        // Generate premium AI content
+        // 2. GENERATE PREMIUM AI CONTENT
         const content = await generatePremiumContent(business);
+        console.log(`  ✓ Content generated:`, {
+          tagline: content.tagline ? '✓' : '✗',
+          services: content.services?.length || 0,
+          testimonials: content.testimonials?.length || 0,
+          logo: content.logo?.type || 'none',
+          video: content.videoBackground ? '✓' : '✗'
+        });
         
-        // Generate AI images for the business
+        // 3. GENERATE AI IMAGES
         const images = await generateBusinessImages(content.businessType, business.business_name);
         content.images = images;
+        console.log(`  ✓ Images generated:`, Object.keys(images).filter(k => images[k]).length);
         
         // Get category-specific theme
         const theme = getCategoryTheme(content.businessType);
@@ -281,7 +178,7 @@ export async function POST(request: NextRequest) {
             .eq('business_id', business.id);
 
           if (updateError) {
-            console.error(`Error updating preview for business ${business.id}:`, updateError);
+            console.error(`  ❌ Error updating preview:`, updateError);
             failedCount++;
             continue;
           }
@@ -297,7 +194,7 @@ export async function POST(request: NextRequest) {
             });
 
           if (insertError) {
-            console.error(`Error creating preview for business ${business.id}:`, insertError);
+            console.error(`  ❌ Error creating preview:`, insertError);
             failedCount++;
             continue;
           }
@@ -318,48 +215,38 @@ export async function POST(request: NextRequest) {
           .eq('id', business.id);
         
         if (businessUpdateError) {
-          console.error(`Error updating business ${business.id}:`, businessUpdateError);
+          console.error(`  ⚠️ Error updating business:`, businessUpdateError);
         }
 
         generatedCount++;
-        console.log(`  ✨ Premium preview generated for ${business.business_name} (${business.id})`);
-        console.log(`    - Slug: ${slug}`);
-        console.log(`    - URL: ${previewUrl}`);
-        console.log(`    - Theme: ${content.businessType}`);
-        console.log(`    - Layout: Variation ${layoutVariation}`);
-        console.log(`    - Images: ${images ? 'AI Generated' : 'Stock Photos'}`);
-        console.log(`    - Logo: ${content.logo?.type === 'image' ? 'AI Generated' : 'Typography'}`);
-        console.log(`    - Video Background: ${content.videoBackground ? 'Yes' : 'No'}`);
+        console.log(`  ✅ Preview generated successfully!`);
+        console.log(`     - Slug: ${slug}`);
+        console.log(`     - URL: ${previewUrl}`);
+        console.log(`     - Theme: ${content.businessType}`);
+        console.log(`     - Layout: Variation ${layoutVariation}`);
         
       } catch (error) {
-        console.error(`  ❌ Error processing business ${business.id}:`, error);
+        console.error(`  ❌ Error processing business:`, error);
         failedCount++;
       }
     }
 
-    console.log('\n=== Generation Summary ===');
-    console.log(`Total processed: ${businessesToProcess.length}`);
-    console.log(`Generated: ${generatedCount}`);
-    console.log(`Skipped (have website): ${skippedCount}`);
-    console.log(`Failed: ${failedCount}`);
-    
-    if (skippedBusinesses.length > 0) {
-      console.log('\nBusinesses skipped (already have websites):');
-      skippedBusinesses.forEach(name => console.log(`  - ${name}`));
-    }
+    console.log('\n================================================');
+    console.log(`✅ Preview generation complete!`);
+    console.log(`   Generated: ${generatedCount}`);
+    console.log(`   Failed: ${failedCount}`);
+    console.log(`   Total: ${businessesToProcess.length}`);
+    console.log('================================================\n');
 
     return NextResponse.json({
       success: true,
       generated: generatedCount,
-      skipped: skippedCount,
-      skippedBusinesses,
       failed: failedCount,
-      total: businessesToProcess.length,
-      message: `Generated ${generatedCount} previews, skipped ${skippedCount} businesses with existing websites`
+      total: businessesToProcess.length
     });
 
   } catch (error) {
-    console.error('Error in generate-preview endpoint:', error);
+    console.error('❌ Error in generate-preview endpoint:', error);
     return NextResponse.json(
       { 
         success: false,
@@ -2873,7 +2760,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         }
         
         if (countdownEl) {
-          countdownEl.textContent =  \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
+          countdownEl.textContent = \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
         }
       }, 1000);
     }
@@ -2987,12 +2874,9 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 
 export async function GET(request: NextRequest) {
   return NextResponse.json({
-    message: 'Premium website preview generator endpoint with SerpAPI integration',
+    message: 'Premium website preview generator endpoint',
     method: 'POST',
     features: [
-      'SerpAPI integration to check for existing websites',
-      'Skips businesses that already have websites',
-      'Caches website check results for 30 days',
       'AI-powered content generation with Together AI or Claude',
       'AI-generated images with Replicate',
       'AI-generated logos and video backgrounds',
@@ -3005,26 +2889,18 @@ export async function GET(request: NextRequest) {
       'Google Reviews integration',
       'Live chat bubble',
       'Exit intent popups',
-      'Mobile-responsive design'
+      'Mobile-responsive design',
+      'SerpAPI website checking',
+      'TinyPNG image compression'
     ],
     body: {
-      businessId: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.',
-      skipWebsiteCheck: 'boolean (optional) - Skip the SerpAPI website check. Default: false'
+      businessId: 'string (optional) - The ID of a specific business to generate preview for. If omitted, generates for all businesses without previews.'
     },
     response: {
       success: 'boolean - Whether the operation was successful',
       generated: 'number - Number of previews successfully generated',
-      skipped: 'number - Number of businesses skipped (already have websites)',
-      skippedBusinesses: 'string[] - Names of businesses that were skipped',
       failed: 'number - Number of previews that failed to generate',
-      total: 'number - Total number of businesses processed',
-      message: 'string - Summary message'
-    },
-    environmentVariables: {
-      SERPAPI_KEY: 'Your SerpAPI key for checking existing websites',
-      TOGETHER_API_KEY: 'Together AI API key for content generation',
-      REPLICATE_API_TOKEN: 'Replicate API token for image generation',
-      ANTHROPIC_API_KEY: 'Optional Claude API key for premium content'
+      total: 'number - Total number of businesses processed'
     }
   });
 }
