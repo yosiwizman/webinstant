@@ -959,7 +959,7 @@ export class ContentGenerator {
       ],
       auto: [
         'certified mechanics', 'diagnostic', 'warranty', 'genuine parts',
-        'preventive maintenance', 'ASE certified', 'state-of-the-art',
+        '  preventive maintenance', 'ASE certified', 'state-of-the-art',
         'honest pricing', 'quick turnaround', 'all makes models',
         'factory trained', 'computer diagnostics', 'fleet service'
       ],
@@ -1513,12 +1513,12 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
     }
   };
   
-  const businessPrompts = prompts[type] || prom prompts.general;
+  const businessPrompts = prompts[type] || prompts.general;
   return businessPrompts[imageType] || businessPrompts.hero;
 }
 
 // Helper function to get industry keywords
-function getIndustryKeywords(businessType: string): string[] {
+function getIndustry Keywords(businessType: string): string[] {
   const keywordMap: { [key: string]: string[] } = {
     restaurant: [
       'fresh', 'delicious', 'menu', 'dining', 'cuisine', 'chef',
