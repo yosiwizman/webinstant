@@ -192,30 +192,73 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
         role: "user",
         content: `Create compelling website content for ${business.business_name}, a ${businessType} in ${business.city || 'the area'}. 
         
-        Generate:
-        1. Powerful headline (10 words max)
-        2. Engaging tagline (15 words)
-        3. About section (75 words) that tells their story
-        4. 3 unique services with descriptions
-        5. 3 authentic testimonials with names
-        6. Call-to-action text
+        Generate a JSON response with:
+        {
+          "tagline": "Powerful tagline (10-15 words)",
+          "about": "About section (75 words) that tells their story",
+          "services": ["Service 1 name", "Service 2 name", "Service 3 name"],
+          "testimonials": [
+            {"name": "Customer Name", "text": "Review text", "rating": 5}
+          ]
+        }
         
-        Make it persuasive, professional, and unique to this business. Return as JSON.`
+        Make it persuasive, professional, and unique to this business. Return ONLY valid JSON.`
       }]
     });
 
     console.log('  ✓ Anthropic Claude content generated successfully');
-    const content = JSON.parse(response.content[0].text);
+    
+    // Parse the response - Claude returns content in a specific format
+    let content;
+    try {
+      // Claude returns content as an array, get the text from the first item
+      const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+      content = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('  ⚠️ Failed to parse Claude response, using fallback content');
+      // Return fallback if parsing fails
+      return generateBusinessContent(business);
+    }
     
     // Generate logo and video background
     const logo = await generateBusinessLogo(business.business_name, businessType);
     const videoBackground = await generateVideoBackground(businessType);
     
+    // Ensure services are strings (add emojis if not present)
+    const services = Array.isArray(content.services) 
+      ? content.services.map((s: any) => {
+          if (typeof s === 'string') {
+            // Add emoji if not present
+            if (!s.match(/^[🍽️🥡🎉👨‍🍳🍷🎂🚨🚿🛁🔥🔧📋✂️🎨💅✨👰💆🛢️💻🔋❄️🔄🏠🏢🪟🏗️📅⭐📞👥✅💲🏆]/)) {
+              const emojis = businessType === 'restaurant' ? ['🍽️', '🥡', '🎉'] :
+                            businessType === 'plumbing' ? ['🚨', '🚿', '🛁'] :
+                            businessType === 'beauty' ? ['✂️', '💅', '✨'] :
+                            businessType === 'auto' ? ['🛢️', '🔧', '💻'] :
+                            businessType === 'cleaning' ? ['🏠', '✨', '🪟'] :
+                            ['⭐', '📞', '✅'];
+              const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+              return `${emoji} ${s}`;
+            }
+            return s;
+          }
+          return typeof s === 'object' && s.name ? s.name : 'Premium Service';
+        })
+      : generateServices(businessType);
+    
+    // Ensure testimonials have proper structure
+    const testimonials = Array.isArray(content.testimonials) 
+      ? content.testimonials.map((t: any) => ({
+          name: t.name || 'Satisfied Customer',
+          text: t.text || t.review || 'Excellent service!',
+          rating: t.rating || 5
+        }))
+      : generateTestimonials(businessType);
+    
     return {
       tagline: content.tagline || generateTagline(businessType, business.business_name),
       description: content.about || generateDescription(businessType, business),
-      services: content.services || generateServices(businessType),
-      testimonials: content.testimonials || generateTestimonials(businessType),
+      services,
+      testimonials,
       hours: generateBusinessHours(businessType),
       theme: getThemeForType(businessType),
       businessType,
@@ -224,7 +267,8 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
     };
   } catch (error) {
     console.error('  ✗ Claude generation failed:', error);
-    throw error;
+    // Return fallback content on error
+    return generateBusinessContent(business);
   }
 }
 
@@ -278,11 +322,25 @@ Format your response as JSON with these fields:
       const logo = await generateBusinessLogo(business.business_name, businessType);
       const videoBackground = await generateVideoBackground(businessType);
       
+      // Ensure services are strings
+      const services = Array.isArray(content.services) 
+        ? content.services.map((s: any) => typeof s === 'string' ? s : 'Premium Service')
+        : generateServices(businessType);
+      
+      // Ensure testimonials have proper structure
+      const testimonials = Array.isArray(content.testimonials) 
+        ? content.testimonials.map((t: any) => ({
+            name: t.name || 'Satisfied Customer',
+            text: t.text || 'Excellent service!',
+            rating: t.rating || 5
+          }))
+        : generateTestimonials(businessType);
+      
       return {
         tagline: content.tagline || generateTagline(businessType, business.business_name),
         description: content.description || generateDescription(businessType, business),
-        services: content.services || generateServices(businessType),
-        testimonials: content.testimonials || generateTestimonials(businessType),
+        services,
+        testimonials,
         hours: generateBusinessHours(businessType),
         theme: getThemeForType(businessType),
         businessType,
@@ -291,11 +349,13 @@ Format your response as JSON with these fields:
       };
     } catch (parseError) {
       console.error('  ✗ Failed to parse AI response:', parseError);
-      throw parseError;
+      // Return fallback content on parse error
+      return generateBusinessContent(business);
     }
   } catch (error) {
     console.error('  ✗ Together AI generation failed:', error);
-    throw error;
+    // Return fallback content on error
+    return generateBusinessContent(business);
   }
 }
 
@@ -334,7 +394,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       // Try to compress with TinyPNG
       if (tinify && process.env.TINYPNG_API_KEY) {
         try {
-          console.log('    → Using TinyPNG to compress logo...');
+          console.log('    → Using T  inyPNG to compress logo...');
           const source = tinify.fromUrl(output[0]);
           const compressed = await source.toBuffer();
           console.log('    ✓ Logo compressed with TinyPNG');
