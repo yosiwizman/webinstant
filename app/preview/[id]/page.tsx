@@ -1230,10 +1230,13 @@ export default async function PreviewPage({ params }: PageProps) {
   processedHtml = processedHtml.replace('</head>', `${mobileStyles}</head>`);
   processedHtml = processedHtml.replace('</body>', `${editScript}</body>`);
 
-  // Return the iframe with the processed HTML
+  // Create a data URL from the processed HTML
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`;
+
+  // Return the iframe with the data URL
   return (
     <iframe
-      srcDoc={processedHtml}
+      src={dataUrl}
       style={{
         width: '100%',
         height: '100vh',
@@ -1241,7 +1244,6 @@ export default async function PreviewPage({ params }: PageProps) {
         display: 'block'
       }}
       title="Website Preview"
-      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
     />
   )
 }
