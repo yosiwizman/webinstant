@@ -29,12 +29,6 @@ interface BusinessActivity {
   }
 }
 
-interface DatabaseBusiness {
-  id: string
-  business_name: string
-  preview_url?: string
-}
-
 export default function AdminPage() {
   const [stats, setStats] = useState<Statistics>({
     totalBusinesses: 0,
@@ -45,7 +39,6 @@ export default function AdminPage() {
   })
   
   const [recentActivity, setRecentActivity] = useState<BusinessActivity[]>([])
-  const [databaseBusinesses, setDatabaseBusinesses] = useState<DatabaseBusiness[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [generatingPreviews, setGeneratingPreviews] = useState(false)
@@ -117,7 +110,6 @@ export default function AdminPage() {
           .in('business_id', businessIds)
 
         console.log('Fetched previews:', allPreviews?.length || 0, 'previews')
-        console.log('Preview data sample:', allPreviews?.slice(0, 3))
 
         // Create a map of business_id to preview URL using the preview ID
         const previewMap = new Map()
@@ -161,20 +153,6 @@ export default function AdminPage() {
           })
         )
         setRecentActivity(activityData)
-
-        // Prepare database businesses list with preview URLs
-        const dbBusinessesList: DatabaseBusiness[] = allBusinesses.map(business => {
-          const previewUrl = previewMap.get(business.id)
-          console.log(`Business ${business.business_name} (${business.id}): preview URL = ${previewUrl || 'none'}`)
-          return {
-            id: business.id,
-            business_name: business.business_name,
-            preview_url: previewUrl
-          }
-        })
-        setDatabaseBusinesses(dbBusinessesList)
-
-        console.log('Total businesses with previews:', dbBusinessesList.filter(b => b.preview_url).length)
       }
 
     } catch (error) {
@@ -464,58 +442,6 @@ export default function AdminPage() {
     </span>
   )
 
-  const PreviewLink = ({ url, businessName, showFullUrl = false }: { url?: string; businessName: string; showFullUrl?: boolean }) => {
-    if (!url) {
-      if (showFullUrl) {
-        return <span className="text-gray-400">No preview generated</span>
-      }
-      return <StatusBadge active={false} />
-    }
-    
-    if (showFullUrl) {
-      return (
-        <div className="flex items-center gap-2">
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 underline text-sm truncate max-w-xs"
-            title={url}
-          >
-            {url}
-          </a>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors flex-shrink-0"
-            title={`View preview for ${businessName}`}
-          >
-            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            View
-          </a>
-        </div>
-      )
-    }
-    
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors"
-        title={`View preview for ${businessName}`}
-      >
-        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-        View
-      </a>
-    )
-  }
-
   if (!isMounted || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -700,7 +626,7 @@ export default function AdminPage() {
         </div>
 
         {/* Imported Businesses Table */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 mb-8">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-900">Imported Businesses ({recentActivity.length})</h2>
           </div>
@@ -763,7 +689,21 @@ export default function AdminPage() {
                         {formatDate(business.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <PreviewLink url={business.preview_url} businessName={business.business_name} />
+                        {business.preview_url ? (
+                          <a
+                            href={business.preview_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors"
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            View
+                          </a>
+                        ) : (
+                          <StatusBadge active={false} />
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge active={business.status.sent} />
@@ -773,54 +713,6 @@ export default function AdminPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge active={business.status.clicked} />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Businesses in Database Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h2 className="text-xl font-semibold text-gray-900">Businesses in Database ({databaseBusinesses.length})</h2>
-            <p className="mt-1 text-sm text-gray-600">All businesses with their IDs and preview URLs</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Business ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Business Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Preview URL
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {databaseBusinesses.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
-                      No businesses in database
-                    </td>
-                  </tr>
-                ) : (
-                  databaseBusinesses.map((business) => (
-                    <tr key={business.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-mono text-gray-900">
-                        {business.id}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {business.business_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <PreviewLink url={business.preview_url} businessName={business.business_name} showFullUrl={true} />
                       </td>
                     </tr>
                   ))
