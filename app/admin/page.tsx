@@ -124,7 +124,7 @@ export default function AdminPage() {
         const activityData = await Promise.all(
           allBusinesses.map(async (business) => {
             const [email, tracking] = await Promise.all([
-              supabase.from('email_logs').select('id').eq('business_id', business.id).single(),
+              supabase.from('email_logs').select('id').eq('business_id', business.id).maybeSingle(),
               supabase.from('email_tracking').select('event_type').eq('business_id', business.id)
             ])
 

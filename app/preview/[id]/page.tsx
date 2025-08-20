@@ -74,23 +74,20 @@ export default async function PreviewPage({ params }: PageProps) {
   // 4. Remove console.log statements
   processedHtml = processedHtml.replace(/console\.\w+\([^)]*\);?/g, '');
   
-  // 5. Replace external URLs with # (but keep Supabase and localhost)
-  processedHtml = processedHtml.replace(/https?:\/\/(?!.*supabase\.co)(?!localhost)[^"'\s<>]+/g, '#');
-  
-  // 6. Remove external resource references in style attributes (but keep Supabase)
+  // 5. Remove external resource references in style attributes (but keep Supabase)
   processedHtml = processedHtml.replace(/style=["'][^"']*url\(["']?https?:\/\/(?!.*supabase\.co)[^)]+\)["']?[^"']*["']/gi, 'style=""');
   
-  // 7. Remove @import statements in style tags (but keep Supabase)
+  // 6. Remove @import statements in style tags (but keep Supabase)
   processedHtml = processedHtml.replace(/@import\s+["']https?:\/\/(?!.*supabase\.co)[^"']+["'];?/gi, '');
   processedHtml = processedHtml.replace(/@import\s+url\(["']?https?:\/\/(?!.*supabase\.co)[^)]+["']?\);?/gi, '');
   
-  // 8. Remove meta tags that reference external resources (but keep Supabase)
+  // 7. Remove meta tags that reference external resources (but keep Supabase)
   processedHtml = processedHtml.replace(/<meta[^>]*content=["'][^"']*https?:\/\/(?!.*supabase\.co)[^"']+[^>]*>/gi, '');
   
-  // 9. Remove any object or embed tags
+  // 8. Remove any object or embed tags
   processedHtml = processedHtml.replace(/<(object|embed)[^>]*>.*?<\/\1>/gis, '');
   
-  // 10. Clean up iframe sources that aren't local or Supabase
+  // 9. Clean up iframe sources that aren't local or Supabase
   processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?!.*supabase\.co)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
 
   // Add mobile viewport and responsive CSS to the HTML
@@ -154,12 +151,6 @@ export default async function PreviewPage({ params }: PageProps) {
       img[src=""], img:not([src]), img[src*="undefined"], img[src="#"] {
         display: none !important;
       }
-      
-      /* Hide any elements trying to load external resources (but allow Supabase) */
-      [src^="http"]:not([src*="localhost"]):not([src*="supabase.co"]),
-      [href^="http"]:not([href*="localhost"]):not([href*="supabase.co"]) {
-        display: none !important;
-      }
     </style>
   `;
 
@@ -170,25 +161,6 @@ export default async function PreviewPage({ params }: PageProps) {
       window.BUSINESS_ID = '${preview.business_id}';
       
       (function() {
-        // Block external resource loading (but allow Supabase)
-        const originalFetch = window.fetch;
-        window.fetch = function(...args) {
-          const url = args[0];
-          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost') && !url.includes('supabase.co')) {
-            return Promise.reject(new Error('External resource blocked'));
-          }
-          return originalFetch.apply(this, args);
-        };
-        
-        // Block XMLHttpRequest to external domains (but allow Supabase)
-        const originalOpen = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost') && !url.includes('supabase.co')) {
-            throw new Error('External resource blocked');
-          }
-          return originalOpen.apply(this, [method, url, ...rest]);
-        };
-        
         // Error handler to prevent console errors
         window.addEventListener('error', function(e) {
           if (e.target && e.target.tagName === 'IMG') {
@@ -966,7 +938,7 @@ export default async function PreviewPage({ params }: PageProps) {
               // Prevent body scroll when panel is open on mobile
               if (window.innerWidth <= 768) {
                 document.body.style.overflow = 'hidden';
-                document.body.style.position = 'fixed';
+                document.body.style.position = 'fixe d';
                 document.body.style.width = '100%';
               }
             }
