@@ -1,12 +1,6 @@
-import { renderToStaticMarkup } from 'react-dom/server';
-import React from 'react';
 import { createClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
 import { ContentGenerator, GeneratedContent, BusinessInfo } from './contentGenerator';
-
-// Import templates - these would need to be imported from your components
-import RestaurantTemplate from '../components/templates/RestaurantTemplate';
-import ServiceTemplate from '../components/templates/ServiceTemplate';
 
 export interface Business {
   id: string;
@@ -138,66 +132,51 @@ export class WebsiteGenerator {
   }
 
   private renderTemplate(business: Business, content: GeneratedContent, templateType: string): string {
-    // Prepare common props
-    const commonProps = {
-      businessName: business.business_name,
-      address: `${business.address}, ${business.city}, ${business.state} ${business.zip}`,
-      phone: business.phone,
-      hours: this.getDefaultHours(templateType),
-      tagline: content.tagline,
-      aboutUs: content.aboutUs
-    };
+    // Prepare common data
+    const businessName = business.business_name;
+    const fullAddress = `${business.address}, ${business.city}, ${business.state} ${business.zip}`;
+    const phone = business.phone;
+    const hours = this.getDefaultHours(templateType);
+    const tagline = content.tagline;
+    const aboutUs = content.aboutUs;
 
-    let component: React.ReactElement;
+    let bodyContent = '';
 
     switch (templateType) {
       case 'restaurant':
-        component = React.createElement(RestaurantTemplate, {
-          ...commonProps,
-          menu: this.getDefaultMenu(),
-          specialties: ['Daily Specials', 'Fresh Ingredients', 'Family Recipes'],
-          cuisine: 'American'
-        });
+        const menu = this.getDefaultMenu();
+        bodyContent = this.renderRestaurantTemplate(businessName, fullAddress, phone, hours, tagline, aboutUs, menu);
         break;
 
       case 'service':
-        component = React.createElement(ServiceTemplate, {
-          ...commonProps,
-          services: this.parseServices(content.servicesDescription),
-          serviceArea: `${business.city} and surrounding areas`,
-          certifications: ['Licensed', 'Insured', 'Certified Professionals']
-        });
+        const services = this.parseServices(content.servicesDescription);
+        const serviceArea = `${business.city} and surrounding areas`;
+        const certifications = ['Licensed', 'Insured', 'Certified Professionals'];
+        bodyContent = this.renderServiceTemplate(businessName, fullAddress, phone, hours, tagline, aboutUs, services, serviceArea, certifications);
         break;
 
       case 'retail':
-        // For now, use service template for retail
-        component = React.createElement(ServiceTemplate, {
-          ...commonProps,
-          services: ['Quality Products', 'Expert Advice', 'Competitive Prices'],
-          serviceArea: `Serving ${business.city}`,
-          certifications: ['Authorized Dealer', 'Warranty Service', 'Price Match Guarantee']
-        });
+        const retailServices = ['Quality Products', 'Expert Advice', 'Competitive Prices'];
+        const retailArea = `Serving ${business.city}`;
+        const retailCerts = ['Authorized Dealer', 'Warranty Service', 'Price Match Guarantee'];
+        bodyContent = this.renderServiceTemplate(businessName, fullAddress, phone, hours, tagline, aboutUs, retailServices, retailArea, retailCerts);
         break;
 
       default:
-        component = React.createElement(ServiceTemplate, {
-          ...commonProps,
-          services: this.parseServices(content.servicesDescription),
-          serviceArea: `${business.city} and surrounding areas`,
-          certifications: []
-        });
+        const defaultServices = this.parseServices(content.servicesDescription);
+        const defaultArea = `${business.city} and surrounding areas`;
+        bodyContent = this.renderServiceTemplate(businessName, fullAddress, phone, hours, tagline, aboutUs, defaultServices, defaultArea, []);
     }
 
-    // Wrap in HTML document
-    const htmlString = renderToStaticMarkup(component);
+    // Return complete HTML document
     return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${business.business_name} - ${content.tagline}</title>
-  <meta name="description" content="${content.aboutUs}">
+  <title>${businessName} - ${tagline}</title>
+  <meta name="description" content="${aboutUs}">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }
@@ -209,13 +188,143 @@ export class WebsiteGenerator {
     h2 { color: #1e40af; margin-bottom: 1rem; }
     .contact-info { background: #f3f4f6; padding: 2rem; border-radius: 8px; margin: 2rem 0; }
     .hours { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; max-width: 400px; }
+    .menu-section { margin: 2rem 0; }
+    .menu-category { margin: 1.5rem 0; }
+    .menu-items { list-style: none; padding-left: 1rem; }
+    .service-list { list-style: none; padding: 0; }
+    .service-item { background: #f9fafb; padding: 1rem; margin: 0.5rem 0; border-radius: 4px; }
     footer { background: #1f2937; color: white; text-align: center; padding: 2rem 0; margin-top: 4rem; }
   </style>
 </head>
 <body>
-  ${htmlString}
+  ${bodyContent}
 </body>
 </html>`;
+  }
+
+  private renderRestaurantTemplate(
+    businessName: string,
+    address: string,
+    phone: string,
+    hours: { [key: string]: string },
+    tagline: string,
+    aboutUs: string,
+    menu: Array<{ category: string; items: string[] }>
+  ): string {
+    const hoursHtml = Object.entries(hours)
+      .map(([day, time]) => `<div><strong>${day}:</strong> ${time}</div>`)
+      .join('');
+
+    const menuHtml = menu
+      .map(category => `
+        <div class="menu-category">
+          <h3>${category.category}</h3>
+          <ul class="menu-items">
+            ${category.items.map(item => `<li>${item}</li>`).join('')}
+          </ul>
+        </div>
+      `)
+      .join('');
+
+    return `
+      <header>
+        <div class="container">
+          <h1>${businessName}</h1>
+          <p class="tagline">${tagline}</p>
+        </div>
+      </header>
+      
+      <main class="container">
+        <section>
+          <h2>About Us</h2>
+          <p>${aboutUs}</p>
+        </section>
+
+        <section class="menu-section">
+          <h2>Our Menu</h2>
+          ${menuHtml}
+        </section>
+
+        <section class="contact-info">
+          <h2>Visit Us</h2>
+          <p><strong>Address:</strong> ${address}</p>
+          <p><strong>Phone:</strong> ${phone}</p>
+          <div class="hours">
+            ${hoursHtml}
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div class="container">
+          <p>&copy; ${new Date().getFullYear()} ${businessName}. All rights reserved.</p>
+        </div>
+      </footer>
+    `;
+  }
+
+  private renderServiceTemplate(
+    businessName: string,
+    address: string,
+    phone: string,
+    hours: { [key: string]: string },
+    tagline: string,
+    aboutUs: string,
+    services: string[],
+    serviceArea: string,
+    certifications: string[]
+  ): string {
+    const hoursHtml = Object.entries(hours)
+      .map(([day, time]) => `<div><strong>${day}:</strong> ${time}</div>`)
+      .join('');
+
+    const servicesHtml = services
+      .map(service => `<li class="service-item">${service}</li>`)
+      .join('');
+
+    const certificationsHtml = certifications.length > 0
+      ? `<p><strong>Certifications:</strong> ${certifications.join(' • ')}</p>`
+      : '';
+
+    return `
+      <header>
+        <div class="container">
+          <h1>${businessName}</h1>
+          <p class="tagline">${tagline}</p>
+        </div>
+      </header>
+      
+      <main class="container">
+        <section>
+          <h2>About Us</h2>
+          <p>${aboutUs}</p>
+        </section>
+
+        <section>
+          <h2>Our Services</h2>
+          <ul class="service-list">
+            ${servicesHtml}
+          </ul>
+          <p style="margin-top: 1rem;"><strong>Service Area:</strong> ${serviceArea}</p>
+          ${certificationsHtml}
+        </section>
+
+        <section class="contact-info">
+          <h2>Contact Us</h2>
+          <p><strong>Address:</strong> ${address}</p>
+          <p><strong>Phone:</strong> ${phone}</p>
+          <div class="hours">
+            ${hoursHtml}
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div class="container">
+          <p>&copy; ${new Date().getFullYear()} ${businessName}. All rights reserved.</p>
+        </div>
+      </footer>
+    `;
   }
 
   private getDefaultHours(templateType: string): { [key: string]: string } {
