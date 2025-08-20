@@ -55,14 +55,26 @@ export async function POST(request: NextRequest) {
       ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/preview/${preview.id}`
       : `http://localhost:3000/preview/${business_id}`;
 
-    // Generate preview image URL using 11ty screenshot service with fallback
-    const encodedUrl = encodeURIComponent(previewUrl);
+    console.log('🔗 Preview URL for screenshot:', previewUrl);
+
+    // Generate preview image URL using different screenshot services
     const encodedBusinessName = encodeURIComponent(business.business_name);
-    const screenshotUrl = `https://v1.screenshot.11ty.dev/${encodedUrl}/opengraph/`;
-    const fallbackUrl = `https://via.placeholder.com/600x400/5850EC/ffffff?text=${encodedBusinessName}`;
     
-    // Use screenshot service as primary, with placeholder as fallback
-    const previewImageUrl = preview?.preview_image || screenshotUrl || fallbackUrl;
+    // Try multiple screenshot services with proper URL formatting
+    let screenshotUrl;
+    
+    // Option 1: Use screenshotmachine.com (free tier available)
+    const cleanUrl = previewUrl.replace(/^https?:\/\//, ''); // Remove protocol for some services
+    screenshotUrl = `https://api.screenshotmachine.com?key=free&url=${encodeURIComponent(previewUrl)}&dimension=1200x630`;
+    
+    // Option 2: Use placeholder with business info as fallback
+    const fallbackUrl = `https://via.placeholder.com/1200x630/5850EC/ffffff?text=${encodedBusinessName}`;
+    
+    // Use screenshot service if available, otherwise use fallback
+    const previewImageUrl = preview?.preview_image || screenshotUrl;
+    
+    console.log('🖼️ Preview Image URL:', previewImageUrl);
+    console.log('🖼️ Using screenshot service:', previewImageUrl.includes('screenshotmachine') ? 'screenshotmachine' : 'custom/fallback');
 
     // Initialize email service
     const emailService = new EmailService();
