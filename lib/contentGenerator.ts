@@ -11,9 +11,9 @@ const replicate = new Replicate({
 });
 
 // Dynamic imports for optional dependencies
-let Anthropic: any = null;
-let getJson: any = null;
-let tinify: any = null;
+let Anthropic: unknown = null;
+let getJson: unknown = null;
+let tinify: unknown = null;
 
 async function initializeOptionalDependencies() {
   try {
@@ -36,7 +36,7 @@ async function initializeOptionalDependencies() {
     const tinifyModule = await import('tinify');
     tinify = tinifyModule.default;
     if (process.env.TINYPNG_API_KEY) {
-      tinify.key = process.env.TINYPNG_API_KEY;
+      (tinify as any).key = process.env.TINYPNG_API_KEY;
       console.log('✓ TinyPNG configured');
     }
   } catch (e) {
@@ -121,27 +121,29 @@ export function getLayoutVariation(businessName: string): number {
 }
 
 // Check existing website using SerpAPI
-export async function checkExistingWebsite(business: any): Promise<boolean> {
+export async function checkExistingWebsite(business: unknown): Promise<boolean> {
+  const businessData = business as { business_name: string; city?: string };
+  
   if (!process.env.SERPAPI_KEY || !getJson) {
     console.log('⚠️ SerpAPI not configured, skipping website check');
     return false;
   }
   
-  console.log(`🔍 Checking if ${business.business_name} has existing website...`);
+  console.log(`🔍 Checking if ${businessData.business_name} has existing website...`);
   
   try {
     console.log('  → Using SerpAPI...');
-    const results = await getJson({
+    const results = await (getJson as any)({
       api_key: process.env.SERPAPI_KEY,
       engine: "google",
-      q: `${business.business_name} ${business.city || ''} official website`,
-      location: business.city || 'United States',
+      q: `${businessData.business_name} ${businessData.city || ''} official website`,
+      location: businessData.city || 'United States',
       num: 3
     });
     
-    const hasWebsite = results.organic_results?.some((result: any) => {
+    const hasWebsite = results.organic_results?.some((result: { link?: string }) => {
       const url = result.link?.toLowerCase() || '';
-      const businessNameClean = business.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const businessNameClean = businessData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
       return url.includes(businessNameClean);
     });
     
@@ -155,9 +157,10 @@ export async function checkExistingWebsite(business: any): Promise<boolean> {
 }
 
 // Premium content generation with Claude or Together AI
-export async function generatePremiumContent(business: any): Promise<BusinessContent> {
-  console.log('🚀 API CALL: Starting content generation for:', business.business_name);
-  console.log(`🎨 Generating content for ${business.business_name}...`);
+export async function generatePremiumContent(business: unknown): Promise<BusinessContent> {
+  const businessData = business as { business_name: string; city?: string };
+  console.log('🚀 API CALL: Starting content generation for:', businessData.business_name);
+  console.log(`🎨 Generating content for ${businessData.business_name}...`);
   
   try {
     // Try Claude first if API key is available
@@ -176,13 +179,15 @@ export async function generatePremiumContent(business: any): Promise<BusinessCon
   }
 }
 
-async function generateContentWithClaude(business: any): Promise<BusinessContent> {
+async function generateContentWithClaude(business: unknown): Promise<BusinessContent> {
+  const businessData = business as { business_name: string; city?: string };
+  
   try {
-    const anthropic = new Anthropic({
+    const anthropic = new (Anthropic as any)({
       apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
-    const businessType = detectBusinessType(business.business_name);
+    const businessType = detectBusinessType(businessData.business_name);
     
     const response = await anthropic.messages.create({
       model: "claude-3-haiku-20240307",
@@ -190,7 +195,7 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
       temperature: 0.7,
       messages: [{
         role: "user",
-        content: `Create compelling website content for ${business.business_name}, a ${businessType} in ${business.city || 'the area'}. 
+        content: `Create compelling website content for ${businessData.business_name}, a ${businessType} in ${businessData.city || 'the area'}. 
         
         Generate a JSON response with:
         {
@@ -209,7 +214,7 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
     console.log('  ✓ Anthropic Claude content generated successfully');
     
     // Parse the response - Claude returns content in a specific format
-    let content;
+    let content: { tagline?: string; about?: string; services?: unknown[]; testimonials?: unknown[] };
     try {
       // Claude returns content as an array, get the text from the first item
       const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
@@ -221,12 +226,12 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
     }
     
     // Generate logo and video background
-    const logo = await generateBusinessLogo(business.business_name, businessType);
+    const logo = await generateBusinessLogo(businessData.business_name, businessType);
     const videoBackground = await generateVideoBackground(businessType);
     
     // Ensure services are strings (add emojis if not present)
     const services = Array.isArray(content.services) 
-      ? content.services.map((s: any) => {
+      ? content.services.map((s: unknown) => {
           if (typeof s === 'string') {
             // Add emoji if not present
             if (!s.match(/^[🍽️🥡🎉👨‍🍳🍷🎂🚨🚿🛁🔥🔧📋✂️🎨💅✨👰💆🛢️💻🔋❄️🔄🏠🏢🪟🏗️📅⭐📞👥✅💲🏆]/)) {
@@ -241,21 +246,24 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
             }
             return s;
           }
-          return typeof s === 'object' && s.name ? s.name : 'Premium Service';
+          return typeof s === 'object' && s !== null && 'name' in s ? (s as { name: string }).name : 'Premium Service';
         })
       : generateServices(businessType);
     
     // Ensure testimonials have proper structure
     const testimonials = Array.isArray(content.testimonials) 
-      ? content.testimonials.map((t: any) => ({
-          name: t.name || 'Satisfied Customer',
-          text: t.text || t.review || 'Excellent service!',
-          rating: t.rating || 5
-        }))
+      ? content.testimonials.map((t: unknown) => {
+          const testimonial = t as { name?: string; text?: string; review?: string; rating?: number };
+          return {
+            name: testimonial.name || 'Satisfied Customer',
+            text: testimonial.text || testimonial.review || 'Excellent service!',
+            rating: testimonial.rating || 5
+          };
+        })
       : generateTestimonials(businessType);
     
     return {
-      tagline: content.tagline || generateTagline(businessType, business.business_name),
+      tagline: content.tagline || generateTagline(businessType, businessData.business_name),
       description: content.about || generateDescription(businessType, business),
       services,
       testimonials,
@@ -263,7 +271,7 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
       theme: getThemeForType(businessType),
       businessType,
       logo,
-      videoBackground
+      videoBackground: videoBackground || undefined
     };
   } catch (error) {
     console.error('  ✗ Claude generation failed:', error);
@@ -272,12 +280,14 @@ async function generateContentWithClaude(business: any): Promise<BusinessContent
   }
 }
 
-async function generateContentWithTogether(business: any): Promise<BusinessContent> {
+async function generateContentWithTogether(business: unknown): Promise<BusinessContent> {
+  const businessData = business as { business_name: string; city?: string };
+  
   try {
-    const businessType = detectBusinessType(business.business_name);
+    const businessType = detectBusinessType(businessData.business_name);
     const keywords = getIndustryKeywords(businessType);
     
-    const prompt = `Generate premium website content for ${business.business_name}, a high-end ${businessType} business in ${business.city || 'the area'}.
+    const prompt = `Generate premium website content for ${businessData.business_name}, a high-end ${businessType} business in ${businessData.city || 'the area'}.
 
 Create compelling, sophisticated content that positions this as a premium $2000+ value business.
 
@@ -316,28 +326,31 @@ Format your response as JSON with these fields:
     console.log('  ✓ Together AI content generated successfully');
 
     try {
-      const content = JSON.parse(response);
+      const content = JSON.parse(response) as { tagline?: string; description?: string; services?: unknown[]; testimonials?: unknown[] };
       
       // Generate logo and video background
-      const logo = await generateBusinessLogo(business.business_name, businessType);
+      const logo = await generateBusinessLogo(businessData.business_name, businessType);
       const videoBackground = await generateVideoBackground(businessType);
       
       // Ensure services are strings
       const services = Array.isArray(content.services) 
-        ? content.services.map((s: any) => typeof s === 'string' ? s : 'Premium Service')
+        ? content.services.map((s: unknown) => typeof s === 'string' ? s : 'Premium Service')
         : generateServices(businessType);
       
       // Ensure testimonials have proper structure
       const testimonials = Array.isArray(content.testimonials) 
-        ? content.testimonials.map((t: any) => ({
-            name: t.name || 'Satisfied Customer',
-            text: t.text || 'Excellent service!',
-            rating: t.rating || 5
-          }))
+        ? content.testimonials.map((t: unknown) => {
+            const testimonial = t as { name?: string; text?: string; rating?: number };
+            return {
+              name: testimonial.name || 'Satisfied Customer',
+              text: testimonial.text || 'Excellent service!',
+              rating: testimonial.rating || 5
+            };
+          })
         : generateTestimonials(businessType);
       
       return {
-        tagline: content.tagline || generateTagline(businessType, business.business_name),
+        tagline: content.tagline || generateTagline(businessType, businessData.business_name),
         description: content.description || generateDescription(businessType, business),
         services,
         testimonials,
@@ -345,7 +358,7 @@ Format your response as JSON with these fields:
         theme: getThemeForType(businessType),
         businessType,
         logo,
-        videoBackground
+        videoBackground: videoBackground || undefined
       };
     } catch (parseError) {
       console.error('  ✗ Failed to parse AI response:', parseError);
@@ -394,8 +407,8 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       // Try to compress with TinyPNG
       if (tinify && process.env.TINYPNG_API_KEY) {
         try {
-          console.log('    → Using T  inyPNG to compress logo...');
-          const source = tinify.fromUrl(output[0]);
+          console.log('    → Using TinyPNG to compress logo...');
+          const source = (tinify as any).fromUrl(output[0]);
           const compressed = await source.toBuffer();
           console.log('    ✓ Logo compressed with TinyPNG');
         } catch (e) {
@@ -472,7 +485,7 @@ async function generateVideoBackground(businessType: string): Promise<string | n
     );
     
     console.log('    ✓ Video background generated with Replicate');
-    return output as string || null;
+    return (output as unknown as string) || null;
   } catch (error) {
     console.log('    ⚠️ Video generation failed, using static image');
     return null;
@@ -710,7 +723,7 @@ export async function generateBusinessImages(businessType: string, businessName:
       for (let i = 0; i < images.length; i++) {
         if (images[i]) {
           try {
-            const source = tinify.fromUrl(images[i]);
+            const source = (tinify as any).fromUrl(images[i]);
             await source.toBuffer();
             compressedCount++;
           } catch (e) {
@@ -843,7 +856,7 @@ function getPremiumStockImages(businessType: string): BusinessImages {
 export class ContentGenerator {
   private together: Together;
   private replicate: Replicate;
-  private anthropic: any;
+  private anthropic: unknown;
   private serpApiAvailable: boolean = false;
   private tinifyAvailable: boolean = false;
 
@@ -869,7 +882,7 @@ export class ContentGenerator {
   private async initializeOptionalServices() {
     // Initialize Anthropic if available
     if (process.env.ANTHROPIC_API_KEY && Anthropic) {
-      this.anthropic = new Anthropic({
+      this.anthropic = new (Anthropic as any)({
         apiKey: process.env.ANTHROPIC_API_KEY,
       });
     }
@@ -923,7 +936,7 @@ export class ContentGenerator {
     }
   }
 
-  async checkWebsite(business: any): Promise<boolean> {
+  async checkWebsite(business: unknown): Promise<boolean> {
     if (!this.serpApiAvailable) {
       console.log('⚠️ SerpAPI not available for website check');
       return false;
@@ -1286,8 +1299,9 @@ export function getCategoryTheme(type: string): CategoryTheme {
 }
 
 // New functions for enhanced content generation
-export async function generateBusinessContent(business: any): Promise<BusinessContent> {
-  const businessName = business.business_name || business.businessName || '';
+export async function generateBusinessContent(business: unknown): Promise<BusinessContent> {
+  const businessData = business as { business_name?: string; businessName?: string; city?: string };
+  const businessName = businessData.business_name || businessData.businessName || '';
   const businessType = detectBusinessType(businessName);
   
   console.log(`  📝 Generating fallback content for ${businessType} business...`);
@@ -1307,7 +1321,7 @@ export async function generateBusinessContent(business: any): Promise<BusinessCo
     theme: getThemeForType(businessType),
     businessType,
     logo,
-    videoBackground
+    videoBackground: videoBackground || undefined
   };
 }
 
@@ -1421,9 +1435,10 @@ export function generateTagline(type: string, businessName: string): string {
   return typeTaglines[Math.floor(Math.random() * typeTaglines.length)];
 }
 
-export function generateDescription(type: string, business: any): string {
-  const city = business.city || 'the area';
-  const businessName = business.business_name || business.businessName || 'Our business';
+export function generateDescription(type: string, business: unknown): string {
+  const businessData = business as { city?: string; business_name?: string; businessName?: string };
+  const city = businessData.city || 'the area';
+  const businessName = businessData.business_name || businessData.businessName || 'Our business';
   
   const descriptions: { [key: string]: string } = {
     restaurant: `Welcome to ${businessName}, where culinary excellence meets warm hospitality in the heart of ${city}. Our award-winning chefs prepare every dish with fresh, locally-sourced ingredients, creating unforgettable flavors that keep our guests coming back. From our signature dishes to daily specials, every meal is a celebration of taste and tradition. Whether you're joining us for a romantic dinner, family gathering, or quick lunch, we promise an exceptional dining experience that delights all your senses.`,
@@ -1517,7 +1532,7 @@ export function generateTestimonials(type: string): Array<{name: string, text: s
     auto: [
       { name: 'David Harrison', text: 'Most honest mechanics I\'ve ever dealt with! They showed me exactly what needed fixing with video inspection, gave options, and never pushed unnecessary services.', rating: 5 },
       { name: 'Susan Bradley', text: 'They diagnosed an issue three dealerships couldn\'t find! Saved me from buying a new car. Their expertise with European vehicles is unmatched.', rating: 5 },
-      { name: 'Tom Williams', text: 'Fleet maintenance for our 20 company vehicles. They keep detailed records, remind us of service schedules, and their preventive maintenance has reduced our downtime by 60%.', rating: 5 }
+      { name: '  Tom Williams', text: 'Fleet maintenance for our 20 company vehicles. They keep detailed records, remind us of service schedules, and their preventive maintenance has reduced our downtime by 60%.', rating: 5 }
     ],
     cleaning: [
       { name: 'Emily Richardson', text: 'The deep clean service is incredible! They cleaned places I didn\'t know existed. Eco-friendly products, professional team, and my home has never looked better.', rating: 5 },
