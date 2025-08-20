@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     let emailResult;
     try {
       emailResult = await emailService.sendWebsiteReadyEmail({
-        to: test_mode ? (process.env.TEST_EMAIL || 'test@example.com') : business.email,
+        to: test_mode ? 'yosiwizman5638@gmail.com' : business.email,
         businessName: business.business_name,
         previewUrl: previewUrl,
         previewImage: preview?.preview_image || `${process.env.NEXT_PUBLIC_APP_URL}/api/og?title=${encodeURIComponent(business.business_name)}`,
@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
         error: error instanceof Error ? error.message : 'Email service error'
       };
     }
+
+    console.log('📧 Email sent successfully to:', emailResult.success ? 'yosiwizman5638@gmail.com' : 'failed');
 
     // Log to database - store message_id in metadata to avoid column issues
     const logEntry = {
