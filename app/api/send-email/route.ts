@@ -69,22 +69,26 @@ export async function POST(request: NextRequest) {
         businessId: business_id
       });
     } catch (error) {
-      console.log('⚠️ SIMULATING email send (Resend not configured)');
-      emailResult = { success: true, messageId: 'simulated-' + Date.now() };
+      console.log('⚠️ SIMULATING email send (Resend not configured or failed):', error);
+      emailResult = { 
+        success: true, 
+        messageId: 'simulated-' + Date.now(),
+        error: error instanceof Error ? error.message : 'Email service error'
+      };
     }
 
-    // Log to database
+    // Log to database - store message_id in metadata to avoid column issues
     const logEntry = {
       business_id: business_id,
       email_type: email_type,
       recipient_email: business.email,
       status: emailResult.success ? 'sent' : 'failed',
-      message_id: emailResult.messageId,
       sent_at: new Date().toISOString(),
       metadata: {
         business_name: business.business_name,
         preview_url: previewUrl,
         test_mode: test_mode,
+        message_id: emailResult.messageId,
         error: emailResult.error
       }
     };
@@ -105,14 +109,15 @@ export async function POST(request: NextRequest) {
         message: 'Email sent successfully',
         messageId: emailResult.messageId,
         recipient: business.email,
-        businessName: business.business_name
+        businessName: business.business_name,
+        previewUrl: previewUrl
       });
     } else {
       console.error(`❌ Email send failed: ${emailResult.error}`);
       return NextResponse.json(
         { 
           success: false, 
-          error: emailResult.error,
+          error: emailResult.error || 'Failed to send email',
           recipient: business.email 
         },
         { status: 500 }
