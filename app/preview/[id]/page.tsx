@@ -90,6 +90,12 @@ export default async function PreviewPage({ params }: PageProps) {
   // 9. Clean up iframe sources that aren't local or Supabase
   processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?!.*supabase\.co)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
 
+  // Debug logging
+  console.log('=== PREVIEW HTML DEBUG ===');
+  console.log('Original length:', preview.html_content.length);
+  console.log('Processed length:', processedHtml.length);
+  console.log('First 500 chars of processed:', processedHtml.substring(0, 500));
+
   // Add mobile viewport and responsive CSS to the HTML
   const mobileStyles = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
@@ -546,7 +552,7 @@ export default async function PreviewPage({ params }: PageProps) {
               return logos;
             }
 
-            // Display current logo in preview
+            //  Display current logo in preview
             function displayCurrentLogo() {
               try {
                 const logoPreview = document.getElementById('current-logo');
