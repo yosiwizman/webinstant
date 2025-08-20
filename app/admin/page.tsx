@@ -29,6 +29,12 @@ interface BusinessActivity {
   }
 }
 
+interface DatabaseBusiness {
+  id: string
+  business_name: string
+  preview_url?: string
+}
+
 export default function AdminPage() {
   const [stats, setStats] = useState<Statistics>({
     totalBusinesses: 0,
@@ -39,6 +45,7 @@ export default function AdminPage() {
   })
   
   const [recentActivity, setRecentActivity] = useState<BusinessActivity[]>([])
+  const [databaseBusinesses, setDatabaseBusinesses] = useState<DatabaseBusiness[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [generatingPreviews, setGeneratingPreviews] = useState(false)
@@ -145,6 +152,14 @@ export default function AdminPage() {
           })
         )
         setRecentActivity(activityData)
+
+        // Prepare database businesses list
+        const dbBusinessesList: DatabaseBusiness[] = allBusinesses.map(business => ({
+          id: business.id,
+          business_name: business.business_name,
+          preview_url: previewMap.get(business.id)
+        }))
+        setDatabaseBusinesses(dbBusinessesList)
       }
 
     } catch (error) {
@@ -567,7 +582,7 @@ export default function AdminPage() {
         </div>
 
         {/* Imported Businesses Table */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 mb-8">
           <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
             <h2 className="text-xl font-semibold text-gray-900">Imported Businesses ({recentActivity.length})</h2>
           </div>
@@ -640,6 +655,68 @@ export default function AdminPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge active={business.status.clicked} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Businesses in Database Section */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h2 className="text-xl font-semibold text-gray-900">Businesses in Database ({databaseBusinesses.length})</h2>
+            <p className="mt-1 text-sm text-gray-600">All businesses with their IDs and preview URLs</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Business ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Business Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Preview URL
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {databaseBusinesses.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500">
+                      No businesses in database
+                    </td>
+                  </tr>
+                ) : (
+                  databaseBusinesses.map((business) => (
+                    <tr key={business.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-mono text-gray-900">
+                        {business.id}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {business.business_name}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {business.preview_url ? (
+                          <a
+                            href={business.preview_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline inline-flex items-center"
+                          >
+                            {business.preview_url}
+                            <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">No preview generated</span>
+                        )}
                       </td>
                     </tr>
                   ))
