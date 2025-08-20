@@ -79,20 +79,16 @@ export async function POST(request: NextRequest) {
 
     console.log('📧 Email sent successfully to:', emailResult.success ? 'yosiwizman5638@gmail.com' : 'failed');
 
-    // Log to database - store message_id in metadata to avoid column issues
+    // Log to database with direct columns
     const logEntry = {
       business_id: business_id,
       email_type: email_type,
       recipient_email: business.email,
       status: emailResult.success ? 'sent' : 'failed',
       sent_at: new Date().toISOString(),
-      metadata: {
-        business_name: business.business_name,
-        preview_url: previewUrl,
-        test_mode: test_mode,
-        message_id: emailResult.messageId,
-        error: emailResult.error
-      }
+      subject: `${business.business_name} - Your Website is Ready!`,
+      message_id: emailResult.messageId || null,
+      preview_url: previewUrl
     };
 
     console.log(`📝 Logging email to database...`);
@@ -102,6 +98,35 @@ export async function POST(request: NextRequest) {
 
     if (logError) {
       console.error('⚠️ Failed to log email (non-critical):', logError);
+      
+      // Query table structure to see what columns exist
+      try {
+        const { data: columns, error: schemaError } = await supabase
+          .rpc('get_table_columns', { table_name: 'email_logs' })
+          .single();
+        
+        if (!schemaError && columns) {
+          console.log('📊 Available columns in email_logs table:', columns);
+        } else {
+          // Fallback: try to get a sample row to see structure
+          const { data: sampleRow } = await supabase
+            .from('email_logs')
+            .select('*')
+            .limit(1)
+            .single();
+          
+          if (sampleRow) {
+            console.log('📊 Available columns in email_logs table:', Object.keys(sampleRow));
+          }
+        }
+        
+        console.log('❌ Missing fields in email_logs table. Attempted to insert:', Object.keys(logEntry));
+        console.log('❌ Error details:', logError.message);
+      } catch (schemaCheckError) {
+        console.log('⚠️ Could not determine table structure:', schemaCheckError);
+      }
+    } else {
+      console.log('✅ Email logged to database successfully');
     }
 
     if (emailResult.success) {
