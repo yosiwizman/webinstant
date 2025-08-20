@@ -57,15 +57,12 @@ export async function POST(request: NextRequest) {
 
     console.log('🔗 Preview URL for screenshot:', previewUrl);
 
-    // Generate preview image URL using different screenshot services
+    // Generate preview image URL using our own screenshot API
     const encodedBusinessName = encodeURIComponent(business.business_name);
+    const encodedUrl = encodeURIComponent(previewUrl);
     
-    // Try multiple screenshot services with proper URL formatting
-    let screenshotUrl;
-    
-    // Option 1: Use screenshotmachine.com (free tier available)
-    const cleanUrl = previewUrl.replace(/^https?:\/\//, ''); // Remove protocol for some services
-    screenshotUrl = `https://api.screenshotmachine.com?key=free&url=${encodeURIComponent(previewUrl)}&dimension=1200x630`;
+    // Use our own screenshot service
+    const screenshotUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/screenshot?url=${encodedUrl}`;
     
     // Option 2: Use placeholder with business info as fallback
     const fallbackUrl = `https://via.placeholder.com/1200x630/5850EC/ffffff?text=${encodedBusinessName}`;
@@ -74,7 +71,7 @@ export async function POST(request: NextRequest) {
     const previewImageUrl = preview?.preview_image || screenshotUrl;
     
     console.log('🖼️ Preview Image URL:', previewImageUrl);
-    console.log('🖼️ Using screenshot service:', previewImageUrl.includes('screenshotmachine') ? 'screenshotmachine' : 'custom/fallback');
+    console.log('🖼️ Using screenshot service: internal API');
 
     // Initialize email service
     const emailService = new EmailService();
