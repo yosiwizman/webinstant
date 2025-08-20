@@ -1,5 +1,8 @@
+'use client'
+
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -11,42 +14,80 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function PreviewPage({ params }: PageProps) {
-  // Await params for Next.js 15
-  const { id } = await params
-  
-  // First try to find by slug (SEO-friendly URL)
-  let { data: preview, error } = await supabase
-    .from('website_previews')
-    .select('id, business_id, preview_url, html_content, template_used, slug')
-    .eq('slug', id)
-    .single()
+export default function PreviewPage({ params }: PageProps) {
+  const [preview, setPreview] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [id, setId] = useState<string>('')
 
-  // If not found by slug, try by business_id (for backwards compatibility)
-  if (error || !preview) {
-    const result = await supabase
-      .from('website_previews')
-      .select('id, business_id, preview_url, html_content, template_used, slug')
-      .eq('business_id', id)
-      .single()
-    
-    preview = result.data
-    error = result.error
+  useEffect(() => {
+    async function loadPreview() {
+      try {
+        // Await params for Next.js 15
+        const resolvedParams = await params
+        const paramId = resolvedParams.id
+        setId(paramId)
+        
+        // First try to find by slug (SEO-friendly URL)
+        let { data: previewData, error: fetchError } = await supabase
+          .from('website_previews')
+          .select('id, business_id, preview_url, html_content, template_used, slug')
+          .eq('slug', paramId)
+          .single()
+
+        // If not found by slug, try by business_id (for backwards compatibility)
+        if (fetchError || !previewData) {
+          const result = await supabase
+            .from('website_previews')
+            .select('id, business_id, preview_url, html_content, template_used, slug')
+            .eq('business_id', paramId)
+            .single()
+          
+          previewData = result.data
+          fetchError = result.error
+        }
+
+        // If still not found, try by preview ID (UUID)
+        if (fetchError || !previewData) {
+          const result = await supabase
+            .from('website_previews')
+            .select('id, business_id, preview_url, html_content, template_used, slug')
+            .eq('id', paramId)
+            .single()
+          
+          previewData = result.data
+          fetchError = result.error
+        }
+
+        if (fetchError || !previewData || !previewData.html_content) {
+          setError(true)
+        } else {
+          setPreview(previewData)
+        }
+      } catch (err) {
+        console.error('Error loading preview:', err)
+        setError(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPreview()
+  }, [params])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading preview...</h1>
+          <p className="text-gray-600">Please wait while we load your content.</p>
+        </div>
+      </div>
+    )
   }
 
-  // If still not found, try by preview ID (UUID)
-  if (error || !preview) {
-    const result = await supabase
-      .from('website_previews')
-      .select('id, business_id, preview_url, html_content, template_used, slug')
-      .eq('id', id)
-      .single()
-    
-    preview = result.data
-    error = result.error
-  }
-
-  // If there's an error or no preview found, show not found message
+  // Show error state
   if (error || !preview || !preview.html_content) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -89,13 +130,6 @@ export default async function PreviewPage({ params }: PageProps) {
   
   // 9. Clean up iframe sources that aren't local or Supabase
   processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?!.*supabase\.co)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
-
-  // Debug logging
-  console.log('=== PREVIEW HTML DEBUG ===');
-  console.log('Original length:', preview.html_content.length);
-  console.log('Processed length:', processedHtml.length);
-  console.log('First 500 chars of processed:', processedHtml.substring(0, 500));
-  console.log('HTML starts with scripts removed:', processedHtml.substring(0, 100));
 
   // Add mobile viewport and responsive CSS to the HTML
   const mobileStyles = `
@@ -333,14 +367,14 @@ export default async function PreviewPage({ params }: PageProps) {
             panel.innerHTML = \`
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="margin: 0; color: #333; font-size: 18px;">Edit Business Info</h3>
-                <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 5px; min-width: 30px; touch-action: manipulation;">×</button>
+                <button id="close-panel" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 5px;  min-width: 30px; touch-action: manipulation;">×</button>
               </div>
               
               <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 5px; color: #555; font-size: 14px; font-weight: 500;">Business Logo:</label>
                 <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                   <div id="logo-preview" style="margin-bottom: 10px; text-align: center;">
-                    <div id="current-logo" style="width: 120px; height: 120px; margin: 0 auto;  background: #fff; border: 2px dashed #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">
+                    <div id="current-logo" style="width: 120px; height: 120px; margin: 0 auto; background: #fff; border: 2px dashed #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">
                       No logo
                     </div>
                   </div>
@@ -372,7 +406,7 @@ export default async function PreviewPage({ params }: PageProps) {
                           \${generateTimeOptions(false)}
                         </select>
                         <span style="color: #999; flex-shrink: 0;">to</span>
-                        <select id="hours-mon-close" style="flex: 1; min-width: 0; padding: 6px;  border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
+                        <select id="hours-mon-close" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                           \${generateTimeOptions(true)}
                         </select>
                       </div>
@@ -414,7 +448,7 @@ export default async function PreviewPage({ params }: PageProps) {
                       </div>
                     </div>
                     <div style="margin-bottom: 12px;">
-                      <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Friday: </span>
+                      <span style="display: block; font-size: 13px; color: #666; margin-bottom: 4px;">Friday:</span>
                       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;">
                         <select id="hours-fri-open" style="flex: 1; min-width: 0; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px;">
                           \${generateTimeOptions(false)}
@@ -539,21 +573,21 @@ export default async function PreviewPage({ params }: PageProps) {
                 });
                 
                 // Find text-based logos (h1, h2, etc. in header/nav)
-                const headers = document.querySelectorAll('header h1, header h2, nav h1, nav h2,  .logo, #logo');
+                const headers = document.querySelectorAll('header h1, header h2, nav h1, nav h2, .logo, #logo');
                 headers.forEach(header => {
                   if (header.closest('.edit-panel')) return;
                   if (!logos.some(logo => logo === header || header.contains(logo))) {
                     logos.push(header);
                   }
                 });
-              } catch (err)  {
+              } catch (err) {
                 // Silently handle errors
               }
               
               return logos;
             }
 
-            //  Display current logo in preview
+            // Display current logo in preview
             function displayCurrentLogo() {
               try {
                 const logoPreview = document.getElementById('current-logo');
@@ -613,7 +647,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 statusDiv.style.display = 'block';
                 statusDiv.style.color = '#dc3545';
                 statusDiv.textContent = 'Invalid file type. Please upload PNG, JPG, or SVG.';
-                setTimeout(()  => {
+                setTimeout(() => {
                   statusDiv.style.display = 'none';
                 }, 3000);
                 return;
@@ -924,11 +958,11 @@ export default async function PreviewPage({ params }: PageProps) {
               
               const serviceDiv = document.createElement('div');
               serviceDiv.id = serviceId + '-container';
-              serviceDiv.style.cssText = '  margin-bottom: 10px; position: relative;';
+              serviceDiv.style.cssText = 'margin-bottom: 10px; position: relative;';
               
               serviceDiv.innerHTML = \`
                 <div style="display: flex; gap: 8px; align-items: flex-start;">
-                  <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                  <div style="flex: 1; display: flex;  flex-direction: column; gap: 8px;">
                     <input type="text" id="\${serviceId}-name" placeholder="Service name" value="\${name}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                     <input type="text" id="\${serviceId}-price" placeholder="Price (e.g., $45)" value="\${price}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; box-sizing: border-box;">
                   </div>
@@ -1231,27 +1265,26 @@ export default async function PreviewPage({ params }: PageProps) {
   processedHtml = processedHtml.replace('</head>', `${mobileStyles}</head>`);
   processedHtml = processedHtml.replace('</body>', `${editScript}</body>`);
 
-  // Check if processedHtml is empty and show fallback
-  if (!processedHtml || processedHtml.trim() === '') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading content...</h1>
-          <p className="text-gray-600">Please wait while we load the preview.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Return the HTML rendered directly in a div
+  // Only render HTML on client side to avoid hydration mismatch
   return (
-    <div 
-      dangerouslySetInnerHTML={{ __html: processedHtml }}
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        display: 'block'
-      }}
-    />
+    <>
+      {typeof window !== 'undefined' ? (
+        <div 
+          dangerouslySetInnerHTML={{ __html: processedHtml }}
+          style={{
+            width: '100%',
+            minHeight: '100vh',
+            display: 'block'
+          }}
+        />
+      ) : (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading preview...</h1>
+            <p className="text-gray-600">Please wait while we prepare your content.</p>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
