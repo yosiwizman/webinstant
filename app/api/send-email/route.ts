@@ -55,6 +55,15 @@ export async function POST(request: NextRequest) {
       ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/preview/${preview.id}`
       : `http://localhost:3000/preview/${business_id}`;
 
+    // Generate preview image URL using 11ty screenshot service with fallback
+    const encodedUrl = encodeURIComponent(previewUrl);
+    const encodedBusinessName = encodeURIComponent(business.business_name);
+    const screenshotUrl = `https://v1.screenshot.11ty.dev/${encodedUrl}/opengraph/`;
+    const fallbackUrl = `https://via.placeholder.com/600x400/5850EC/ffffff?text=${encodedBusinessName}`;
+    
+    // Use screenshot service as primary, with placeholder as fallback
+    const previewImageUrl = preview?.preview_image || screenshotUrl || fallbackUrl;
+
     // Initialize email service
     const emailService = new EmailService();
 
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
         to: test_mode ? 'yosiwizman5638@gmail.com' : business.email,
         businessName: business.business_name,
         previewUrl: previewUrl,
-        previewImage: preview?.preview_image || `${process.env.NEXT_PUBLIC_APP_URL}/api/og?title=${encodeURIComponent(business.business_name)}`,
+        previewImage: previewImageUrl,
         businessId: business_id
       });
     } catch (error) {
@@ -139,7 +148,8 @@ export async function POST(request: NextRequest) {
         messageId: emailResult.messageId,
         recipient: business.email,
         businessName: business.business_name,
-        previewUrl: previewUrl
+        previewUrl: previewUrl,
+        previewImage: previewImageUrl
       });
     } else {
       console.error(`❌ Email send failed: ${emailResult.error}`);

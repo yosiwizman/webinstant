@@ -131,7 +131,7 @@ function WebsiteReadyEmailTemplate({
 
     ${previewImage ? `
     <div style="text-align: center;">
-      <img src="${previewImage}" alt="${businessName} Website Preview" class="preview-image" />
+      <img src="${previewImage}" alt="${businessName} Website Preview" style="width: 100%; max-width: 600px; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px 0;" />
     </div>
     ` : ''}
 
