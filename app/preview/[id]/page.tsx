@@ -15,8 +15,6 @@ export default async function PreviewPage({ params }: PageProps) {
   // Await params for Next.js 15
   const { id } = await params
   
-  console.log('Fetching preview for ID/slug:', id)
-  
   // First try to find by slug (SEO-friendly URL)
   let { data: preview, error } = await supabase
     .from('website_previews')
@@ -26,8 +24,6 @@ export default async function PreviewPage({ params }: PageProps) {
 
   // If not found by slug, try by business_id (for backwards compatibility)
   if (error || !preview) {
-    console.log('Not found by slug, trying by business_id...')
-    
     const result = await supabase
       .from('website_previews')
       .select('id, business_id, preview_url, html_content, template_used, slug')
@@ -40,8 +36,6 @@ export default async function PreviewPage({ params }: PageProps) {
 
   // If still not found, try by preview ID (UUID)
   if (error || !preview) {
-    console.log('Not found by business_id, trying by preview ID...')
-    
     const result = await supabase
       .from('website_previews')
       .select('id, business_id, preview_url, html_content, template_used, slug')
@@ -51,13 +45,6 @@ export default async function PreviewPage({ params }: PageProps) {
     preview = result.data
     error = result.error
   }
-
-  // Log for debugging
-  if (error) {
-    console.error('Error fetching preview:', error)
-  }
-  
-  console.log('Preview data:', preview ? `Found (template: ${preview.template_used})` : 'Not found')
 
   // If there's an error or no preview found, show not found message
   if (error || !preview || !preview.html_content) {
@@ -130,7 +117,7 @@ export default async function PreviewPage({ params }: PageProps) {
       }
       
       /* Error handling for missing resources */
-      img[src=""], img:not([src]), img[src*="undefined"] {
+      img[src=""], img:not([src]), img[src*="undefined"], img[src="#"] {
         display: none !important;
       }
     </style>
@@ -201,8 +188,6 @@ export default async function PreviewPage({ params }: PageProps) {
 
         function initEditor() {
           try {
-            console.log('Initializing editor...');
-            
             // Fix SVGs again after editor loads
             fixSVGAttributes();
             
@@ -658,7 +643,6 @@ export default async function PreviewPage({ params }: PageProps) {
                   throw new Error(data.error || 'Upload failed');
                 }
               } catch (error) {
-                console.error('Logo upload failed:', error);
                 statusDiv.style.color = '#dc3545';
                 statusDiv.textContent = '✗ ' + (error.message || 'Upload failed. Please try again.');
                 setTimeout(() => {
@@ -913,7 +897,6 @@ export default async function PreviewPage({ params }: PageProps) {
 
             // Function to show panel
             function showPanel() {
-              console.log('Showing panel...');
               panel.style.right = '0';
               // Prevent body scroll when panel is open on mobile
               if (window.innerWidth <= 768) {
@@ -925,7 +908,6 @@ export default async function PreviewPage({ params }: PageProps) {
 
             // Function to hide panel
             function hidePanel() {
-              console.log('Hiding panel...');
               panel.style.right = '-100%';
               // Restore body scroll
               if (window.innerWidth <= 768) {
@@ -969,7 +951,6 @@ export default async function PreviewPage({ params }: PageProps) {
             editBtn.addEventListener('click', function(e) {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Edit button clicked');
               
               // Fix SVGs when panel opens
               fixSVGAttributes();
@@ -1014,564 +995,4 @@ export default async function PreviewPage({ params }: PageProps) {
                 'sunday': 'sun'
               };
               
-              for (const [day, data] of Object.entries(hours)) {
-                const shortDay = dayMap[day];
-                const parsed = parseHours(data.value);
-                
-                const openSelect = document.getElementById('hours-' + shortDay + '-open');
-                const closeSelect = document.getElementById('hours-' + shortDay + '-close');
-                
-                if (openSelect) {
-                  openSelect.value = parsed.open || 'Closed';
-                  originalValues['hours-' + shortDay + '-open'] = parsed.open || 'Closed';
-                }
-                if (closeSelect) {
-                  closeSelect.value = parsed.close || 'Closed';
-                  originalValues['hours-' + shortDay + '-close'] = parsed.close || 'Closed';
-                }
-                
-                // Store the original combined value
-                originalValues['hours-' + shortDay] = data.value;
-              }
-              
-              // Find and populate services
-              const services = findServices();
-              servicesElements = services;
-              originalValues.services = [];
-              
-              if (services.length > 0) {
-                services.forEach((service, index) => {
-                  const serviceField = createServiceField(service.name, service.price, 'service-' + (index + 1));
-                  servicesContainer.appendChild(serviceField);
-                  serviceCounter = index + 1;
-                  originalValues.services.push({
-                    name: service.name,
-                    price: service.price,
-                    element: service.element,
-                    node: service.node,
-                    fullText: service.fullText
-                  });
-                });
-              } else {
-                // Add at least one empty service field
-                const serviceField = createServiceField();
-                servicesContainer.appendChild(serviceField);
-              }
-              
-              // Find and populate social links
-              const socialLinks = findSocialLinks();
-              socialElements = socialLinks;
-              originalValues.social = {};
-              
-              ['facebook', 'instagram', 'twitter', 'linkedin'].forEach(platform => {
-                const input = document.getElementById('social-' + platform);
-                if (input) {
-                  if (socialLinks[platform] && socialLinks[platform].value) {
-                    input.value = socialLinks[platform].value;
-                    originalValues.social[platform] = socialLinks[platform].value;
-                  } else {
-                    input.value = '';
-                    originalValues.social[platform] = '';
-                  }
-                }
-              });
-            });
-
-            // Also add touch event for mobile
-            editBtn.addEventListener('touchend', function(e) {
-              if (e.cancelable) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.click();
-              }
-            });
-
-            // Close panel handlers
-            document.getElementById('close-panel').addEventListener('click', function(e) {
-              e.preventDefault();
-              hidePanel();
-            });
-
-            document.getElementById('cancel-edit').addEventListener('click', function(e) {
-              e.preventDefault();
-              hidePanel();
-            });
-
-            // Save changes
-            document.getElementById('save-changes').addEventListener('click', async function(e) {
-              e.preventDefault();
-              console.log('Save button clicked');
-              
-              const statusDiv = document.getElementById('save-status');
-              statusDiv.style.display = 'block';
-              statusDiv.style.background = '#ffc107';
-              statusDiv.style.color = '#000';
-              statusDiv.textContent = 'Saving changes...';
-              
-              // Prepare updates object for API
-              const updates = {};
-              
-              // Store the old and new values for DOM updates
-              const domUpdates = {
-                phone: null,
-                email: null,
-                hours: {},
-                services: [],
-                social: {}
-              };
-              
-              // Check phone changes
-              const newPhone = document.getElementById('edit-phone').value;
-              if (newPhone && newPhone !== originalValues.phone) {
-                updates.phone = newPhone;
-                domUpdates.phone = { old: originalValues.phone, new: newPhone };
-              }
-              
-              // Check email changes
-              const newEmail = document.getElementById('edit-email').value;
-              if (newEmail && newEmail !== originalValues.email) {
-                updates.email = newEmail;
-                domUpdates.email = { old: originalValues.email, new: newEmail };
-              }
-              
-              // Check hours changes
-              const dayMap = {
-                'mon': 'monday',
-                'tue': 'tuesday',
-                'wed': 'wednesday',
-                'thu': 'thursday',
-                'fri': 'friday',
-                'sat': 'saturday',
-                'sun': 'sunday'
-              };
-              
-              const hoursUpdates = {};
-              for (const [shortDay, fullDay] of Object.entries(dayMap)) {
-                const openSelect = document.getElementById('hours-' + shortDay + '-open');
-                const closeSelect = document.getElementById('hours-' + shortDay + '-close');
-                
-                if (openSelect && closeSelect) {
-                  const newHours = combineHours(openSelect.value, closeSelect.value);
-                  const originalHours = originalValues['hours-' + shortDay];
-                  
-                  if (newHours !== originalHours && originalHours) {
-                    hoursUpdates[fullDay] = newHours;
-                    domUpdates.hours[fullDay] = { 
-                      old: originalHours, 
-                      new: newHours,
-                      element: hoursElements[fullDay]
-                    };
-                  }
-                }
-              }
-              
-              if (Object.keys(hoursUpdates).length > 0) {
-                updates.hours = hoursUpdates;
-              }
-              
-              // Collect all services from the form
-              const servicesContainer = document.getElementById('services-container');
-              const serviceFields = servicesContainer.querySelectorAll('[id$="-container"]');
-              const newServices = [];
-              
-              serviceFields.forEach((field) => {
-                const nameInput = field.querySelector('[id$="-name"]');
-                const priceInput = field.querySelector('[id$="-price"]');
-                
-                if (nameInput && priceInput) {
-                  const name = nameInput.value.trim();
-                  const price = priceInput.value.trim();
-                  
-                  if (name || price) {
-                    newServices.push({ name, price });
-                  }
-                }
-              });
-              
-              // Always update services if there are any changes
-              updates.services = newServices;
-              domUpdates.services = {
-                old: originalValues.services || [],
-                new: newServices
-              };
-              
-              // Check social media changes
-              const socialUpdates = {};
-              ['facebook', 'instagram', 'twitter', 'linkedin'].forEach(platform => {
-                const input = document.getElementById('social-' + platform);
-                const newValue = input ? input.value.trim() : '';
-                const oldValue = originalValues.social[platform] || '';
-                
-                // Always include the social value (even if empty) to handle removals
-                socialUpdates[platform] = newValue;
-                
-                if (newValue !== oldValue) {
-                  domUpdates.social[platform] = { old: oldValue, new: newValue };
-                }
-              });
-              
-              updates.social = socialUpdates;
-
-              // Save to database
-              try {
-                console.log('Sending update request:', { 
-                  previewId: window.PREVIEW_ID, 
-                  businessId: window.BUSINESS_ID,
-                  updates: updates 
-                });
-                
-                const response = await fetch('/api/preview/update', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    previewId: window.PREVIEW_ID,
-                    businessId: window.BUSINESS_ID,
-                    updates: updates
-                  })
-                });
-                
-                const data = await response.json();
-                console.log('Response:', data);
-                
-                if (response.ok && data.success) {
-                  console.log('Save successful, updating DOM...');
-                  
-                  // Fix SVGs after save
-                  fixSVGAttributes();
-                  
-                  // Update phone number in the DOM
-                  if (domUpdates.phone) {
-                    console.log('Updating phone from', domUpdates.phone.old, 'to', domUpdates.phone.new);
-                    const walker = document.createTreeWalker(
-                      document.body,
-                      NodeFilter.SHOW_TEXT,
-                      null,
-                      false
-                    );
-                    
-                    let node;
-                    let phoneUpdated = false;
-                    while (node = walker.nextNode()) {
-                      if (node.textContent.includes(domUpdates.phone.old) && !node.parentElement.closest('.edit-panel')) {
-                        node.textContent = node.textContent.replace(domUpdates.phone.old, domUpdates.phone.new);
-                        phoneUpdated = true;
-                      }
-                    }
-                    
-                    if (phoneUpdated) {
-                      // Update the stored original value
-                      originalValues.phone = domUpdates.phone.new;
-                      console.log('Phone number updated in DOM');
-                    }
-                  }
-                  
-                  // Update email in the DOM
-                  if (domUpdates.email) {
-                    console.log('Updating email from', domUpdates.email.old, 'to', domUpdates.email.new);
-                    const walker = document.createTreeWalker(
-                      document.body,
-                      NodeFilter.SHOW_TEXT,
-                      null,
-                      false
-                    );
-                    
-                    let node;
-                    let emailUpdated = false;
-                    while (node = walker.nextNode()) {
-                      if (node.textContent.includes(domUpdates.email.old) && !node.parentElement.closest('.edit-panel')) {
-                        node.textContent = node.textContent.replace(domUpdates.email.old, domUpdates.email.new);
-                        emailUpdated = true;
-                      }
-                    }
-                    
-                    if (emailUpdated) {
-                      // Update the stored original value
-                      originalValues.email = domUpdates.email.new;
-                      console.log('Email updated in DOM');
-                    }
-                  }
-                  
-                  // Update hours in the DOM
-                  if (Object.keys(domUpdates.hours).length > 0) {
-                    console.log('Updating hours independently for each day:', domUpdates.hours);
-                    
-                    for (const [fullDay, hourUpdate] of Object.entries(domUpdates.hours)) {
-                      if (!hourUpdate.element || !hourUpdate.element.node) continue;
-                      
-                      console.log(\`Updating \${fullDay}: "\${hourUpdate.old}" -> "\${hourUpdate.new}"\`);
-                      
-                      // Update the specific text node for this day's hours
-                      const targetNode = hourUpdate.element.node;
-                      if (targetNode && targetNode.nodeType === Node.TEXT_NODE) {
-                        // Replace only this specific day's hours
-                        if (targetNode.textContent.includes(hourUpdate.old)) {
-                          targetNode.textContent = targetNode.textContent.replace(hourUpdate.old, hourUpdate.new);
-                          console.log(\`Successfully updated \${fullDay} hours\`);
-                          
-                          // Update stored values
-                          const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
-                          if (shortDay) {
-                            originalValues['hours-' + shortDay] = hourUpdate.new;
-                            const parsed = parseHours(hourUpdate.new);
-                            originalValues['hours-' + shortDay + '-open'] = parsed.open;
-                            originalValues['hours-' + shortDay + '-close'] = parsed.close;
-                          }
-                        } else {
-                          // Try to find and update in the container
-                          const container = hourUpdate.element.container;
-                          if (container) {
-                            const walker = document.createTreeWalker(
-                              container,
-                              NodeFilter.SHOW_TEXT,
-                              null,
-                              false
-                            );
-                            
-                            let textNode;
-                            while (textNode = walker.nextNode()) {
-                              if (textNode.textContent.includes(hourUpdate.old)) {
-                                textNode.textContent = textNode.textContent.replace(hourUpdate.old, hourUpdate.new);
-                                console.log(\`Successfully updated \${fullDay} hours in container\`);
-                                
-                                // Update stored values
-                                const shortDay = Object.keys(dayMap).find(key => dayMap[key] === fullDay);
-                                if (shortDay) {
-                                  originalValues['hours-' + shortDay] = hourUpdate.new;
-                                  const parsed = parseHours(hourUpdate.new);
-                                  originalValues['hours-' + shortDay + '-open'] = parsed.open;
-                                  originalValues['hours-' + shortDay + '-close'] = parsed.close;
-                                }
-                                break;
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                  
-                  // Update services in the DOM
-                  if (domUpdates.services) {
-                    console.log('Updating services:', domUpdates.services);
-                    
-                    // For services, we need a more complex update since they can be added/removed
-                    // Try to update existing service elements
-                    const oldServices = domUpdates.services.old;
-                    const newServices = domUpdates.services.new;
-                    
-                    // Update existing services
-                    oldServices.forEach((oldService, index) => {
-                      if (oldService.element && newServices[index]) {
-                        const newService = newServices[index];
-                        const element = oldService.element;
-                        
-                        // Try to update the element's text content
-                        if (element.textContent.includes(oldService.price)) {
-                          let newText = element.textContent;
-                          
-                          // Update price
-                          if (newService.price && oldService.price) {
-                            newText = newText.replace(oldService.price, newService.price);
-                          }
-                          
-                          // Update name if it exists
-                          if (newService.name && oldService.name) {
-                            newText = newText.replace(oldService.name, newService.name);
-                          }
-                          
-                          element.textContent = newText;
-                        }
-                      }
-                    });
-                    
-                    // Update stored services
-                    originalValues.services = newServices.map(s => ({
-                      name: s.name,
-                      price: s.price,
-                      fullText: \`\${s.name} \${s.price}\`
-                    }));
-                    
-                    console.log('Services updated');
-                  }
-                  
-                  // Update social links in the DOM
-                  if (Object.keys(domUpdates.social).length > 0) {
-                    console.log('Updating social links:', domUpdates.social);
-                    
-                    for (const [platform, socialUpdate] of Object.entries(domUpdates.social)) {
-                      const socialElement = socialElements[platform];
-                      
-                      if (socialElement && socialElement.element) {
-                        const link = socialElement.element;
-                        
-                        if (socialUpdate.new) {
-                          // Update the href
-                          link.href = socialUpdate.new;
-                          link.setAttribute('target', '_blank');
-                          link.setAttribute('rel', 'noopener norefer rer');
-                          
-                          // Make sure the link is visible
-                          link.style.display = '';
-                          if (socialElement.container) {
-                            socialElement.container.style.display = '';
-                          }
-                          
-                          console.log(\`Updated \${platform} link to: \${socialUpdate.new}\`);
-                        } else {
-                          // Hide the link if no URL provided
-                          link.style.display = 'none';
-                          if (socialElement.container) {
-                            socialElement.container.style.display = 'none';
-                          }
-                          
-                          console.log(\`Hidden \${platform} link (no URL)\`);
-                        }
-                      } else if (socialUpdate.new) {
-                        // Try to find a social links container to add new links
-                        const socialContainers = document.querySelectorAll('[class*="social"], [id*="social"]');
-                        
-                        if (socialContainers.length > 0) {
-                          const container = socialContainers[0];
-                          
-                          // Create a new link element
-                          const newLink = document.createElement('a');
-                          newLink.href = socialUpdate.new;
-                          newLink.target = '_blank';
-                          newLink.rel = 'noopener noreferrer';
-                          
-                          // Add appropriate icon or text based on platform
-                          const iconMap = {
-                            facebook: '📘',
-                            instagram: '📷',
-                            twitter: '🐦',
-                            linkedin: '💼'
-                          };
-                          
-                          newLink.textContent = iconMap[platform] || platform;
-                          newLink.style.marginRight = '10px';
-                          
-                          container.appendChild(newLink);
-                          console.log(\`Added new \${platform} link\`);
-                        }
-                      }
-                      
-                      // Update stored value
-                      originalValues.social[platform] = socialUpdate.new;
-                    }
-                  }
-                  
-                  // Show success message
-                  statusDiv.style.background = '#28a745';
-                  statusDiv.style.color = '#fff';
-                  statusDiv.textContent = '✓ Changes saved and applied!';
-                  
-                  // Re-find elements with new values for future edits
-                  phoneElement = findPhoneNumber();
-                  emailElement = findEmail();
-                  hoursElements = findHours();
-                  servicesElements = findServices();
-                  socialElements = findSocialLinks();
-                  logoElements = findLogos();
-                  
-                  console.log('DOM updates complete');
-                  
-                  setTimeout(() => {
-                    hidePanel();
-                    statusDiv.style.display = 'none';
-                  }, 2000);
-                } else {
-                  throw new Error(data.error || 'Failed to save changes');
-                }
-              } catch (error) {
-                console.error('Save failed:', error);
-                statusDiv.style.background = '#dc3545';
-                statusDiv.style.color = '#fff';
-                statusDiv.textContent = '✗ ' + (error.message || 'Failed to save changes. Please try again.');
-                
-                setTimeout(() => {
-                  statusDiv.style.display = 'none';
-                }, 5000);
-              }
-            });
-
-            // Handle window resize
-            let resizeTimeout;
-            window.addEventListener('resize', function() {
-              clearTimeout(resizeTimeout);
-              resizeTimeout = setTimeout(function() {
-                const isMobile = window.innerWidth <= 768;
-                
-                // Update panel max-width based on screen size
-                if (isMobile) {
-                  panel.style.maxWidth = '100%';
-                } else {
-                  panel.style.maxWidth = '400px';
-                }
-              }, 250);
-            });
-          } catch (err) {
-            console.error('Editor initialization error:', err);
-          }
-        }
-        
-        // Run SVG fix periodically to catch dynamically added content
-        setInterval(fixSVGAttributes, 2000);
-      })();
-    </script>
-  `;
-
-  // Process HTML to ensure proper structure and remove external resources
-  let processedHtml = preview.html_content;
-  
-  // Remove any external script tags that might cause 406 errors
-  processedHtml = processedHtml.replace(/<script[^>]*src=["'][^"']*["'][^>]*><\/script>/gi, '');
-  
-  // Remove any external stylesheets that might cause issues
-  processedHtml = processedHtml.replace(/<link[^>]*href=["'](?!data:)[^"']*["'][^>]*>/gi, function(match) {
-    // Keep only local stylesheets or data URIs
-    if (match.includes('data:') || match.includes('/') === false) {
-      return match;
-    }
-    return '';
-  });
-  
-  // Fix SVG attributes in the HTML content before rendering
-  processedHtml = processedHtml.replace(/width="inherit"/gi, 'width="24"');
-  processedHtml = processedHtml.replace(/height="inherit"/gi, 'height="24"');
-  
-  // Remove any problematic meta tags that might cause issues
-  processedHtml = processedHtml.replace(/<meta[^>]*http-equiv=["']refresh["'][^>]*>/gi, '');
-  
-  // Ensure DOCTYPE is at the beginning
-  if (!processedHtml.trim().toLowerCase().startsWith('<!doctype')) {
-    processedHtml = '<!DOCTYPE html>\n' + processedHtml;
-  }
-  
-  // Add viewport and responsive styles in the head
-  if (processedHtml.includes('</head>')) {
-    processedHtml = processedHtml.replace('</head>', mobileStyles + '</head>');
-  } else if (processedHtml.includes('<body')) {
-    // If no head tag, add it before body
-    processedHtml = processedHtml.replace('<body', '<head>' + mobileStyles + '</head><body');
-  }
-  
-  // Add the edit script before closing body tag
-  processedHtml = processedHtml.replace('</body>', editScript + '</body>');
-
-  // Return the processed HTML as a complete HTML document
-  return (
-    <iframe
-      srcDoc={processedHtml}
-      style={{
-        width: '100%',
-        height: '100vh',
-        border: 'none',
-        margin: 0,
-        padding: 0,
-        display: 'block'
-      }}
-      title="Website Preview"
-      sandbox="allow-same-origin allow-scripts allow-forms"
-    />
-  )
-}
+              for (const [day, data] of Object.entries(hours
