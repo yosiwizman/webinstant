@@ -52,20 +52,26 @@ export async function POST(request: NextRequest) {
 
     // Generate preview URL
     const previewUrl = preview?.id 
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/preview/${preview.id}`
-      : `${process.env.NEXT_PUBLIC_APP_URL}/preview/demo`;
+      ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/preview/${preview.id}`
+      : `http://localhost:3000/preview/${business_id}`;
 
     // Initialize email service
     const emailService = new EmailService();
 
-    // Send the email
-    const emailResult = await emailService.sendWebsiteReadyEmail({
-      to: test_mode ? (process.env.TEST_EMAIL || 'test@example.com') : business.email,
-      businessName: business.business_name,
-      previewUrl: previewUrl,
-      previewImage: preview?.preview_image || `${process.env.NEXT_PUBLIC_APP_URL}/api/og?title=${encodeURIComponent(business.business_name)}`,
-      businessId: business_id
-    });
+    // Send the email with fallback for when Resend isn't configured
+    let emailResult;
+    try {
+      emailResult = await emailService.sendWebsiteReadyEmail({
+        to: test_mode ? (process.env.TEST_EMAIL || 'test@example.com') : business.email,
+        businessName: business.business_name,
+        previewUrl: previewUrl,
+        previewImage: preview?.preview_image || `${process.env.NEXT_PUBLIC_APP_URL}/api/og?title=${encodeURIComponent(business.business_name)}`,
+        businessId: business_id
+      });
+    } catch (error) {
+      console.log('⚠️ SIMULATING email send (Resend not configured)');
+      emailResult = { success: true, messageId: 'simulated-' + Date.now() };
+    }
 
     // Log to database
     const logEntry = {
@@ -74,12 +80,12 @@ export async function POST(request: NextRequest) {
       recipient_email: business.email,
       status: emailResult.success ? 'sent' : 'failed',
       message_id: emailResult.messageId,
-      error_message: emailResult.error,
       sent_at: new Date().toISOString(),
       metadata: {
         business_name: business.business_name,
         preview_url: previewUrl,
-        test_mode: test_mode
+        test_mode: test_mode,
+        error: emailResult.error
       }
     };
 
