@@ -50,28 +50,33 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    // Generate preview URL
-    const previewUrl = preview?.id 
-      ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/preview/${preview.id}`
-      : `http://localhost:3000/preview/${business_id}`;
+    // Use the preview URL directly from the database
+    const previewUrl = preview?.preview_url || '';
 
-    console.log('🔗 Preview URL for screenshot:', previewUrl);
+    if (!previewUrl) {
+      console.error('❌ No preview URL found for business');
+      return NextResponse.json(
+        { success: false, error: 'No preview URL found for business' },
+        { status: 404 }
+      );
+    }
 
-    // Generate preview image URL using our own screenshot API
+    console.log('🔗 Preview URL from database:', previewUrl);
+
+    // Generate preview image URL using external screenshot service
     const encodedBusinessName = encodeURIComponent(business.business_name);
-    const encodedUrl = encodeURIComponent(previewUrl);
     
-    // Use our own screenshot service
-    const screenshotUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/screenshot?url=${encodedUrl}`;
+    // Use 11ty screenshot service for external URLs
+    const screenshotUrl = `https://v1.screenshot.11ty.dev/${encodeURIComponent(previewUrl)}/opengraph/`;
     
-    // Option 2: Use placeholder with business info as fallback
+    // Fallback placeholder with business info
     const fallbackUrl = `https://via.placeholder.com/1200x630/5850EC/ffffff?text=${encodedBusinessName}`;
     
-    // Use screenshot service if available, otherwise use fallback
+    // Use screenshot service if preview_image not already stored, otherwise use stored image
     const previewImageUrl = preview?.preview_image || screenshotUrl;
     
     console.log('🖼️ Preview Image URL:', previewImageUrl);
-    console.log('🖼️ Using screenshot service: internal API');
+    console.log('🖼️ Using screenshot service: 11ty external service');
 
     // Initialize email service
     const emailService = new EmailService();
