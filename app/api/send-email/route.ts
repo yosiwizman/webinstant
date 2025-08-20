@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       email_type: email_type,
       recipient_email: business.email,
       status: emailResult.success ? 'sent' : 'failed',
-      sent_at: new Date().toISOString(),
+      email_sent_at: new Date().toISOString(),
       subject: `${business.business_name} - Your Website is Ready!`,
       message_id: emailResult.messageId || null,
       preview_url: previewUrl
@@ -95,6 +95,10 @@ export async function POST(request: NextRequest) {
     const { error: logError } = await supabase
       .from('email_logs')
       .insert([logEntry]);
+
+    if (!logError) {
+      console.log('✅ Email logged to database successfully');
+    }
 
     if (logError) {
       console.error('⚠️ Failed to log email (non-critical):', logError);
@@ -125,8 +129,6 @@ export async function POST(request: NextRequest) {
       } catch (schemaCheckError) {
         console.log('⚠️ Could not determine table structure:', schemaCheckError);
       }
-    } else {
-      console.log('✅ Email logged to database successfully');
     }
 
     if (emailResult.success) {
@@ -169,7 +171,7 @@ export async function GET() {
     const { data: stats, error } = await supabase
       .from('email_logs')
       .select('status, email_type')
-      .order('sent_at', { ascending: false })
+      .order('email_sent_at', { ascending: false })
       .limit(100);
 
     if (error) {
