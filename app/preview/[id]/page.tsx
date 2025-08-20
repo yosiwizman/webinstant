@@ -546,7 +546,7 @@ export default async function PreviewPage({ params }: PageProps) {
                     logos.push(header);
                   }
                 });
-              } catch (err) {
+              } catch (err)  {
                 // Silently handle errors
               }
               
@@ -945,7 +945,7 @@ export default async function PreviewPage({ params }: PageProps) {
               // Prevent body scroll when panel is open on mobile
               if (window.innerWidth <= 768) {
                 document.body.style.overflow = 'hidden';
-                document.body.style.position = 'fixe d';
+                document.body.style.position = 'fixed';
                 document.body.style.width = '100%';
               }
             }
@@ -1243,18 +1243,15 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
-  // Return the iframe with srcDoc instead of data URL
+  // Return the HTML rendered directly in a div
   return (
-    <iframe
-      key={preview.id}
-      srcDoc={processedHtml}
+    <div 
+      dangerouslySetInnerHTML={{ __html: processedHtml }}
       style={{
         width: '100%',
-        height: '100vh',
-        border: 'none',
+        minHeight: '100vh',
         display: 'block'
       }}
-      title="Website Preview"
     />
   )
 }
