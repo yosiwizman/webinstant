@@ -319,7 +319,11 @@ export class EmailService {
       const result = await this.resend.emails.send(data);
       
       if ('error' in result && result.error) {
-        throw new Error(result.error.message);
+        // Handle different error formats - sometimes error is an object, sometimes a string
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : result.error.message || result.error.name || JSON.stringify(result.error);
+        throw new Error(errorMessage || 'Unknown Resend error');
       }
       
       return result.data;
