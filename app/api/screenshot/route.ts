@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     browser = null;
 
     // Create response with image and caching headers
-    const response = new NextResponse(Buffer.from(screenshot), {
+    const response = new NextResponse(screenshot as any, {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     // Return fallback error image
     const errorImage = generateErrorImage();
     
-    return new NextResponse(errorImage, {
+    return new NextResponse(errorImage as any, {
       status: 500,
       headers: {
         'Content-Type': 'image/png',
