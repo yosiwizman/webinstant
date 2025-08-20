@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     browser = null;
 
     // Create response with image and caching headers
-    const response = new NextResponse(screenshot, {
+    const response = new NextResponse(Buffer.from(screenshot), {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
