@@ -65,44 +65,59 @@ function getBusinessType(businessName) {
 
 // Fix images in HTML content
 function fixImagesInHtml(html, businessType) {
-  if (!html) return html;
+  if (!html) return { html, changeCount: 0 };
   
   const imageUrl = UNSPLASH_IMAGES[businessType] || UNSPLASH_IMAGES.default;
   let fixedHtml = html;
   let changeCount = 0;
   
-  // Regular expression to find img tags with src attribute
-  const imgRegex = /<img[^>]*src=["']([^"']*)["'][^>]*>/gi;
-  const matches = [...fixedHtml.matchAll(imgRegex)];
-  
-  for (const match of matches) {
-    const fullImgTag = match[0];
-    const currentSrc = match[1];
-    
-    // Check if the current src is not a valid HTTP URL
-    if (!isValidHttpUrl(currentSrc)) {
-      const newImgTag = fullImgTag.replace(currentSrc, imageUrl);
-      fixedHtml = fixedHtml.replace(fullImgTag, newImgTag);
+  // Fix img tags with src attribute
+  // Use a function replacer to handle all occurrences
+  fixedHtml = fixedHtml.replace(/<img([^>]*?)src=["']([^"']*)["']([^>]*?)>/gi, (match, before, src, after) => {
+    if (!isValidHttpUrl(src)) {
       changeCount++;
-      console.log(`  ✓ Replaced broken image: ${currentSrc.substring(0, 50)}...`);
+      console.log(`  ✓ Replaced broken image: ${src.substring(0, 50)}...`);
+      return `<img${before}src="${imageUrl}"${after}>`;
     }
-  }
+    return match;
+  });
   
-  // Also check for background-image in style attributes
-  const bgImageRegex = /background-image:\s*url\(['"]?([^'")]+)['"]?\)/gi;
-  const bgMatches = [...fixedHtml.matchAll(bgImageRegex)];
-  
-  for (const match of bgMatches) {
-    const fullMatch = match[0];
-    const currentUrl = match[1];
-    
-    if (!isValidHttpUrl(currentUrl)) {
-      const newMatch = fullMatch.replace(currentUrl, imageUrl);
-      fixedHtml = fixedHtml.replace(fullMatch, newMatch);
+  // Fix background-image in style attributes
+  fixedHtml = fixedHtml.replace(/background-image:\s*url\(["']?([^"')]+)["']?\)/gi, (match, url) => {
+    if (!isValidHttpUrl(url)) {
       changeCount++;
-      console.log(`  ✓ Replaced broken background-image: ${currentUrl.substring(0, 50)}...`);
+      console.log(`  ✓ Replaced broken background-image: ${url.substring(0, 50)}...`);
+      return `background-image: url('${imageUrl}')`;
     }
-  }
+    return match;
+  });
+  
+  // Also fix inline style background properties
+  fixedHtml = fixedHtml.replace(/style="([^"]*?)background:\s*url\(["']?([^"')]+)["']?\)([^"]*?)"/gi, 
+    (match, before, url, after) => {
+      if (!isValidHttpUrl(url)) {
+        changeCount++;
+        console.log(`  ✓ Replaced broken background: ${url.substring(0, 50)}...`);
+        return `style="${before}background: url('${imageUrl}')${after}"`;
+      }
+      return match;
+    }
+  );
+  
+  // Fix srcset attributes as well
+  fixedHtml = fixedHtml.replace(/srcset=["']([^"']*)["']/gi, (match, srcset) => {
+    // Check if any URL in srcset is invalid
+    const urls = srcset.split(',').map(s => s.trim().split(' ')[0]);
+    const hasInvalidUrl = urls.some(url => !isValidHttpUrl(url));
+    
+    if (hasInvalidUrl) {
+      changeCount++;
+      console.log(`  ✓ Replaced broken srcset`);
+      // Replace with single image for simplicity
+      return `srcset="${imageUrl} 1x"`;
+    }
+    return match;
+  });
   
   return { html: fixedHtml, changeCount };
 }
