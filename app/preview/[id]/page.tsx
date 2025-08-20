@@ -95,6 +95,7 @@ export default async function PreviewPage({ params }: PageProps) {
   console.log('Original length:', preview.html_content.length);
   console.log('Processed length:', processedHtml.length);
   console.log('First 500 chars of processed:', processedHtml.substring(0, 500));
+  console.log('HTML starts with scripts removed:', processedHtml.substring(0, 100));
 
   // Add mobile viewport and responsive CSS to the HTML
   const mobileStyles = `
@@ -1230,13 +1231,23 @@ export default async function PreviewPage({ params }: PageProps) {
   processedHtml = processedHtml.replace('</head>', `${mobileStyles}</head>`);
   processedHtml = processedHtml.replace('</body>', `${editScript}</body>`);
 
-  // Create a data URL from the processed HTML
-  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(processedHtml)}`;
+  // Check if processedHtml is empty and show fallback
+  if (!processedHtml || processedHtml.trim() === '') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading content...</h1>
+          <p className="text-gray-600">Please wait while we load the preview.</p>
+        </div>
+      </div>
+    )
+  }
 
-  // Return the iframe with the data URL
+  // Return the iframe with srcDoc instead of data URL
   return (
     <iframe
-      src={dataUrl}
+      key={preview.id}
+      srcDoc={processedHtml}
       style={{
         width: '100%',
         height: '100vh',
