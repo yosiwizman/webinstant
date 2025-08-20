@@ -28,31 +28,19 @@ export default function PreviewPage({ params }: PageProps) {
         const paramId = resolvedParams.id
         setId(paramId)
         
-        // First try to find by slug (SEO-friendly URL)
+        // First try to find by preview ID (UUID)
         let { data: previewData, error: fetchError } = await supabase
           .from('website_previews')
           .select('id, business_id, preview_url, html_content, template_used, slug')
-          .eq('slug', paramId)
+          .eq('id', paramId)
           .single()
 
-        // If not found by slug, try by business_id (for backwards compatibility)
+        // If not found by id, try by business_id (for backwards compatibility)
         if (fetchError || !previewData) {
           const result = await supabase
             .from('website_previews')
             .select('id, business_id, preview_url, html_content, template_used, slug')
             .eq('business_id', paramId)
-            .single()
-          
-          previewData = result.data
-          fetchError = result.error
-        }
-
-        // If still not found, try by preview ID (UUID)
-        if (fetchError || !previewData) {
-          const result = await supabase
-            .from('website_previews')
-            .select('id, business_id, preview_url, html_content, template_used, slug')
-            .eq('id', paramId)
             .single()
           
           previewData = result.data
@@ -94,7 +82,7 @@ export default function PreviewPage({ params }: PageProps) {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Preview not found</h1>
           <p className="text-gray-600">The preview you're looking for doesn't exist or has been removed.</p>
-          <p className="text-sm text-gray-500 mt-4">ID/Slug: {id}</p>
+          <p className="text-sm text-gray-500 mt-4">ID: {id}</p>
         </div>
       </div>
     )
