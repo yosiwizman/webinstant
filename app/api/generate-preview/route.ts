@@ -15,7 +15,8 @@ import {
   generateLiveChatBubble,
   generateExitIntentPopup,
   checkExistingWebsite,
-  ContentGenerator
+  ContentGenerator,
+  BusinessImages
 } from '@/lib/contentGenerator';
 
 function generateSlug(name: string): string {
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         // 3. GENERATE AI IMAGES
         const images = await generateBusinessImages(content.businessType, business.business_name);
         content.images = images;
-        console.log(`  ✓ Images generated:`, Object.keys(images).filter(k => images[k]).length);
+        console.log(`  ✓ Images generated:`, Object.keys(images).filter(k => images[k as keyof BusinessImages]).length);
         
         // Get category-specific theme
         const theme = getCategoryTheme(content.businessType);
@@ -2552,7 +2553,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         <div class="contact-card premium-card animate-on-scroll" style="--delay: 2">
           <h3>📞 Contact</h3>
           <p><a href="tel:${phone}">${phone}</a></p>
-          ${email ? `<p><a href="mailto:${email}">${email}</a></p>` : ''}
+          ${email ? `<p>< href="mailto:${email}">${email}</a></p>` : ''}
           <div class="social-links">
             <a href="#" aria-label="Facebook">f</a>
             <a href="#" aria-label="Instagram">i</a>

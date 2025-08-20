@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         ]
         
         for (const pattern of dayPatterns) {
-          updatedHtml = updatedHtml.replace(pattern, (match) => {
+          updatedHtml = updatedHtml.replace(pattern, (match: string) => {
             // Preserve any HTML tags in the match
             if (match.includes('<')) {
               const beforeTag = match.substring(0, match.indexOf('<'))
