@@ -63,11 +63,11 @@ export async function POST(request: NextRequest) {
 
     console.log('🔗 Preview URL from database:', previewUrl);
 
-    // Generate preview image URL using external screenshot service
+    // Generate preview image URL using local screenshot API
     const encodedBusinessName = encodeURIComponent(business.business_name);
     
-    // Use 11ty screenshot service for external URLs
-    const screenshotUrl = `https://v1.screenshot.11ty.dev/${encodeURIComponent(previewUrl)}/opengraph/`;
+    // Use local screenshot API for localhost URLs
+    const screenshotUrl = `http://localhost:3000/api/screenshot?url=${encodeURIComponent(previewUrl)}`;
     
     // Fallback placeholder with business info
     const fallbackUrl = `https://via.placeholder.com/1200x630/5850EC/ffffff?text=${encodedBusinessName}`;
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const previewImageUrl = preview?.preview_image || screenshotUrl;
     
     console.log('🖼️ Preview Image URL:', previewImageUrl);
-    console.log('🖼️ Using screenshot service: 11ty external service');
+    console.log('🖼️ Using screenshot service: local API');
 
     // Initialize email service
     const emailService = new EmailService();
