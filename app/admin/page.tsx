@@ -109,17 +109,19 @@ export default function AdminPage() {
         .order('created_at', { ascending: false })
 
       if (allBusinesses) {
-        // Fetch all website previews in one query
+        // Fetch all website previews in one query - get id and website_url
         const businessIds = allBusinesses.map(b => b.id)
         const { data: allPreviews } = await supabase
           .from('website_previews')
-          .select('business_id, preview_url')
+          .select('id, business_id, website_url')
           .in('business_id', businessIds)
 
-        // Create a map of business_id to preview_url for quick lookup
+        // Create a map of business_id to preview URL using the UUID
         const previewMap = new Map()
         allPreviews?.forEach(preview => {
-          previewMap.set(preview.business_id, preview.preview_url)
+          // Use the UUID to construct the preview URL
+          const previewUrl = `/preview/${preview.id}`
+          previewMap.set(preview.business_id, previewUrl)
         })
 
         const activityData = await Promise.all(
@@ -431,7 +433,7 @@ export default function AdminPage() {
     }
   }
 
-  const StatCar = ({ title, value, suffix = '' }: { title: string; value: number | string; suffix?: string }) => (
+  const StatCard = ({ title, value, suffix = '' }: { title: string; value: number | string; suffix?: string }) => (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
       <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">{title}</h3>
       <p className="text-3xl font-bold text-gray-900">
@@ -669,7 +671,7 @@ export default function AdminPage() {
                 <>
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path className="opacity-75" fill="currentColor"  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Sending...
                 </>
