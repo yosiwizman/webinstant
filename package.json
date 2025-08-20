@@ -9,11 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.55.0",
     "@anthropic-ai/sdk": "^0.38.0",
+    "@supabase/supabase-js": "^2.55.0",
     "clsx": "^2.1.1",
+    "lucide-react": "^0.540.0",
     "next": "15.4.6",
     "openai": "^5.12.2",
+    "puppeteer": "^24.16.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "replicate": "^1.0.1",
@@ -21,7 +23,7 @@
     "serpapi": "^2.2.1",
     "stripe": "^18.4.0",
     "tailwind-merge": "^3.3.1",
-    "tinify": "^1.7.1",
+    "tinify": "^1.8.1",
     "together-ai": "^0.22.0"
   },
   "devDependencies": {

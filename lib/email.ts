@@ -1,6 +1,5 @@
-import { Resend } from 'resend';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { Resend } from "resend";
+import React from "react";
 
 export interface EmailOptions {
   to: string;
@@ -27,12 +26,32 @@ export interface BatchEmailResult {
   }>;
 }
 
+// Add Resend API type definitions
+interface ResendEmailData {
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+  tags?: Array<{ name: string; value: string }>;
+}
+
+interface ResendSendResult {
+  data?: { id: string };
+  error?:
+    | string
+    | {
+        message?: string;
+        name?: string;
+        [key: string]: unknown;
+      };
+}
+
 // Email template as a function that returns HTML string
 function WebsiteReadyEmailTemplate({
   businessName,
   previewUrl,
   previewImage,
-  trackingPixelUrl
+  trackingPixelUrl,
 }: {
   businessName: string;
   previewUrl: string;
@@ -129,11 +148,15 @@ function WebsiteReadyEmailTemplate({
       <p style="font-size: 18px; color: #6c757d;">Your professional website is ready to view!</p>
     </div>
 
-    ${previewImage ? `
+    ${
+      previewImage
+        ? `
     <div style="text-align: center;">
       <img src="${previewImage}" alt="${businessName} Website Preview" style="width: 100%; max-width: 600px; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px 0;" />
     </div>
-    ` : ''}
+    `
+        : ""
+    }
 
     <div style="text-align: center; margin: 30px 0;">
       <p style="font-size: 16px; margin-bottom: 20px;">
@@ -182,7 +205,11 @@ function WebsiteReadyEmailTemplate({
       </p>
     </div>
   </div>
-  ${trackingPixelUrl ? `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />` : ''}
+  ${
+    trackingPixelUrl
+      ? `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`
+      : ""
+  }
 </body>
 </html>
   `;
@@ -196,12 +223,14 @@ export class EmailService {
 
   constructor(apiKey?: string) {
     const key = apiKey || process.env.RESEND_API_KEY;
-    
-    if (!key || key === 'your-resend-api-key-here') {
-      console.warn('⚠️ Resend API key not configured - emails will be simulated');
+
+    if (!key || key === "your-resend-api-key-here") {
+      console.warn(
+        "⚠️ Resend API key not configured - emails will be simulated"
+      );
       this.resend = null;
     } else {
-      console.log('✅ Resend API initialized');
+      console.log("✅ Resend API initialized");
       this.resend = new Resend(key);
     }
   }
@@ -217,58 +246,62 @@ export class EmailService {
     const trackingParams = new URLSearchParams({
       business_id: businessId,
       email: to,
-      campaign: 'website_ready',
-      timestamp: Date.now().toString()
+      campaign: "website_ready",
+      timestamp: Date.now().toString(),
     });
 
     const trackedPreviewUrl = `${previewUrl}?${trackingParams.toString()}&action=click`;
-    const trackingPixelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/track-email?${trackingParams.toString()}&action=open`;
-    
+    const trackingPixelUrl = `${
+      process.env.NEXT_PUBLIC_APP_URL
+    }/api/track-email?${trackingParams.toString()}&action=open`;
+
     try {
       // Generate email HTML
       const emailHtml = WebsiteReadyEmailTemplate({
         businessName,
         previewUrl: trackedPreviewUrl,
-        previewImage: previewImage || '',
-        trackingPixelUrl
+        previewImage: previewImage || "",
+        trackingPixelUrl,
       });
 
       // If Resend is not configured, simulate sending
       if (!this.resend) {
-        console.log('📧 SIMULATED: Email would be sent to:', to);
-        console.log('   Subject:', `${businessName} - Your Website is Ready!`);
-        console.log('   Preview URL:', trackedPreviewUrl);
-        console.log('✅ Email sent successfully (simulated)');
-        
+        console.log("📧 SIMULATED: Email would be sent to:", to);
+        console.log("   Subject:", `${businessName} - Your Website is Ready!`);
+        console.log("   Preview URL:", trackedPreviewUrl);
+        console.log("✅ Email sent successfully (simulated)");
+
         return {
           success: true,
-          messageId: `simulated-${Date.now()}`
+          messageId: `simulated-${Date.now()}`,
         };
       }
 
       // Actually send the email with Resend
       const result = await this.sendWithRetry({
-        from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+        from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
         to: [to],
         subject: `${businessName} - Your Website is Ready!`,
         html: emailHtml,
         tags: [
-          { name: 'campaign', value: 'website_ready' },
-          { name: 'business_id', value: businessId }
-        ]
+          { name: "campaign", value: "website_ready" },
+          { name: "business_id", value: businessId },
+        ],
       });
 
-      console.log(`✅ Email sent successfully to ${to}! Message ID: ${result.id}`);
+      console.log(
+        `✅ Email sent successfully to ${to}! Message ID: ${result.id}`
+      );
 
       return {
         success: true,
-        messageId: result.id
+        messageId: result.id,
       };
     } catch (error) {
       console.error(`❌ Error sending email to ${to}:`, error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -277,7 +310,7 @@ export class EmailService {
     const results: BatchEmailResult = {
       sent: 0,
       failed: 0,
-      results: []
+      results: [],
     };
 
     console.log(`📧 Starting batch send for ${emails.length} emails`);
@@ -287,7 +320,7 @@ export class EmailService {
       await this.delay(this.rateLimitDelay);
 
       const result = await this.sendWebsiteReadyEmail(emailOptions);
-      
+
       if (result.success) {
         results.sent++;
       } else {
@@ -298,34 +331,58 @@ export class EmailService {
         email: emailOptions.to,
         success: result.success,
         messageId: result.messageId,
-        error: result.error
+        error: result.error,
       });
 
-      console.log(`   Progress: ${results.sent + results.failed}/${emails.length} (${results.sent} sent, ${results.failed} failed)`);
+      console.log(
+        `   Progress: ${results.sent + results.failed}/${emails.length} (${
+          results.sent
+        } sent, ${results.failed} failed)`
+      );
     }
 
-    console.log(`✅ Batch send complete: ${results.sent} sent, ${results.failed} failed`);
+    console.log(
+      `✅ Batch send complete: ${results.sent} sent, ${results.failed} failed`
+    );
 
     return results;
   }
 
-  private async sendWithRetry(data: any, attempt = 1): Promise<any> {
+  private async sendWithRetry(
+    data: ResendEmailData,
+    attempt = 1
+  ): Promise<{ id: string }> {
     if (!this.resend) {
       // Simulate for testing
       return { id: `simulated-${Date.now()}` };
     }
 
+    // Define the expected result type for clarity and type safety
+    type ResendSendResult = {
+      data?: { id: string };
+      error?:
+        | string
+        | { message?: string; name?: string; [key: string]: unknown };
+    };
+
     try {
-      const result = await this.resend.emails.send(data);
-      
-      if ('error' in result && result.error) {
+      const result = (await this.resend.emails.send(data) as unknown) as ResendSendResult;
+
+      if (result.error) {
         // Handle different error formats - sometimes error is an object, sometimes a string
-        const errorMessage = typeof result.error === 'string' 
-          ? result.error 
-          : result.error.message || result.error.name || JSON.stringify(result.error);
-        throw new Error(errorMessage || 'Unknown Resend error');
+        const errorMessage =
+          typeof result.error === "string"
+            ? result.error
+            : result.error.message ||
+              result.error.name ||
+              JSON.stringify(result.error);
+        throw new Error(errorMessage || "Unknown Resend error");
       }
-      
+
+      if (!result.data) {
+        throw new Error("No data returned from Resend API");
+      }
+
       return result.data;
     } catch (error) {
       if (attempt < this.maxRetries) {
@@ -339,14 +396,23 @@ export class EmailService {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async trackEmailOpen(businessId: string, email: string, campaign: string): Promise<void> {
+  async trackEmailOpen(
+    businessId: string,
+    email: string,
+    campaign: string
+  ): Promise<void> {
     try {
       // Log email open event
-      console.log('📊 Email opened:', { businessId, email, campaign, timestamp: new Date() });
-      
+      console.log("📊 Email opened:", {
+        businessId,
+        email,
+        campaign,
+        timestamp: new Date(),
+      });
+
       // In production, you'd save this to your database
       // await supabase.from('email_tracking').insert({
       //   business_id: businessId,
@@ -356,15 +422,26 @@ export class EmailService {
       //   timestamp: new Date()
       // });
     } catch (error) {
-      console.error('Error tracking email open:', error);
+      console.error("Error tracking email open:", error);
     }
   }
 
-  async trackEmailClick(businessId: string, email: string, campaign: string, link: string): Promise<void> {
+  async trackEmailClick(
+    businessId: string,
+    email: string,
+    campaign: string,
+    link: string
+  ): Promise<void> {
     try {
       // Log email click event
-      console.log('📊 Email clicked:', { businessId, email, campaign, link, timestamp: new Date() });
-      
+      console.log("📊 Email clicked:", {
+        businessId,
+        email,
+        campaign,
+        link,
+        timestamp: new Date(),
+      });
+
       // In production, you'd save this to your database
       // await supabase.from('email_tracking').insert({
       //   business_id: businessId,
@@ -375,26 +452,31 @@ export class EmailService {
       //   timestamp: new Date()
       // });
     } catch (error) {
-      console.error('Error tracking email click:', error);
+      console.error("Error tracking email click:", error);
     }
   }
 
   // Additional email templates for different stages
-  async sendFollowUpEmail(options: EmailOptions & { daysSinceSent: number }): Promise<EmailResult> {
-    console.log(`📧 Sending follow-up email to: ${options.to} (${options.daysSinceSent} days since initial)`);
-    
+  async sendFollowUpEmail(
+    options: EmailOptions & { daysSinceSent: number }
+  ): Promise<EmailResult> {
+    console.log(
+      `📧 Sending follow-up email to: ${options.to} (${options.daysSinceSent} days since initial)`
+    );
+
     // You can create different follow-up templates based on days
-    const subject = options.daysSinceSent === 3 
-      ? `${options.businessName} - Have you checked out your new website?`
-      : `${options.businessName} - Your website is waiting for you!`;
-    
+    const subject =
+      options.daysSinceSent === 3
+        ? `${options.businessName} - Have you checked out your new website?`
+        : `${options.businessName} - Your website is waiting for you!`;
+
     // For now, reuse the main template
     return this.sendWebsiteReadyEmail(options);
   }
 
   async sendReminderEmail(options: EmailOptions): Promise<EmailResult> {
     console.log(`📧 Sending reminder email to: ${options.to}`);
-    
+
     // For now, reuse the main template with a different subject
     return this.sendWebsiteReadyEmail(options);
   }

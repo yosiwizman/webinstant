@@ -417,7 +417,7 @@ export class WebsiteGenerator {
     const previewId = `preview_${businessId}_${Date.now()}`;
     
     // Save to database
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from('website_previews')
       .upsert({
         business_id: businessId,
