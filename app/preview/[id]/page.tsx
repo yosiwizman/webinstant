@@ -59,39 +59,39 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
-  // Process HTML content to remove external resources
+  // Process HTML content to remove external resources (but keep Supabase)
   let processedHtml = preview.html_content;
   
-  // 1. Remove ALL script tags
-  processedHtml = processedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  // 1. Remove ALL script tags EXCEPT Supabase
+  processedHtml = processedHtml.replace(/<script\b(?![^>]*supabase\.co)[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   
-  // 2. Remove ALL external link tags except data URIs
-  processedHtml = processedHtml.replace(/<link[^>]*href=["'](?!data:)(?:https?:\/\/[^"']+)["'][^>]*>/gi, '');
+  // 2. Remove external link tags except data URIs and Supabase
+  processedHtml = processedHtml.replace(/<link[^>]*href=["'](?!data:)(?!.*supabase\.co)(?:https?:\/\/[^"']+)["'][^>]*>/gi, '');
   
-  // 3. Remove ANY reference to CDNs
-  processedHtml = processedHtml.replace(/https?:\/\/(?:react\.dev|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|googleapis\.com|gstatic\.com)[^"'\s<>]*/gi, '#');
+  // 3. Remove references to CDNs (but not Supabase)
+  processedHtml = processedHtml.replace(/https?:\/\/(?:react\.dev|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|googleapis\.com|gstatic\.com)(?!.*supabase)[^"'\s<>]*/gi, '#');
   
   // 4. Remove console.log statements
   processedHtml = processedHtml.replace(/console\.\w+\([^)]*\);?/g, '');
   
-  // 5. Replace ALL external URLs with # (catch-all)
-  processedHtml = processedHtml.replace(/https?:\/\/(?!localhost)[^"'\s<>]+/g, '#');
+  // 5. Replace external URLs with # (but keep Supabase and localhost)
+  processedHtml = processedHtml.replace(/https?:\/\/(?!.*supabase\.co)(?!localhost)[^"'\s<>]+/g, '#');
   
-  // 6. Remove any remaining external resource references in style attributes
-  processedHtml = processedHtml.replace(/style=["'][^"']*url\(["']?https?:\/\/[^)]+\)["']?[^"']*["']/gi, 'style=""');
+  // 6. Remove external resource references in style attributes (but keep Supabase)
+  processedHtml = processedHtml.replace(/style=["'][^"']*url\(["']?https?:\/\/(?!.*supabase\.co)[^)]+\)["']?[^"']*["']/gi, 'style=""');
   
-  // 7. Remove @import statements in style tags
-  processedHtml = processedHtml.replace(/@import\s+["']https?:\/\/[^"']+["'];?/gi, '');
-  processedHtml = processedHtml.replace(/@import\s+url\(["']?https?:\/\/[^)]+["']?\);?/gi, '');
+  // 7. Remove @import statements in style tags (but keep Supabase)
+  processedHtml = processedHtml.replace(/@import\s+["']https?:\/\/(?!.*supabase\.co)[^"']+["'];?/gi, '');
+  processedHtml = processedHtml.replace(/@import\s+url\(["']?https?:\/\/(?!.*supabase\.co)[^)]+["']?\);?/gi, '');
   
-  // 8. Remove any meta tags that might reference external resources
-  processedHtml = processedHtml.replace(/<meta[^>]*content=["'][^"']*https?:\/\/[^"']+[^>]*>/gi, '');
+  // 8. Remove meta tags that reference external resources (but keep Supabase)
+  processedHtml = processedHtml.replace(/<meta[^>]*content=["'][^"']*https?:\/\/(?!.*supabase\.co)[^"']+[^>]*>/gi, '');
   
   // 9. Remove any object or embed tags
   processedHtml = processedHtml.replace(/<(object|embed)[^>]*>.*?<\/\1>/gis, '');
   
-  // 10. Clean up any iframe sources that aren't local
-  processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
+  // 10. Clean up iframe sources that aren't local or Supabase
+  processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?!.*supabase\.co)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
 
   // Add mobile viewport and responsive CSS to the HTML
   const mobileStyles = `
@@ -155,9 +155,9 @@ export default async function PreviewPage({ params }: PageProps) {
         display: none !important;
       }
       
-      /* Hide any elements trying to load external resources */
-      [src^="http"]:not([src*="localhost"]),
-      [href^="http"]:not([href*="localhost"]) {
+      /* Hide any elements trying to load external resources (but allow Supabase) */
+      [src^="http"]:not([src*="localhost"]):not([src*="supabase.co"]),
+      [href^="http"]:not([href*="localhost"]):not([href*="supabase.co"]) {
         display: none !important;
       }
     </style>
@@ -170,20 +170,20 @@ export default async function PreviewPage({ params }: PageProps) {
       window.BUSINESS_ID = '${preview.business_id}';
       
       (function() {
-        // Block all external resource loading
+        // Block external resource loading (but allow Supabase)
         const originalFetch = window.fetch;
         window.fetch = function(...args) {
           const url = args[0];
-          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost')) {
+          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost') && !url.includes('supabase.co')) {
             return Promise.reject(new Error('External resource blocked'));
           }
           return originalFetch.apply(this, args);
         };
         
-        // Block XMLHttpRequest to external domains
+        // Block XMLHttpRequest to external domains (but allow Supabase)
         const originalOpen = XMLHttpRequest.prototype.open;
         XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost')) {
+          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost') && !url.includes('supabase.co')) {
             throw new Error('External resource blocked');
           }
           return originalOpen.apply(this, [method, url, ...rest]);
@@ -195,8 +195,8 @@ export default async function PreviewPage({ params }: PageProps) {
             e.target.style.display = 'none';
             e.preventDefault();
           }
-          // Block any other external resource errors
-          if (e.message && e.message.includes('http')) {
+          // Block external resource errors (but not Supabase)
+          if (e.message && e.message.includes('http') && !e.message.includes('supabase.co')) {
             e.preventDefault();
             e.stopPropagation();
             return false;
@@ -945,7 +945,7 @@ export default async function PreviewPage({ params }: PageProps) {
               
               const serviceDiv = document.createElement('div');
               serviceDiv.id = serviceId + '-container';
-              serviceDiv.style.cssText = 'margin-bottom: 10px; position: relative;';
+              serviceDiv.style.cssText = '  margin-bottom: 10px; position: relative;';
               
               serviceDiv.innerHTML = \`
                 <div style="display: flex; gap: 8px; align-items: flex-start;">
