@@ -381,8 +381,7 @@ export class BusinessImporter {
             this.stats.errors += batch.length;
             this.stats.errorDetails.push({
               row: -1,
-              error: `Database insert error: ${error.message}`,
-              data: { batchStart: i, batchSize: batch.length }
+              error: `Database insert error for batch starting at index ${i}: ${error.message}`
             });
           } else {
             this.stats.imported += batch.length;
