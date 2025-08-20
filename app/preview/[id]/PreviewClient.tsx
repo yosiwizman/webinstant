@@ -17,6 +17,57 @@ interface PreviewClientProps {
 export default function PreviewClient({ preview, id }: PreviewClientProps) {
   const [showEditModal, setShowEditModal] = useState(false)
 
+  const fixBrokenImages = (html: string) => {
+    // Define placeholder images for different types
+    const placeholders = {
+      hero: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=600&fit=crop',
+      gallery: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&h=600&fit=crop',
+      default: 'https://via.placeholder.com/800x600/0066cc/ffffff?text=Coming+Soon'
+    };
+    
+    // Fix all broken image sources
+    let fixedHtml = html.replace(
+      /<img([^>]*?)src=["']([^"']*?)["']([^>]*?)>/gi,
+      (match, before, src, after) => {
+        // Check if image URL is broken
+        if (!src || 
+            src === 'undefined' || 
+            src === 'null' || 
+            src.includes('undefined') ||
+            src.includes('null') ||
+            src.startsWith('/') ||
+            src.startsWith('../') ||
+            src.startsWith('./') ||
+            !src.startsWith('http')) {
+          
+          // Determine which placeholder to use based on context
+          let placeholder = placeholders.default;
+          if (before.includes('hero') || after.includes('hero')) {
+            placeholder = placeholders.hero;
+          } else if (before.includes('gallery') || after.includes('gallery')) {
+            placeholder = placeholders.gallery;
+          }
+          
+          return `<img${before}src="${placeholder}"${after}>`;
+        }
+        return match;
+      }
+    );
+    
+    // Also fix background images in style attributes
+    fixedHtml = fixedHtml.replace(
+      /background-image:\s*url\(['"]?([^'")]+)['"]?\)/gi,
+      (match, url) => {
+        if (!url || url === 'undefined' || url === 'null' || !url.startsWith('http')) {
+          return `background-image: url('${placeholders.hero}')`;
+        }
+        return match;
+      }
+    );
+    
+    return fixedHtml;
+  };
+
   // Strip DOCTYPE and html tags to fix hydration error
   const cleanHtml = preview.html_content
     .replace(/<!DOCTYPE.*?>/gi, '')
@@ -29,16 +80,8 @@ export default function PreviewClient({ preview, id }: PreviewClientProps) {
     .replace(/\s+charset=/g, ' data-charset=')
     .replace(/\s+http-equiv=/g, ' data-http-equiv=')
 
-  // Fix broken images with placeholders
-  const htmlWithFixedImages = cleanHtml.replace(
-    /<img([^>]*?)src=["']([^"']*?)["']/gi,
-    (match, attrs, src) => {
-      if (!src || src.includes('undefined') || src.includes('null') || !src.startsWith('http')) {
-        return `<img${attrs}src="https://via.placeholder.com/800x600/cccccc/666666?text=Image+Coming+Soon"`;
-      }
-      return match;
-    }
-  );
+  // Fix broken images with the improved function
+  const htmlWithFixedImages = fixBrokenImages(cleanHtml);
 
   return (
     <>
