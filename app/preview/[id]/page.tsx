@@ -59,6 +59,40 @@ export default async function PreviewPage({ params }: PageProps) {
     )
   }
 
+  // Process HTML content to remove external resources
+  let processedHtml = preview.html_content;
+  
+  // 1. Remove ALL script tags
+  processedHtml = processedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // 2. Remove ALL external link tags except data URIs
+  processedHtml = processedHtml.replace(/<link[^>]*href=["'](?!data:)(?:https?:\/\/[^"']+)["'][^>]*>/gi, '');
+  
+  // 3. Remove ANY reference to CDNs
+  processedHtml = processedHtml.replace(/https?:\/\/(?:react\.dev|unpkg\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|googleapis\.com|gstatic\.com)[^"'\s<>]*/gi, '#');
+  
+  // 4. Remove console.log statements
+  processedHtml = processedHtml.replace(/console\.\w+\([^)]*\);?/g, '');
+  
+  // 5. Replace ALL external URLs with # (catch-all)
+  processedHtml = processedHtml.replace(/https?:\/\/(?!localhost)[^"'\s<>]+/g, '#');
+  
+  // 6. Remove any remaining external resource references in style attributes
+  processedHtml = processedHtml.replace(/style=["'][^"']*url\(["']?https?:\/\/[^)]+\)["']?[^"']*["']/gi, 'style=""');
+  
+  // 7. Remove @import statements in style tags
+  processedHtml = processedHtml.replace(/@import\s+["']https?:\/\/[^"']+["'];?/gi, '');
+  processedHtml = processedHtml.replace(/@import\s+url\(["']?https?:\/\/[^)]+["']?\);?/gi, '');
+  
+  // 8. Remove any meta tags that might reference external resources
+  processedHtml = processedHtml.replace(/<meta[^>]*content=["'][^"']*https?:\/\/[^"']+[^>]*>/gi, '');
+  
+  // 9. Remove any object or embed tags
+  processedHtml = processedHtml.replace(/<(object|embed)[^>]*>.*?<\/\1>/gis, '');
+  
+  // 10. Clean up any iframe sources that aren't local
+  processedHtml = processedHtml.replace(/<iframe[^>]*src=["'](?!data:)(?:https?:\/\/[^"']+)["'][^>]*>.*?<\/iframe>/gis, '');
+
   // Add mobile viewport and responsive CSS to the HTML
   const mobileStyles = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
@@ -120,6 +154,12 @@ export default async function PreviewPage({ params }: PageProps) {
       img[src=""], img:not([src]), img[src*="undefined"], img[src="#"] {
         display: none !important;
       }
+      
+      /* Hide any elements trying to load external resources */
+      [src^="http"]:not([src*="localhost"]),
+      [href^="http"]:not([href*="localhost"]) {
+        display: none !important;
+      }
     </style>
   `;
 
@@ -130,11 +170,36 @@ export default async function PreviewPage({ params }: PageProps) {
       window.BUSINESS_ID = '${preview.business_id}';
       
       (function() {
+        // Block all external resource loading
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+          const url = args[0];
+          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost')) {
+            return Promise.reject(new Error('External resource blocked'));
+          }
+          return originalFetch.apply(this, args);
+        };
+        
+        // Block XMLHttpRequest to external domains
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+          if (typeof url === 'string' && url.startsWith('http') && !url.includes('localhost')) {
+            throw new Error('External resource blocked');
+          }
+          return originalOpen.apply(this, [method, url, ...rest]);
+        };
+        
         // Error handler to prevent console errors
         window.addEventListener('error', function(e) {
           if (e.target && e.target.tagName === 'IMG') {
             e.target.style.display = 'none';
             e.preventDefault();
+          }
+          // Block any other external resource errors
+          if (e.message && e.message.includes('http')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
           }
         }, true);
         
@@ -296,7 +361,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 <label style="display: block; margin-bottom: 5px; color: #555; font-size: 14px; font-weight: 500;">Business Logo:</label>
                 <div style="background: #f9f9f9; padding: 15px; border-radius: 4px;">
                   <div id="logo-preview" style="margin-bottom: 10px; text-align: center;">
-                    <div id="current-logo" style="width: 120px; height: 120px; margin: 0 auto; background: #fff; border: 2px dashed #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">
+                    <div id="current-logo" style="width: 120px; height: 120px; margin: 0 auto;  background: #fff; border: 2px dashed #ddd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">
                       No logo
                     </div>
                   </div>
@@ -495,7 +560,7 @@ export default async function PreviewPage({ params }: PageProps) {
                 });
                 
                 // Find text-based logos (h1, h2, etc. in header/nav)
-                const headers = document.querySelectorAll('header h1, header h2, nav h1, nav h2, .logo, #logo');
+                const headers = document.querySelectorAll('header h1, header h2, nav h1, nav h2,  .logo, #logo');
                 headers.forEach(header => {
                   if (header.closest('.edit-panel')) return;
                   if (!logos.some(logo => logo === header || header.contains(logo))) {
@@ -995,4 +1060,210 @@ export default async function PreviewPage({ params }: PageProps) {
                 'sunday': 'sun'
               };
               
-              for (const [day, data] of Object.entries(hours
+              for (const [day, data] of Object.entries(hours)) {
+                const shortDay = dayMap[day];
+                if (shortDay) {
+                  const parsed = parseHours(data.value);
+                  const openSelect = document.getElementById(\`hours-\${shortDay}-open\`);
+                  const closeSelect = document.getElementById(\`hours-\${shortDay}-close\`);
+                  
+                  if (openSelect) openSelect.value = parsed.open || '';
+                  if (closeSelect) closeSelect.value = parsed.close || '';
+                }
+              }
+              
+              // Find and populate services
+              const services = findServices();
+              servicesElements = services;
+              
+              // Add up to 5 services to the panel
+              const maxServices = Math.min(services.length, 5);
+              for (let i = 0; i < maxServices; i++) {
+                const service = services[i];
+                const serviceField = createServiceField(service.name, service.price);
+                servicesContainer.appendChild(serviceField);
+              }
+              
+              // Find and populate social links
+              const socialLinks = findSocialLinks();
+              socialElements = socialLinks;
+              
+              for (const [platform, data] of Object.entries(socialLinks)) {
+                const input = document.getElementById(\`social-\${platform}\`);
+                if (input) {
+                  input.value = data.value || '';
+                }
+              }
+            });
+
+            // Close panel button
+            document.getElementById('close-panel').addEventListener('click', function(e) {
+              e.preventDefault();
+              hidePanel();
+            });
+
+            // Cancel button
+            document.getElementById('cancel-edit').addEventListener('click', function(e) {
+              e.preventDefault();
+              hidePanel();
+            });
+
+            // Save changes button
+            document.getElementById('save-changes').addEventListener('click', async function(e) {
+              e.preventDefault();
+              
+              const statusDiv = document.getElementById('save-status');
+              statusDiv.style.display = 'block';
+              statusDiv.style.background = '#d1ecf1';
+              statusDiv.style.color = '#0c5460';
+              statusDiv.textContent = 'Saving changes...';
+              
+              try {
+                // Collect all the updated values
+                const updates = {
+                  phone: document.getElementById('edit-phone').value,
+                  email: document.getElementById('edit-email').value,
+                  hours: {},
+                  services: [],
+                  social: {}
+                };
+                
+                // Collect hours
+                const dayMap = {
+                  'mon': 'Monday',
+                  'tue': 'Tuesday',
+                  'wed': 'Wednesday',
+                  'thu': 'Thursday',
+                  'fri': 'Friday',
+                  'sat': 'Saturday',
+                  'sun': 'Sunday'
+                };
+                
+                for (const [short, full] of Object.entries(dayMap)) {
+                  const openSelect = document.getElementById(\`hours-\${short}-open\`);
+                  const closeSelect = document.getElementById(\`hours-\${short}-close\`);
+                  
+                  if (openSelect && closeSelect) {
+                    updates.hours[full] = combineHours(openSelect.value, closeSelect.value);
+                  }
+                }
+                
+                // Collect services
+                const serviceContainers = document.querySelectorAll('[id$="-container"]');
+                serviceContainers.forEach(container => {
+                  if (container.id.startsWith('service-')) {
+                    const serviceId = container.id.replace('-container', '');
+                    const nameInput = document.getElementById(\`\${serviceId}-name\`);
+                    const priceInput = document.getElementById(\`\${serviceId}-price\`);
+                    
+                    if (nameInput && priceInput && (nameInput.value || priceInput.value)) {
+                      updates.services.push({
+                        name: nameInput.value,
+                        price: priceInput.value
+                      });
+                    }
+                  }
+                });
+                
+                // Collect social links
+                ['facebook', 'instagram', 'twitter', 'linkedin'].forEach(platform => {
+                  const input = document.getElementById(\`social-\${platform}\`);
+                  if (input && input.value) {
+                    updates.social[platform] = input.value;
+                  }
+                });
+                
+                // Send update request
+                const response = await fetch('/api/preview/update', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    previewId: window.PREVIEW_ID,
+                    businessId: window.BUSINESS_ID,
+                    updates: updates
+                  })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                  // Update the page content with new values
+                  if (phoneElement && phoneElement.node) {
+                    phoneElement.node.textContent = phoneElement.node.textContent.replace(originalValues.phone, updates.phone);
+                    originalValues.phone = updates.phone;
+                  }
+                  
+                  if (emailElement && emailElement.node) {
+                    emailElement.node.textContent = emailElement.node.textContent.replace(originalValues.email, updates.email);
+                    originalValues.email = updates.email;
+                  }
+                  
+                  // Update hours in the page
+                  for (const [day, data] of Object.entries(hoursElements)) {
+                    if (data.node) {
+                      const dayCapitalized = day.charAt(0).toUpperCase() + day.slice(1);
+                      const newHours = updates.hours[dayCapitalized];
+                      if (newHours) {
+                        data.node.textContent = data.node.textContent.replace(data.value, newHours);
+                        data.value = newHours;
+                      }
+                    }
+                  }
+                  
+                  // Update social links
+                  for (const [platform, data] of Object.entries(socialElements)) {
+                    if (data.element && updates.social[platform]) {
+                      data.element.setAttribute('href', updates.social[platform]);
+                    }
+                  }
+                  
+                  statusDiv.style.background = '#d4edda';
+                  statusDiv.style.color = '#155724';
+                  statusDiv.textContent = '✓ Changes saved successfully!';
+                  
+                  setTimeout(() => {
+                    hidePanel();
+                    statusDiv.style.display = 'none';
+                  }, 2000);
+                } else {
+                  throw new Error(data.error || 'Failed to save changes');
+                }
+              } catch (error) {
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+                statusDiv.textContent = '✗ ' + (error.message || 'Failed to save changes. Please try again.');
+                
+                setTimeout(() => {
+                  statusDiv.style.display = 'none';
+                }, 5000);
+              }
+            });
+          } catch (err) {
+            // Silently handle any errors in editor initialization
+          }
+        }
+      })();
+    </script>
+  `;
+
+  // Inject the mobile styles and edit script into the HTML
+  processedHtml = processedHtml.replace('</head>', `${mobileStyles}</head>`);
+  processedHtml = processedHtml.replace('</body>', `${editScript}</body>`);
+
+  // Return the iframe with the processed HTML
+  return (
+    <iframe
+      srcDoc={processedHtml}
+      style={{
+        width: '100%',
+        height: '100vh',
+        border: 'none',
+        display: 'block'
+      }}
+      title="Website Preview"
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+    />
+  )
+}
