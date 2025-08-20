@@ -20,12 +20,10 @@ function generateErrorImage(): Buffer {
 
 export async function GET(request: NextRequest) {
   let browser = null;
+  const searchParams = request.nextUrl.searchParams;
+  const targetUrl = searchParams.get('url');
   
   try {
-    // Extract URL from query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const targetUrl = searchParams.get('url');
-
     // Validate URL parameter
     if (!targetUrl) {
       return NextResponse.json(
@@ -63,10 +61,10 @@ export async function GET(request: NextRequest) {
     // Create a new page
     const page = await browser.newPage();
 
-    // Set viewport dimensions
+    // Set viewport to standard email preview size
     await page.setViewport({
       width: 1200,
-      height: 800,
+      height: 630,
       deviceScaleFactor: 1
     });
 
@@ -79,12 +77,11 @@ export async function GET(request: NextRequest) {
       timeout: 30000
     });
 
-    // Take screenshot with quality settings
+    // Take screenshot
     const screenshot = await page.screenshot({
       type: 'png',
       fullPage: false,
-      encoding: 'binary',
-      omitBackground: false
+      encoding: 'binary'
     });
 
     // Close the browser
@@ -105,8 +102,9 @@ export async function GET(request: NextRequest) {
     return response;
 
   } catch (error) {
-    // Log error for debugging
-    console.error('Screenshot capture failed:', error);
+    // Log error with the exact URL that failed for debugging
+    console.error(`Screenshot capture failed for URL: ${targetUrl}`);
+    console.error('Error details:', error);
     
     // Clean up browser if it's still open
     if (browser) {
@@ -125,7 +123,8 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'no-cache',
-        'X-Error': 'Screenshot generation failed'
+        'X-Error': 'Screenshot generation failed',
+        'X-Failed-URL': targetUrl || 'unknown'
       }
     });
   }
