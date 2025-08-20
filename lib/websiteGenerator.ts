@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import puppeteer from 'puppeteer';
 import { ContentGenerator, GeneratedContent, BusinessInfo } from './contentGenerator';
 
 export interface Business {
@@ -59,11 +58,11 @@ export class WebsiteGenerator {
       // Render HTML
       const htmlContent = this.renderTemplate(business, content, templateType);
 
-      // Generate preview screenshot
-      const screenshot = await this.generateScreenshot(htmlContent);
+      // Save to database and get preview URL
+      const { previewUrl, previewId } = await this.savePreview(businessId, htmlContent);
 
-      // Save to database
-      const previewUrl = await this.savePreview(businessId, htmlContent, screenshot);
+      // Generate screenshot URL (using our API endpoint)
+      const screenshot = this.generateScreenshotUrl(previewUrl);
 
       return {
         success: true,
@@ -386,58 +385,69 @@ export class WebsiteGenerator {
     return services;
   }
 
-  private async generateScreenshot(htmlContent: string): Promise<string> {
-    try {
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1200, height: 800 });
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      
-      const screenshot = await page.screenshot({
-        encoding: 'base64',
-        type: 'png'
-      });
-
-      await browser.close();
-
-      return screenshot;
-    } catch (error) {
-      console.error('Error generating screenshot:', error);
-      // Return empty string if screenshot generation fails
-      return '';
-    }
+  private generateScreenshotUrl(previewUrl: string): string {
+    // Use our screenshot API endpoint
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    return `${baseUrl}/api/screenshot?url=${encodeURIComponent(previewUrl)}`;
   }
 
-  private async savePreview(businessId: string, htmlContent: string, screenshot: string): Promise<string> {
-    // Generate unique preview ID
-    const previewId = `preview_${businessId}_${Date.now()}`;
-    
-    // Save to database
-    const { error } = await this.supabase
+  private async savePreview(businessId: string, htmlContent: string): Promise<{ previewUrl: string; previewId: string }> {
+    // Check if preview already exists
+    const { data: existingPreview } = await this.supabase
       .from('website_previews')
-      .upsert({
+      .select('id, preview_url')
+      .eq('business_id', businessId)
+      .single();
+
+    if (existingPreview) {
+      // Update existing preview
+      await this.supabase
+        .from('website_previews')
+        .update({
+          html_content: htmlContent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPreview.id);
+
+      return {
+        previewId: existingPreview.id,
+        previewUrl: existingPreview.preview_url || `http://localhost:3000/preview/${existingPreview.id}`
+      };
+    }
+
+    // Create new preview
+    const { data: newPreview, error } = await this.supabase
+      .from('website_previews')
+      .insert({
         business_id: businessId,
-        preview_id: previewId,
         html_content: htmlContent,
-        screenshot: screenshot,
+        template_used: 'auto-generated',
+        slug: `preview-${businessId}`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .select()
       .single();
 
-    if (error) {
+    if (error || !newPreview) {
       console.error('Error saving preview:', error);
       throw new Error('Failed to save preview to database');
     }
 
-    // Return preview URL
+    // Generate preview URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    return `${baseUrl}/preview/${previewId}`;
+    const previewUrl = `${baseUrl}/preview/${newPreview.id}`;
+
+    // Update the preview with its URL
+    await this.supabase
+      .from('website_previews')
+      .update({ preview_url: previewUrl })
+      .eq('id', newPreview.id);
+
+    return {
+      previewId: newPreview.id,
+      previewUrl
+    };
   }
 }
 

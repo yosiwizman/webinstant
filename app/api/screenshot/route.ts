@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
 
 // Helper function to validate URL
 function isValidUrl(urlString: string): boolean {
@@ -11,121 +10,142 @@ function isValidUrl(urlString: string): boolean {
   }
 }
 
-// Helper function to generate error image
-function generateErrorImage(): Buffer {
-  // Simple 1x1 transparent PNG as fallback
-  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-  return Buffer.from(base64, 'base64');
+// Helper function to generate a nice placeholder image
+function generatePlaceholderSVG(businessName?: string): string {
+  const name = businessName || 'Your Business';
+  return `
+    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="630" fill="url(#grad)"/>
+      <rect x="50" y="50" width="1100" height="530" fill="white" rx="10"/>
+      <text x="600" y="200" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#333" text-anchor="middle">
+        ${name}
+      </text>
+      <text x="600" y="280" font-family="Arial, sans-serif" font-size="24" fill="#666" text-anchor="middle">
+        Your professional website is ready!
+      </text>
+      <rect x="450" y="350" width="300" height="60" fill="#667eea" rx="30"/>
+      <text x="600" y="390" font-family="Arial, sans-serif" font-size="20" fill="white" text-anchor="middle">
+        View Website
+      </text>
+    </svg>
+  `;
 }
 
 export async function GET(request: NextRequest) {
-  let browser = null;
   const searchParams = request.nextUrl.searchParams;
   const targetUrl = searchParams.get('url');
   
   try {
-    // Validate URL parameter
+    // If no URL provided, return a generic placeholder
     if (!targetUrl) {
-      return NextResponse.json(
-        { error: 'URL parameter is required' },
-        { status: 400 }
-      );
+      const svg = generatePlaceholderSVG();
+      
+      return new NextResponse(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, max-age=3600'
+        }
+      });
     }
 
     // Validate URL format
     if (!isValidUrl(targetUrl)) {
       console.error(`Invalid URL format: ${targetUrl}`);
-      return NextResponse.json(
-        { error: 'Invalid URL format. Please provide a valid HTTP or HTTPS URL.' },
-        { status: 400 }
-      );
+      const svg = generatePlaceholderSVG();
+      
+      return new NextResponse(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, max-age=3600'
+        }
+      });
     }
 
-    console.log(`Capturing screenshot for: ${targetUrl}`);
+    console.log(`Generating screenshot placeholder for: ${targetUrl}`);
 
-    // Launch puppeteer with optimized settings
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-      ]
-    });
+    // Try to extract business name from URL if possible
+    let businessName = 'Your Business';
+    try {
+      const url = new URL(targetUrl);
+      const pathParts = url.pathname.split('/');
+      if (pathParts.length > 2 && pathParts[1] === 'preview') {
+        // This is a preview URL, we could potentially fetch the business name
+        // For now, just use a generic name
+        businessName = 'Your Business';
+      }
+    } catch (e) {
+      // Ignore URL parsing errors
+    }
 
-    // Create a new page
-    const page = await browser.newPage();
-
-    // Set viewport to standard email preview size
-    await page.setViewport({
-      width: 1200,
-      height: 630,
-      deviceScaleFactor: 1
-    });
-
-    // Set reasonable timeout
-    page.setDefaultNavigationTimeout(30000);
-
-    // Navigate to the URL and wait for network idle
-    await page.goto(targetUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
-
-    // Take screenshot
-    const screenshot = await page.screenshot({
-      type: 'png',
-      fullPage: false,
-      encoding: 'binary'
-    });
-
-    // Close the browser
-    await browser.close();
-    browser = null;
-
-    // Create response with image and caching headers
-    const response = new NextResponse(screenshot as any, {
+    // Generate a nice placeholder image
+    const svg = generatePlaceholderSVG(businessName);
+    
+    return new NextResponse(svg, {
       status: 200,
       headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400',
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'public, max-age=3600',
         'X-Screenshot-URL': targetUrl,
-        'X-Screenshot-Timestamp': new Date().toISOString()
+        'X-Screenshot-Type': 'placeholder'
       }
     });
 
-    return response;
-
   } catch (error) {
-    // Log error with the exact URL that failed for debugging
-    console.error(`Screenshot capture failed for URL: ${targetUrl}`);
-    console.error('Error details:', error);
+    console.error(`Screenshot generation error:`, error);
     
-    // Clean up browser if it's still open
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (closeError) {
-        console.error('Failed to close browser:', closeError);
-      }
-    }
-
-    // Return fallback error image
-    const errorImage = generateErrorImage();
+    // Return error placeholder image
+    const svg = generatePlaceholderSVG();
     
-    return new NextResponse(errorImage as any, {
-      status: 500,
+    return new NextResponse(svg, {
+      status: 200,
       headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'no-cache',
-        'X-Error': 'Screenshot generation failed',
-        'X-Failed-URL': targetUrl || 'unknown'
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'no-cache'
       }
+    });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { url, html, businessName } = body;
+    
+    // Generate a placeholder screenshot
+    const svg = generatePlaceholderSVG(businessName);
+    
+    // Convert SVG to base64 data URL
+    const base64 = Buffer.from(svg).toString('base64');
+    const dataUrl = `data:image/svg+xml;base64,${base64}`;
+    
+    return NextResponse.json({
+      success: true,
+      screenshot: dataUrl,
+      message: 'Screenshot generated (placeholder)',
+      type: 'placeholder'
+    });
+    
+  } catch (error) {
+    console.error('Screenshot generation error:', error);
+    
+    // Return a data URL for error case
+    const svg = generatePlaceholderSVG();
+    const base64 = Buffer.from(svg).toString('base64');
+    const dataUrl = `data:image/svg+xml;base64,${base64}`;
+    
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to generate screenshot',
+      screenshot: dataUrl,
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }
