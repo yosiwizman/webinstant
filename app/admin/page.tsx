@@ -109,20 +109,26 @@ export default function AdminPage() {
         .order('created_at', { ascending: false })
 
       if (allBusinesses) {
-        // Fetch all website previews in one query - get id and website_url
+        // Fetch all website previews in one query
         const businessIds = allBusinesses.map(b => b.id)
         const { data: allPreviews } = await supabase
           .from('website_previews')
-          .select('id, business_id, website_url')
+          .select('id, business_id')
           .in('business_id', businessIds)
 
-        // Create a map of business_id to preview URL using the UUID
+        console.log('Fetched previews:', allPreviews?.length || 0, 'previews')
+        console.log('Preview data sample:', allPreviews?.slice(0, 3))
+
+        // Create a map of business_id to preview URL using the preview ID
         const previewMap = new Map()
         allPreviews?.forEach(preview => {
-          // Use the UUID to construct the preview URL
+          // Use the preview ID (not business_id) to construct the URL
           const previewUrl = `/preview/${preview.id}`
           previewMap.set(preview.business_id, previewUrl)
+          console.log(`Mapped business ${preview.business_id} to preview URL: ${previewUrl}`)
         })
+
+        console.log('Preview map size:', previewMap.size)
 
         const activityData = await Promise.all(
           allBusinesses.map(async (business) => {
@@ -156,13 +162,19 @@ export default function AdminPage() {
         )
         setRecentActivity(activityData)
 
-        // Prepare database businesses list
-        const dbBusinessesList: DatabaseBusiness[] = allBusinesses.map(business => ({
-          id: business.id,
-          business_name: business.business_name,
-          preview_url: previewMap.get(business.id)
-        }))
+        // Prepare database businesses list with preview URLs
+        const dbBusinessesList: DatabaseBusiness[] = allBusinesses.map(business => {
+          const previewUrl = previewMap.get(business.id)
+          console.log(`Business ${business.business_name} (${business.id}): preview URL = ${previewUrl || 'none'}`)
+          return {
+            id: business.id,
+            business_name: business.business_name,
+            preview_url: previewUrl
+          }
+        })
         setDatabaseBusinesses(dbBusinessesList)
+
+        console.log('Total businesses with previews:', dbBusinessesList.filter(b => b.preview_url).length)
       }
 
     } catch (error) {
