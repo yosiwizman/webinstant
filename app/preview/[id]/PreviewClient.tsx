@@ -15,14 +15,31 @@ interface PreviewClientProps {
 export default function PreviewClient({ preview, id }: PreviewClientProps) {
   // Strip DOCTYPE and html tags to fix hydration error
   const cleanHtml = preview.html_content
-    .replace(/<!DOCTYPE.*?>/i, '')
-    .replace(/<html.*?>/, '')
-    .replace(/<\/html>/, '')
+    .replace(/<!DOCTYPE.*?>/gi, '')
+    .replace(/<html.*?>/gi, '')
+    .replace(/<\/html>/gi, '')
+    .replace(/<head.*?>/gi, '<div style="display:none">')
+    .replace(/<\/head>/gi, '</div>')
+    .replace(/<body.*?>/gi, '<div>')
+    .replace(/<\/body>/gi, '</div>')
+    .replace(/\s+charset=/g, ' data-charset=')
+    .replace(/\s+http-equiv=/g, ' data-http-equiv=')
+
+  // Fix broken images with placeholders
+  const htmlWithFixedImages = cleanHtml.replace(
+    /<img([^>]*?)src=["']([^"']*?)["']/gi,
+    (match, attrs, src) => {
+      if (!src || src.includes('undefined') || src.includes('null') || !src.startsWith('http')) {
+        return `<img${attrs}src="https://via.placeholder.com/800x600/cccccc/666666?text=Image+Coming+Soon"`;
+      }
+      return match;
+    }
+  );
 
   return (
     <>
       <div 
-        dangerouslySetInnerHTML={{ __html: cleanHtml }}
+        dangerouslySetInnerHTML={{ __html: htmlWithFixedImages }}
         style={{ width: '100%', minHeight: '100vh' }}
       />
       <button 
