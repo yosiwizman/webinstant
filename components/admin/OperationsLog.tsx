@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
 import { 
   CheckCircleIcon, 
   InformationCircleIcon, 
@@ -62,6 +61,25 @@ export default function OperationsLog() {
   })
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+
+  // Format time helper function
+  const formatTime = (date: Date): string => {
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: true 
+    })
+  }
+
+  // Format short time helper function
+  const formatShortTime = (date: Date): string => {
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    })
+  }
 
   // Mock data generator for demonstration
   const generateMockOperations = (): Operation[] => {
@@ -310,7 +328,7 @@ export default function OperationsLog() {
         <h2 className="text-2xl font-bold text-gray-900">Operations Log</h2>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">
-            Last refresh: {format(lastRefresh, 'h:mm:ss a')}
+            Last refresh: {formatTime(lastRefresh)}
           </span>
           <button
             onClick={handleRefresh}
@@ -458,7 +476,7 @@ export default function OperationsLog() {
                   {/* Timestamp */}
                   <div className="flex items-center gap-1 text-sm text-gray-500 whitespace-nowrap">
                     <ClockIcon className="w-4 h-4" />
-                    {format(operation.timestamp, 'h:mm a')}
+                    {formatShortTime(operation.timestamp)}
                   </div>
                 </div>
               </div>
