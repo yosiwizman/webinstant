@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { 
   Eye, 
@@ -17,9 +17,7 @@ import {
   Calendar,
   Building,
   Users,
-  TrendingUp,
-  MoreVertical,
-  Check
+  MoreVertical
 } from 'lucide-react'
 
 interface WebsitePreview {
@@ -73,20 +71,7 @@ export default function WebsiteGallery() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    fetchPreviews()
-    fetchStats()
-  }, [])
-
-  useEffect(() => {
-    filterPreviews()
-  }, [previews, statusFilter, categoryFilter, searchTerm])
-
-  useEffect(() => {
-    setShowBulkActions(selectedPreviews.size > 0)
-  }, [selectedPreviews])
-
-  const fetchPreviews = async () => {
+  const fetchPreviews = useCallback(async () => {
     try {
       // Query website_previews joined with businesses and emails
       const { data, error } = await supabase
@@ -125,9 +110,9 @@ export default function WebsiteGallery() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       // Total previews
       const { count: totalCount } = await supabase
@@ -173,9 +158,9 @@ export default function WebsiteGallery() {
     } catch (error) {
       console.error('Error fetching stats:', error)
     }
-  }
+  }, [supabase])
 
-  const filterPreviews = () => {
+  const filterPreviews = useCallback(() => {
     let filtered = [...previews]
 
     // Status filter
@@ -204,7 +189,20 @@ export default function WebsiteGallery() {
     }
 
     setFilteredPreviews(filtered)
-  }
+  }, [previews, statusFilter, categoryFilter, searchTerm])
+
+  useEffect(() => {
+    fetchPreviews()
+    fetchStats()
+  }, [fetchPreviews, fetchStats])
+
+  useEffect(() => {
+    filterPreviews()
+  }, [filterPreviews])
+
+  useEffect(() => {
+    setShowBulkActions(selectedPreviews.size > 0)
+  }, [selectedPreviews])
 
   const handleSelectPreview = (id: string) => {
     const newSelected = new Set(selectedPreviews)
@@ -222,29 +220,6 @@ export default function WebsiteGallery() {
     } else {
       setSelectedPreviews(new Set(filteredPreviews.map(p => p.id)))
     }
-  }
-
-  const handleBulkSendEmails = async () => {
-    for (const previewId of selectedPreviews) {
-      const preview = previews.find(p => p.id === previewId)
-      if (preview) {
-        await handleSendEmail(preview)
-      }
-    }
-    setSelectedPreviews(new Set())
-    await fetchPreviews()
-  }
-
-  const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedPreviews.size} previews?`)) return
-    
-    for (const id of selectedPreviews) {
-      await supabase.from('website_previews').delete().eq('id', id)
-    }
-    
-    await fetchPreviews()
-    await fetchStats()
-    setSelectedPreviews(new Set())
   }
 
   const handleSendEmail = async (preview: WebsitePreview) => {
@@ -272,6 +247,29 @@ export default function WebsiteGallery() {
     } catch (error) {
       console.error('Error sending email:', error)
     }
+  }
+
+  const handleBulkSendEmails = async () => {
+    for (const previewId of selectedPreviews) {
+      const preview = previews.find(p => p.id === previewId)
+      if (preview) {
+        await handleSendEmail(preview)
+      }
+    }
+    setSelectedPreviews(new Set())
+    await fetchPreviews()
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selectedPreviews.size} previews?`)) return
+    
+    for (const id of selectedPreviews) {
+      await supabase.from('website_previews').delete().eq('id', id)
+    }
+    
+    await fetchPreviews()
+    await fetchStats()
+    setSelectedPreviews(new Set())
   }
 
   const handleCopyLink = (url: string) => {

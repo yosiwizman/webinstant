@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
 interface Settings {
   apiKeys: {
@@ -75,21 +75,21 @@ export default function SettingsPanel() {
   const [testResults, setTestResults] = useState<Record<string, boolean>>({})
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState<'api' | 'email' | 'automation' | 'notifications'>('api')
-  const supabase = createClientComponentClient()
+  
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-  useEffect(() => {
-    loadSettings()
-  }, [])
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       // First try to load from Supabase
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('admin_settings')
         .select('*')
         .single()
 
-      if (data && !error) {
+      if (data) {
         setSettings(data.settings as Settings)
       } else {
         // Fall back to localStorage
@@ -98,8 +98,7 @@ export default function SettingsPanel() {
           setSettings(JSON.parse(localSettings))
         }
       }
-    } catch (error) {
-      console.error('Error loading settings:', error)
+    } catch {
       // Try localStorage as fallback
       const localSettings = localStorage.getItem('adminSettings')
       if (localSettings) {
@@ -108,7 +107,11 @@ export default function SettingsPanel() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
 
   const saveSettings = async () => {
     setSaving(true)
@@ -181,7 +184,7 @@ export default function SettingsPanel() {
     }))
   }
 
-  const updateEmailSettings = (field: string, value: any) => {
+  const updateEmailSettings = (field: string, value: string | number) => {
     setSettings(prev => ({
       ...prev,
       email: {
@@ -191,15 +194,15 @@ export default function SettingsPanel() {
     }))
   }
 
-  const updateAutomation = (field: string, value: any) => {
+  const updateAutomation = (field: string, value: boolean | number) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.')
       setSettings(prev => ({
         ...prev,
         automation: {
           ...prev.automation,
-          [parent]: {
-            ...prev.automation[parent as keyof typeof prev.automation],
+          priorityRules: {
+            ...prev.automation.priorityRules,
             [child]: value
           }
         }
@@ -215,7 +218,7 @@ export default function SettingsPanel() {
     }
   }
 
-  const updateNotifications = (field: string, value: any) => {
+  const updateNotifications = (field: string, value: boolean | string) => {
     setSettings(prev => ({
       ...prev,
       notifications: {

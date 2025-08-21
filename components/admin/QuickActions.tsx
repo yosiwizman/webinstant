@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, MouseEvent } from 'react'
 import { 
   PlusIcon, 
   SparklesIcon, 
@@ -9,11 +8,8 @@ import {
   MagnifyingGlassIcon, 
   ArrowDownTrayIcon,
   XMarkIcon,
-  CloudArrowUpIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon
+  CloudArrowUpIcon
 } from '@heroicons/react/24/outline'
-import { toast } from 'react-hot-toast'
 
 interface ActionButton {
   id: string
@@ -21,6 +17,40 @@ interface ActionButton {
   icon: React.ComponentType<{ className?: string }>
   color: string
   action: () => Promise<void>
+}
+
+interface ToastOptions {
+  duration?: number
+}
+
+// Simple toast implementation since react-hot-toast is not available
+const toast = {
+  error: (message: string) => {
+    console.error(message)
+    alert(`Error: ${message}`)
+  },
+  success: (message: string) => {
+    console.log(message)
+    alert(`Success: ${message}`)
+  },
+  loading: (message: string, options?: ToastOptions) => {
+    console.log(message)
+    return message
+  },
+  dismiss: (toastId: string) => {
+    console.log(`Dismissing toast: ${toastId}`)
+  }
+}
+
+// Simple motion components replacement
+const AnimatePresence = ({ children }: { children: React.ReactNode }) => <>{children}</>
+const motion = {
+  div: ({ children, className, initial, animate, exit, transition, onClick, style }: any) => (
+    <div className={className} onClick={onClick} style={style}>{children}</div>
+  ),
+  button: ({ children, className, onClick, whileHover, whileTap }: any) => (
+    <button className={className} onClick={onClick}>{children}</button>
+  )
 }
 
 export default function QuickActions() {
@@ -308,7 +338,7 @@ export default function QuickActions() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: MouseEvent) => e.stopPropagation()}
               className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
             >
               <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">

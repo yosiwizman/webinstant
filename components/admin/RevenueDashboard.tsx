@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Users, Mail, MousePointer, Eye, Package } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard } from 'lucide-react';
 
 interface MetricCard {
   title: string;
@@ -48,11 +48,7 @@ export default function RevenueDashboard() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -118,7 +114,7 @@ export default function RevenueDashboard() {
         if (!totalError && totalData) {
           totalRevenue = totalData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
-      } catch (err) {
+      } catch {
         console.log('Transactions table not set up yet');
       }
       
@@ -185,7 +181,7 @@ export default function RevenueDashboard() {
         if (!clickError && clickCount !== null) {
           linksClickedCount = clickCount;
         }
-      } catch (err) {
+      } catch {
         console.log('Emails table not set up yet');
       }
       
@@ -209,7 +205,7 @@ export default function RevenueDashboard() {
           if (!custError && custCount !== null) {
             customersCount = custCount;
           }
-        } catch (err) {
+        } catch {
           console.log('Customers table not set up yet');
         }
       }
@@ -287,14 +283,14 @@ export default function RevenueDashboard() {
           // If no data, show 30 days of zeros
           for (let i = 29; i >= 0; i--) {
             const date = new Date();
-            date.setDate(date.getDate() - i);
+            date.set Date(date.getDate() - i);
             chartArray.push({
               date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
               revenue: 0
             });
           }
         }
-      } catch (err) {
+      } catch {
         // If table doesn't exist, show 30 days of zeros
         for (let i = 29; i >= 0; i--) {
           const date = new Date();
@@ -362,7 +358,7 @@ export default function RevenueDashboard() {
             });
           }
         }
-      } catch (err) {
+      } catch {
         console.log('Transactions table not set up yet');
       }
       
@@ -374,7 +370,11 @@ export default function RevenueDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -472,9 +472,9 @@ export default function RevenueDashboard() {
                 <XAxis type="number" />
                 <YAxis dataKey="stage" type="category" />
                 <Tooltip 
-                  formatter={(value: any, name: string) => {
+                  formatter={(value: number | string, name: string) => {
                     if (name === 'percentage') {
-                      return `${value.toFixed(1)}%`;
+                      return `${Number(value).toFixed(1)}%`;
                     }
                     return value;
                   }}
@@ -514,7 +514,7 @@ export default function RevenueDashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(value: any) => formatCurrency(value)} />
+              <Tooltip formatter={(value: number) => formatCurrency(value)} />
               <Legend />
               <Line 
                 type="monotone" 

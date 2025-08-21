@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -52,11 +50,29 @@ interface DailyUsage {
   total: number
 }
 
+interface PieChartData {
+  name: string
+  value: number
+  color: string
+}
+
+type ProviderKey = 'together_ai' | 'openai' | 'replicate' | 'anthropic'
+
+interface ProviderStats {
+  today: number
+  month: number
+  callsToday: number
+  callsMonth: number
+  color: string
+  bgColor: string
+  displayName: string
+}
+
 export default function ApiUsageMonitor() {
   const [apiBalances, setApiBalances] = useState<ApiBalance[]>([])
   const [usageHistory, setUsageHistory] = useState<ApiUsageData[]>([])
   const [dailyTrend, setDailyTrend] = useState<DailyUsage[]>([])
-  const [pieChartData, setPieChartData] = useState<any[]>([])
+  const [pieChartData, setPieChartData] = useState<PieChartData[]>([])
   const [loading, setLoading] = useState(true)
   const [totalSpentToday, setTotalSpentToday] = useState(0)
   const [totalSpentMonth, setTotalSpentMonth] = useState(0)
@@ -67,19 +83,11 @@ export default function ApiUsageMonitor() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    fetchApiUsageData()
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchApiUsageData, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const fetchApiUsageData = async () => {
+  const fetchApiUsageData = useCallback(async () => {
     try {
       // Get today's date and start of month
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const todayISO = today.toISOString()
       
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
       const startOfMonthISO = startOfMonth.toISOString()
@@ -100,53 +108,53 @@ export default function ApiUsageMonitor() {
       if (!hasAnyData) {
         // Set empty state
         setApiBalances([
-          { 
-            provider: 'Together AI', 
-            initialBalance: 100, 
-            totalUsed: 0, 
-            balance: 100, 
-            usedToday: 0, 
+          {
+            provider: 'Together AI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
             usedThisMonth: 0,
             callsToday: 0,
             callsThisMonth: 0,
-            color: '#8B5CF6', 
-            bgColor: 'bg-purple-500' 
+            color: '#8B5CF6',
+            bgColor: 'bg-purple-500'
           },
-          { 
-            provider: 'OpenAI', 
-            initialBalance: 100, 
-            totalUsed: 0, 
-            balance: 100, 
-            usedToday: 0, 
+          {
+            provider: 'OpenAI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
             usedThisMonth: 0,
             callsToday: 0,
             callsThisMonth: 0,
-            color: '#10B981', 
-            bgColor: 'bg-green-500' 
+            color: '#10B981',
+            bgColor: 'bg-green-500'
           },
-          { 
-            provider: 'Replicate', 
-            initialBalance: 100, 
-            totalUsed: 0, 
-            balance: 100, 
-            usedToday: 0, 
+          {
+            provider: 'Replicate',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
             usedThisMonth: 0,
             callsToday: 0,
             callsThisMonth: 0,
-            color: '#3B82F6', 
-            bgColor: 'bg-blue-500' 
+            color: '#3B82F6',
+            bgColor: 'bg-blue-500'
           },
-          { 
-            provider: 'Anthropic', 
-            initialBalance: 100, 
-            totalUsed: 0, 
-            balance: 100, 
-            usedToday: 0, 
+          {
+            provider: 'Anthropic',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
             usedThisMonth: 0,
             callsToday: 0,
             callsThisMonth: 0,
-            color: '#F59E0B', 
-            bgColor: 'bg-amber-500' 
+            color: '#F59E0B',
+            bgColor: 'bg-amber-500'
           }
         ])
         setUsageHistory([])
@@ -159,38 +167,38 @@ export default function ApiUsageMonitor() {
       }
 
       // Calculate usage by provider for today and month
-      const providerStats = {
-        'together_ai': { 
-          today: 0, 
-          month: 0, 
-          callsToday: 0, 
+      const providerStats: Record<ProviderKey, ProviderStats> = {
+        'together_ai': {
+          today: 0,
+          month: 0,
+          callsToday: 0,
           callsMonth: 0,
           color: '#8B5CF6',
           bgColor: 'bg-purple-500',
           displayName: 'Together AI'
         },
-        'openai': { 
-          today: 0, 
-          month: 0, 
-          callsToday: 0, 
+        'openai': {
+          today: 0,
+          month: 0,
+          callsToday: 0,
           callsMonth: 0,
           color: '#10B981',
           bgColor: 'bg-green-500',
           displayName: 'OpenAI'
         },
-        'replicate': { 
-          today: 0, 
-          month: 0, 
-          callsToday: 0, 
+        'replicate': {
+          today: 0,
+          month: 0,
+          callsToday: 0,
           callsMonth: 0,
           color: '#3B82F6',
           bgColor: 'bg-blue-500',
           displayName: 'Replicate'
         },
-        'anthropic': { 
-          today: 0, 
-          month: 0, 
-          callsToday: 0, 
+        'anthropic': {
+          today: 0,
+          month: 0,
+          callsToday: 0,
           callsMonth: 0,
           color: '#F59E0B',
           bgColor: 'bg-amber-500',
@@ -200,14 +208,14 @@ export default function ApiUsageMonitor() {
 
       // Process monthly usage
       monthlyUsage.forEach(item => {
-        const provider = item.api_name?.toLowerCase() || 'unknown'
+        const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
         const cost = item.cost || 0
         const itemDate = new Date(item.created_at)
-        
-        if (provider in providerStats) {
+
+        if (provider && provider in providerStats) {
           providerStats[provider].month += cost
           providerStats[provider].callsMonth += 1
-          
+
           // Check if it's today's usage
           if (itemDate >= today) {
             providerStats[provider].today += cost
@@ -219,17 +227,17 @@ export default function ApiUsageMonitor() {
       // Calculate totals
       let todayTotal = 0
       let monthTotal = 0
-      
+
       Object.values(providerStats).forEach(stats => {
         todayTotal += stats.today
         monthTotal += stats.month
       })
-      
+
       setTotalSpentToday(todayTotal)
       setTotalSpentMonth(monthTotal)
 
       // Get initial balances from environment or use defaults
-      const initialBalances = {
+      const initialBalances: Record<ProviderKey, number> = {
         'together_ai': parseFloat(process.env.NEXT_PUBLIC_TOGETHER_AI_BALANCE || '100'),
         'openai': parseFloat(process.env.NEXT_PUBLIC_OPENAI_BALANCE || '100'),
         'replicate': parseFloat(process.env.NEXT_PUBLIC_REPLICATE_BALANCE || '100'),
@@ -237,7 +245,7 @@ export default function ApiUsageMonitor() {
       }
 
       // Update API balances with real data
-      const balances = Object.entries(providerStats).map(([key, stats]) => ({
+      const balances = (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
         provider: stats.displayName,
         initialBalance: initialBalances[key],
         totalUsed: stats.month,
@@ -249,7 +257,7 @@ export default function ApiUsageMonitor() {
         color: stats.color,
         bgColor: stats.bgColor
       }))
-      
+
       setApiBalances(balances)
 
       // Fetch usage history with business names (last 50 calls)
@@ -271,18 +279,18 @@ export default function ApiUsageMonitor() {
         ...item,
         business_name: item.businesses?.business_name || 'Unknown'
       })) || []
-      
+
       setUsageHistory(processedHistory)
 
       // Calculate pie chart data for today's usage
-      const pieData = Object.entries(providerStats)
-        .filter(([_, stats]) => stats.today > 0)
-        .map(([key, stats]) => ({
+      const pieData = (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
+        .filter(([, stats]) => stats.today > 0)
+        .map(([, stats]) => ({
           name: stats.displayName,
           value: parseFloat(stats.today.toFixed(4)),
           color: stats.color
         }))
-      
+
       setPieChartData(pieData)
 
       // Calculate daily trend (last 7 days)
@@ -308,13 +316,13 @@ export default function ApiUsageMonitor() {
       const dailyData = last7Days.map(date => {
         const nextDay = new Date(date)
         nextDay.setDate(nextDay.getDate() + 1)
-        
+
         const dayUsage = weeklyUsage?.filter(item => {
           const itemDate = new Date(item.created_at)
           return itemDate >= date && itemDate < nextDay
         }) || []
-        
-        const dayTotals = {
+
+        const dayTotals: DailyUsage = {
           date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
           together_ai: 0,
           openai: 0,
@@ -324,10 +332,10 @@ export default function ApiUsageMonitor() {
         }
 
         dayUsage.forEach(item => {
-          const provider = item.api_name?.toLowerCase() || 'unknown'
+          const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
           const cost = item.cost || 0
-          
-          if (provider in dayTotals) {
+
+          if (provider && provider in dayTotals) {
             dayTotals[provider] += cost
           }
           dayTotals.total += cost
@@ -336,7 +344,8 @@ export default function ApiUsageMonitor() {
         // Round to 4 decimal places
         Object.keys(dayTotals).forEach(key => {
           if (key !== 'date') {
-            dayTotals[key] = parseFloat(dayTotals[key].toFixed(4))
+            const numKey = key as keyof Omit<DailyUsage, 'date'>
+            dayTotals[numKey] = parseFloat(dayTotals[numKey].toFixed(4))
           }
         })
 
@@ -349,10 +358,17 @@ export default function ApiUsageMonitor() {
       console.error('Error fetching API usage:', error)
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchApiUsageData()
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchApiUsageData, 30000)
+    return () => clearInterval(interval)
+  }, [fetchApiUsageData])
 
   const getProviderBgClass = (provider: string) => {
-    const classes = {
+    const classes: Record<string, string> = {
       'together_ai': 'bg-purple-100',
       'openai': 'bg-green-100',
       'replicate': 'bg-blue-100',
@@ -362,7 +378,7 @@ export default function ApiUsageMonitor() {
   }
 
   const getProviderTextClass = (provider: string) => {
-    const classes = {
+    const classes: Record<string, string> = {
       'together_ai': 'text-purple-700',
       'openai': 'text-green-700',
       'replicate': 'text-blue-700',
@@ -372,7 +388,7 @@ export default function ApiUsageMonitor() {
   }
 
   const getProviderDisplayName = (provider: string) => {
-    const names = {
+    const names: Record<string, string> = {
       'together_ai': 'Together AI',
       'openai': 'OpenAI',
       'replicate': 'Replicate',
@@ -403,11 +419,11 @@ export default function ApiUsageMonitor() {
           </p>
           <div className="mt-6 grid grid-cols-2 gap-4 max-w-md mx-auto">
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Today's Cost</p>
+              <p className="text-sm text-gray-600">Today&apos;s Cost</p>
               <p className="text-2xl font-bold text-gray-900">$0.00</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Month's Cost</p>
+              <p className="text-sm text-gray-600">Month&apos;s Cost</p>
               <p className="text-2xl font-bold text-gray-900">$0.00</p>
             </div>
           </div>
@@ -453,11 +469,11 @@ export default function ApiUsageMonitor() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Today's Total Cost</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-2">Today&apos;s Total Cost</h3>
           <p className="text-3xl font-bold text-gray-900">${totalSpentToday.toFixed(4)}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-sm font-medium text-gray-600 mb-2">Month's Total Cost</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-2">Month&apos;s Total Cost</h3>
           <p className="text-3xl font-bold text-gray-900">${totalSpentMonth.toFixed(4)}</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -494,7 +510,7 @@ export default function ApiUsageMonitor() {
                   <span className="font-medium">{api.callsToday}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                  <div 
+                  <div
                     className="h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min((api.totalUsed / api.initialBalance) * 100, 100)}%`,
@@ -516,7 +532,7 @@ export default function ApiUsageMonitor() {
           <div className="p-6 border-b border-gray-200">
             <h3 className="flex items-center gap-2 text-lg font-semibold">
               <DollarSign className="h-5 w-5" />
-              Today's Cost Breakdown by API
+              Today&apos;s Cost Breakdown by API
             </h3>
           </div>
           <div className="p-6">
