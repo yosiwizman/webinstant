@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, ChevronRight, Calendar, Activity, Star, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, Activity, Star, AlertCircle } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
 interface Lead {
@@ -41,7 +41,6 @@ export default function CustomerPipeline() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [showNoteModal, setShowNoteModal] = useState(false)
   const [newNote, setNewNote] = useState('')
-  const [filter, setFilter] = useState<'all' | 'hot'>('all')
   const [metrics, setMetrics] = useState<StageMetrics>({
     lead: 0,
     contacted: 0,
@@ -62,11 +61,21 @@ export default function CustomerPipeline() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    fetchRealBusinessData()
-  }, [])
+  const getTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+    
+    if (seconds < 60) return 'Just now'
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
+    return date.toLocaleDateString()
+  }
 
-  const fetchRealBusinessData = async () => {
+  const getDaysSince = (date: Date): number => {
+    return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
+  }
+
+  const fetchRealBusinessData = useCallback(async () => {
     try {
       // Fetch all businesses with their email tracking data
       const { data: businesses, error } = await supabase
@@ -189,21 +198,11 @@ export default function CustomerPipeline() {
       console.error('Error processing business data:', error)
       setLoading(false)
     }
-  }
+  }, [supabase, getTimeAgo, getDaysSince])
 
-  const getTimeAgo = (date: Date): string => {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-    
-    if (seconds < 60) return 'Just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
-    return date.toLocaleDateString()
-  }
-
-  const getDaysSince = (date: Date): number => {
-    return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
-  }
+  useEffect(() => {
+    fetchRealBusinessData()
+  }, [fetchRealBusinessData])
 
   const stages = [
     { id: 'lead', name: 'Lead', color: 'bg-gray-100', textColor: 'text-gray-700', icon: Users },
@@ -653,7 +652,7 @@ Thank you for your business!
         <div className="bg-white rounded-lg shadow p-6 text-center">
           <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Customers Yet</h3>
-          <p className="text-gray-600">Keep nurturing your leads. They'll convert soon!</p>
+          <p className="text-gray-600">Keep nurturing your leads. They&apos;ll convert soon!</p>
         </div>
       )}
 
