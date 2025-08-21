@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, ChevronRight, Calendar, Activity, Star, AlertCircle } from 'lucide-react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Lead {
   id: string
@@ -16,6 +17,8 @@ interface Lead {
   joinDate?: string
   notes?: string[]
   isHot?: boolean
+  previewUrl?: string
+  claimedAt?: string
 }
 
 interface StageMetrics {
@@ -52,112 +55,152 @@ export default function CustomerPipeline() {
     engagedToCustomer: 0,
     overall: 0
   })
+  const [loading, setLoading] = useState(true)
 
-  // Mock data - replace with actual API calls
+  const supabase = createClientComponentClient()
+
   useEffect(() => {
-    const mockLeads: Lead[] = [
-      {
-        id: '1',
-        businessName: "Joe's Pizza",
-        email: 'joe@pizza.com',
-        phone: '555-0123',
-        stage: 'interested',
-        daysInStage: 2,
-        lastAction: 'Clicked preview link',
-        lastActionDate: '2 hours ago',
-        isHot: true,
-        notes: ['Very interested in premium features']
-      },
-      {
-        id: '2',
-        businessName: 'Sparkle Cleaners',
-        email: 'info@sparkle.com',
-        phone: '555-0124',
-        stage: 'engaged',
-        daysInStage: 5,
-        lastAction: 'Opened email',
-        lastActionDate: '1 day ago'
-      },
-      {
-        id: '3',
-        businessName: 'City Dental',
-        email: 'contact@citydental.com',
-        stage: 'contacted',
-        daysInStage: 3,
-        lastAction: 'Email sent',
-        lastActionDate: '3 days ago'
-      },
-      {
-        id: '4',
-        businessName: 'Green Lawn Care',
-        email: 'green@lawn.com',
-        phone: '555-0125',
-        stage: 'customer',
-        daysInStage: 0,
-        lastAction: 'Subscription activated',
-        lastActionDate: 'Today',
-        revenue: 299,
-        joinDate: '2024-01-15'
-      },
-      {
-        id: '5',
-        businessName: 'Auto Repair Plus',
-        email: 'service@autoplus.com',
-        stage: 'lead',
-        daysInStage: 1,
-        lastAction: 'Preview created',
-        lastActionDate: '1 day ago'
-      },
-      {
-        id: '6',
-        businessName: 'Bella Salon',
-        email: 'bella@salon.com',
-        phone: '555-0126',
-        stage: 'interested',
-        daysInStage: 1,
-        lastAction: 'Clicked pricing page',
-        lastActionDate: '4 hours ago',
-        isHot: true
-      },
-      {
-        id: '7',
-        businessName: 'Tech Solutions',
-        email: 'info@techsol.com',
-        phone: '555-0127',
-        stage: 'customer',
-        daysInStage: 30,
-        lastAction: 'Renewed subscription',
-        lastActionDate: '1 week ago',
-        revenue: 499,
-        joinDate: '2023-12-01'
-      }
-    ]
-    
-    setLeads(mockLeads)
-    
-    // Calculate metrics
-    const stageCount: StageMetrics = {
-      lead: mockLeads.filter(l => l.stage === 'lead').length,
-      contacted: mockLeads.filter(l => l.stage === 'contacted').length,
-      engaged: mockLeads.filter(l => l.stage === 'engaged').length,
-      interested: mockLeads.filter(l => l.stage === 'interested').length,
-      customer: mockLeads.filter(l => l.stage === 'customer').length
-    }
-    setMetrics(stageCount)
-    
-    // Calculate conversion rates
-    const total = mockLeads.length
-    const contacted = stageCount.contacted + stageCount.engaged + stageCount.interested + stageCount.customer
-    const engaged = stageCount.engaged + stageCount.interested + stageCount.customer
-    const customers = stageCount.customer
-    
-    setConversionRates({
-      leadToContact: total > 0 ? Math.round((contacted / total) * 100) : 0,
-      contactToEngaged: contacted > 0 ? Math.round((engaged / contacted) * 100) : 0,
-      engagedToCustomer: engaged > 0 ? Math.round((customers / engaged) * 100) : 0,
-      overall: total > 0 ? Math.round((customers / total) * 100) : 0
-    })
+    fetchRealBusinessData()
   }, [])
+
+  const fetchRealBusinessData = async () => {
+    try {
+      // Fetch all businesses with their email tracking data
+      const { data: businesses, error } = await supabase
+        .from('businesses')
+        .select(`
+          *,
+          website_previews (
+            id,
+            preview_url,
+            slug
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching businesses:', error)
+        return
+      }
+
+      if (!businesses) {
+        setLoading(false)
+        return
+      }
+
+      // Process businesses into pipeline stages
+      const processedLeads: Lead[] = businesses.map(business => {
+        let stage: Lead['stage'] = 'lead'
+        let lastAction = 'Preview created'
+        let lastActionDate = ''
+        let daysInStage = 0
+        let isHot = false
+
+        // Determine stage based on actual data
+        if (business.claimed_at) {
+          stage = 'customer'
+          lastAction = 'Website claimed'
+          const claimedDate = new Date(business.claimed_at)
+          lastActionDate = getTimeAgo(claimedDate)
+          daysInStage = getDaysSince(claimedDate)
+        } else if (business.email_clicked_at) {
+          stage = 'interested'
+          lastAction = 'Clicked preview link'
+          const clickedDate = new Date(business.email_clicked_at)
+          lastActionDate = getTimeAgo(clickedDate)
+          daysInStage = getDaysSince(clickedDate)
+          
+          // Mark as hot if clicked within last 24 hours
+          const hoursSinceClick = (Date.now() - clickedDate.getTime()) / (1000 * 60 * 60)
+          isHot = hoursSinceClick <= 24
+        } else if (business.email_opened_at) {
+          stage = 'engaged'
+          lastAction = 'Opened email'
+          const openedDate = new Date(business.email_opened_at)
+          lastActionDate = getTimeAgo(openedDate)
+          daysInStage = getDaysSince(openedDate)
+        } else if (business.email_sent_at) {
+          stage = 'contacted'
+          lastAction = 'Email sent'
+          const sentDate = new Date(business.email_sent_at)
+          lastActionDate = getTimeAgo(sentDate)
+          daysInStage = getDaysSince(sentDate)
+        } else if (business.website_previews && business.website_previews.length > 0) {
+          stage = 'lead'
+          lastAction = 'Preview created'
+          const createdDate = new Date(business.created_at)
+          lastActionDate = getTimeAgo(createdDate)
+          daysInStage = getDaysSince(createdDate)
+        }
+
+        // Get preview URL if available
+        const previewUrl = business.website_previews?.[0]?.preview_url || 
+                          (business.website_previews?.[0]?.slug ? 
+                           `${window.location.origin}/preview/${business.website_previews[0].slug}` : 
+                           undefined)
+
+        return {
+          id: business.id,
+          businessName: business.name,
+          email: business.email,
+          phone: business.phone,
+          stage,
+          daysInStage,
+          lastAction,
+          lastActionDate,
+          isHot,
+          previewUrl,
+          revenue: business.claimed_at ? 299 : undefined,
+          joinDate: business.claimed_at ? new Date(business.claimed_at).toLocaleDateString() : undefined,
+          claimedAt: business.claimed_at
+        }
+      })
+
+      setLeads(processedLeads)
+      
+      // Calculate metrics
+      const stageCount: StageMetrics = {
+        lead: processedLeads.filter(l => l.stage === 'lead').length,
+        contacted: processedLeads.filter(l => l.stage === 'contacted').length,
+        engaged: processedLeads.filter(l => l.stage === 'engaged').length,
+        interested: processedLeads.filter(l => l.stage === 'interested').length,
+        customer: processedLeads.filter(l => l.stage === 'customer').length
+      }
+      setMetrics(stageCount)
+      
+      // Calculate conversion rates
+      const total = processedLeads.length
+      const contacted = stageCount.contacted + stageCount.engaged + stageCount.interested + stageCount.customer
+      const engaged = stageCount.engaged + stageCount.interested + stageCount.customer
+      const customers = stageCount.customer
+      
+      setConversionRates({
+        leadToContact: total > 0 ? Math.round((contacted / total) * 100) : 0,
+        contactToEngaged: contacted > 0 ? Math.round((engaged / contacted) * 100) : 0,
+        engagedToCustomer: engaged > 0 ? Math.round((customers / engaged) * 100) : 0,
+        overall: total > 0 ? Math.round((customers / total) * 100) : 0
+      })
+
+      setLoading(false)
+    } catch (error) {
+      console.error('Error processing business data:', error)
+      setLoading(false)
+    }
+  }
+
+  const getTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+    
+    if (seconds < 60) return 'Just now'
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
+    return date.toLocaleDateString()
+  }
+
+  const getDaysSince = (date: Date): number => {
+    return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
+  }
 
   const stages = [
     { id: 'lead', name: 'Lead', color: 'bg-gray-100', textColor: 'text-gray-700', icon: Users },
@@ -178,10 +221,11 @@ export default function CustomerPipeline() {
     e.preventDefault()
   }
 
-  const handleDrop = (e: React.DragEvent, newStage: string) => {
+  const handleDrop = async (e: React.DragEvent, newStage: string) => {
     e.preventDefault()
     const leadId = e.dataTransfer.getData('leadId')
     
+    // Update local state immediately for UI responsiveness
     setLeads(prevLeads => 
       prevLeads.map(lead => 
         lead.id === leadId 
@@ -189,22 +233,74 @@ export default function CustomerPipeline() {
           : lead
       )
     )
+
+    // Note: In production, you'd update the database here
+    console.log(`Moving lead ${leadId} to stage ${newStage}`)
   }
 
-  const sendFollowUp = (lead: Lead) => {
+  const sendFollowUp = async (lead: Lead) => {
     console.log('Sending follow-up to:', lead.businessName)
-    // Implement follow-up logic
+    
+    try {
+      // Send follow-up email via API
+      const response = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: lead.email,
+          businessName: lead.businessName,
+          businessId: lead.id,
+          type: 'follow-up',
+          previewUrl: lead.previewUrl
+        })
+      })
+
+      if (response.ok) {
+        alert(`Follow-up email sent to ${lead.businessName}`)
+        
+        // Update the email_sent_at timestamp in database
+        await supabase
+          .from('businesses')
+          .update({ 
+            email_sent_at: new Date().toISOString(),
+            last_contact_at: new Date().toISOString()
+          })
+          .eq('id', lead.id)
+        
+        // Refresh data
+        fetchRealBusinessData()
+      } else {
+        alert('Failed to send follow-up email')
+      }
+    } catch (error) {
+      console.error('Error sending follow-up:', error)
+      alert('Error sending follow-up email')
+    }
   }
 
-  const addNote = () => {
+  const addNote = async () => {
     if (selectedLead && newNote.trim()) {
-      setLeads(prevLeads =>
-        prevLeads.map(lead =>
-          lead.id === selectedLead.id
-            ? { ...lead, notes: [...(lead.notes || []), newNote] }
-            : lead
+      // In production, save note to database
+      const { error } = await supabase
+        .from('business_notes')
+        .insert({
+          business_id: selectedLead.id,
+          note: newNote,
+          created_at: new Date().toISOString()
+        })
+
+      if (!error) {
+        setLeads(prevLeads =>
+          prevLeads.map(lead =>
+            lead.id === selectedLead.id
+              ? { ...lead, notes: [...(lead.notes || []), newNote] }
+              : lead
+          )
         )
-      )
+      }
+      
       setNewNote('')
       setShowNoteModal(false)
     }
@@ -212,7 +308,49 @@ export default function CustomerPipeline() {
 
   const downloadInvoice = (lead: Lead) => {
     console.log('Downloading invoice for:', lead.businessName)
-    // Implement invoice download
+    // Generate and download invoice
+    const invoiceData = {
+      businessName: lead.businessName,
+      email: lead.email,
+      amount: lead.revenue || 299,
+      date: lead.joinDate || new Date().toLocaleDateString()
+    }
+    
+    // Create a simple text invoice (in production, generate PDF)
+    const invoiceText = `
+INVOICE
+================
+Business: ${invoiceData.businessName}
+Email: ${invoiceData.email}
+Amount: $${invoiceData.amount}
+Date: ${invoiceData.date}
+Status: PAID
+================
+Thank you for your business!
+    `.trim()
+    
+    const blob = new Blob([invoiceText], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoice-${lead.businessName.replace(/\s+/g, '-').toLowerCase()}.txt`
+    a.click()
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -220,7 +358,7 @@ export default function CustomerPipeline() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Customer Pipeline</h1>
-        <p className="text-gray-600">Track leads through your sales funnel</p>
+        <p className="text-gray-600">Track your {leads.length} real businesses through the sales funnel</p>
       </div>
 
       {/* Conversion Metrics */}
@@ -268,7 +406,7 @@ export default function CustomerPipeline() {
           <div className="flex items-center mb-4">
             <AlertCircle className="w-6 h-6 text-orange-500 mr-2" />
             <h2 className="text-xl font-bold text-gray-900">🔥 Hot Leads - Action Required!</h2>
-            <span className="ml-auto text-sm text-gray-600">Last 24 hours</span>
+            <span className="ml-auto text-sm text-gray-600">Clicked within 24 hours</span>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -318,6 +456,13 @@ export default function CustomerPipeline() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* No hot leads message */}
+      {hotLeads.length === 0 && (
+        <div className="bg-gray-50 rounded-lg p-6 mb-8 text-center">
+          <p className="text-gray-600">No hot leads at the moment. Send more emails to generate interest!</p>
         </div>
       )}
 
@@ -381,9 +526,25 @@ export default function CustomerPipeline() {
                             Call
                           </a>
                         )}
+                        {lead.previewUrl && (
+                          <a
+                            href={lead.previewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded hover:bg-purple-100 transition-colors"
+                          >
+                            View
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
+                  
+                {leads.filter(lead => lead.stage === stage.id).length === 0 && (
+                  <div className="text-center py-8 text-gray-400 text-sm">
+                    No businesses in this stage
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -391,85 +552,107 @@ export default function CustomerPipeline() {
       </div>
 
       {/* Customer List */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Paying Customers</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Total Revenue:</span>
-              <span className="text-xl font-bold text-green-600">
-                ${customers.reduce((sum, c) => sum + (c.revenue || 0), 0).toLocaleString()}
-              </span>
+      {customers.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Paying Customers</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Total Revenue:</span>
+                <span className="text-xl font-bold text-green-600">
+                  ${customers.reduce((sum, c) => sum + (c.revenue || 0), 0).toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Business
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Revenue
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Join Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {customers.map(customer => (
-                <tr key={customer.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{customer.businessName}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{customer.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-green-600">${customer.revenue}/mo</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{customer.joinDate}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                      Active
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => downloadInvoice(customer)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => sendFollowUp(customer)}
-                        className="text-gray-600 hover:text-gray-900"
-                      >
-                        <Mail className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Business
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Revenue
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Claimed Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {customers.map(customer => (
+                  <tr key={customer.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{customer.businessName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-600">{customer.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-600">{customer.phone || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-green-600">${customer.revenue}/mo</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-600">{customer.joinDate}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => downloadInvoice(customer)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Download Invoice"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => sendFollowUp(customer)}
+                          className="text-gray-600 hover:text-gray-900"
+                          title="Send Email"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </button>
+                        {customer.previewUrl && (
+                          <a
+                            href={customer.previewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-600 hover:text-purple-900"
+                            title="View Website"
+                          >
+                            <Activity className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* No customers message */}
+      {customers.length === 0 && (
+        <div className="bg-white rounded-lg shadow p-6 text-center">
+          <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Customers Yet</h3>
+          <p className="text-gray-600">Keep nurturing your leads. They'll convert soon!</p>
+        </div>
+      )}
 
       {/* Note Modal */}
       {showNoteModal && selectedLead && (
