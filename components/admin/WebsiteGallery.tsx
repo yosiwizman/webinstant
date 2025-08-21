@@ -1,12 +1,12 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { 
-  Eye, 
-  Mail, 
-  Copy, 
-  Trash2, 
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+import {
+  Eye,
+  Mail,
+  Copy,
+  Trash2,
   ExternalLink,
   Filter,
   Search,
@@ -17,66 +17,71 @@ import {
   Calendar,
   Building,
   Users,
-  MoreVertical
-} from 'lucide-react'
+  MoreVertical,
+} from "lucide-react";
 
 interface WebsitePreview {
-  id: string
-  business_id: string
-  preview_url: string
-  html_content: string
-  template_used: string
-  slug: string
-  create_at: string
+  id: string;
+  business_id: string;
+  preview_url: string;
+  html_content: string;
+  template_used: string;
+  slug: string;
+  create_at: string;
   business: {
-    id: string
-    business_name: string
-    industry_type: string
-    email: string
-    claimed_at: string | null
-  }
+    id: string;
+    business_name: string;
+    industry_type: string;
+    email: string;
+    claimed_at: string | null;
+  };
   emails: Array<{
-    id: string
-    sent_at: string
-    opened_at: string | null
-    clicked_at: string | null
-  }>
+    id: string;
+    sent_at: string;
+    opened_at: string | null;
+    clicked_at: string | null;
+  }>;
 }
 
 interface Stats {
-  total: number
-  generatedToday: number
-  pending: number
-  withEmailsSent: number
+  total: number;
+  generatedToday: number;
+  pending: number;
+  withEmailsSent: number;
 }
 
 export default function WebsiteGallery() {
-  const [previews, setPreviews] = useState<WebsitePreview[]>([])
-  const [filteredPreviews, setFilteredPreviews] = useState<WebsitePreview[]>([])
+  const [previews, setPreviews] = useState<WebsitePreview[]>([]);
+  const [filteredPreviews, setFilteredPreviews] = useState<WebsitePreview[]>(
+    []
+  );
   const [stats, setStats] = useState<Stats>({
     total: 0,
     generatedToday: 0,
     pending: 0,
-    withEmailsSent: 0
-  })
-  const [loading, setLoading] = useState(true)
-  const [selectedPreviews, setSelectedPreviews] = useState<Set<string>>(new Set())
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [showBulkActions, setShowBulkActions] = useState(false)
+    withEmailsSent: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [selectedPreviews, setSelectedPreviews] = useState<Set<string>>(
+    new Set()
+  );
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  );
 
   const fetchPreviews = useCallback(async () => {
     try {
       // Query website_previews joined with businesses and emails
       const { data, error } = await supabase
-        .from('website_previews')
-        .select(`
+        .from("website_previews")
+        .select(
+          `
           *,
           business:businesses!business_id (
             id,
@@ -85,227 +90,244 @@ export default function WebsiteGallery() {
             email,
             claimed_at
           )
-        `)
-        .order('created_at', { ascending: false })
+        `
+        )
+        .order("created_at", { ascending: false });
 
-      if (error) throw error
+      if (error) throw error;
 
       // For each preview, fetch associated emails
-      const previewsWithEmails = await Promise.all((data || []).map(async (preview) => {
-        const { data: emailData } = await supabase
-          .from('emails')
-          .select('id, sent_at, opened_at, clicked_at')
-          .eq('business_id', preview.business_id)
-          .order('sent_at', { ascending: false })
+      const previewsWithEmails = await Promise.all(
+        (data || []).map(async (preview) => {
+          const { data: emailData } = await supabase
+            .from("emails")
+            .select("id, sent_at, opened_at, clicked_at")
+            .eq("business_id", preview.business_id)
+            .order("sent_at", { ascending: false });
 
-        return {
-          ...preview,
-          emails: emailData || []
-        }
-      }))
+          return {
+            ...preview,
+            emails: emailData || [],
+          };
+        })
+      );
 
-      setPreviews(previewsWithEmails)
+      setPreviews(previewsWithEmails);
     } catch (error) {
-      console.error('Error fetching previews:', error)
+      console.error("Error fetching previews:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [supabase])
+  }, [supabase]);
 
   const fetchStats = useCallback(async () => {
     try {
       // Total previews
       const { count: totalCount } = await supabase
-        .from('website_previews')
-        .select('*', { count: 'exact', head: true })
+        .from("website_previews")
+        .select("*", { count: "exact", head: true });
 
       // Generated today
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayISO = today.toISOString()
-      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
       const { count: todayCount } = await supabase
-        .from('website_previews')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayISO)
+        .from("website_previews")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", todayISO);
 
       // Pending (businesses without previews)
       const { data: allBusinesses } = await supabase
-        .from('businesses')
-        .select('id')
-      
+        .from("businesses")
+        .select("id");
+
       const { data: businessesWithPreviews } = await supabase
-        .from('website_previews')
-        .select('business_id')
-      
-      const businessesWithPreviewsSet = new Set(businessesWithPreviews?.map(p => p.business_id) || [])
-      const pendingCount = (allBusinesses || []).filter(b => !businessesWithPreviewsSet.has(b.id)).length
+        .from("website_previews")
+        .select("business_id");
+
+      const businessesWithPreviewsSet = new Set(
+        businessesWithPreviews?.map((p) => p.business_id) || []
+      );
+      const pendingCount = (allBusinesses || []).filter(
+        (b) => !businessesWithPreviewsSet.has(b.id)
+      ).length;
 
       // With emails sent
       const { data: previewsWithEmails } = await supabase
-        .from('emails')
-        .select('business_id')
-        .not('business_id', 'is', null)
-      
-      const uniqueBusinessesWithEmails = new Set(previewsWithEmails?.map(e => e.business_id) || [])
+        .from("emails")
+        .select("business_id")
+        .not("business_id", "is", null);
+
+      const uniqueBusinessesWithEmails = new Set(
+        previewsWithEmails?.map((e) => e.business_id) || []
+      );
 
       setStats({
         total: totalCount || 0,
         generatedToday: todayCount || 0,
         pending: pendingCount,
-        withEmailsSent: uniqueBusinessesWithEmails.size
-      })
+        withEmailsSent: uniqueBusinessesWithEmails.size,
+      });
     } catch (error) {
-      console.error('Error fetching stats:', error)
+      console.error("Error fetching stats:", error);
     }
-  }, [supabase])
+  }, [supabase]);
 
   const filterPreviews = useCallback(() => {
-    let filtered = [...previews]
+    let filtered = [...previews];
 
     // Status filter
     switch (statusFilter) {
-      case 'no-email':
-        filtered = filtered.filter(p => p.emails.length === 0)
-        break
-      case 'opened':
-        filtered = filtered.filter(p => p.emails.some(e => e.opened_at !== null))
-        break
-      case 'customer':
-        filtered = filtered.filter(p => p.business.claimed_at !== null)
-        break
+      case "no-email":
+        filtered = filtered.filter((p) => p.emails.length === 0);
+        break;
+      case "opened":
+        filtered = filtered.filter((p) =>
+          p.emails.some((e) => e.opened_at !== null)
+        );
+        break;
+      case "customer":
+        filtered = filtered.filter((p) => p.business.claimed_at !== null);
+        break;
     }
 
     // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(p => p.business.industry_type === categoryFilter)
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(
+        (p) => p.business.industry_type === categoryFilter
+      );
     }
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(p => 
-        p.business.business_name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      filtered = filtered.filter((p) =>
+        p.business.business_name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
+      );
     }
 
-    setFilteredPreviews(filtered)
-  }, [previews, statusFilter, categoryFilter, searchTerm])
+    setFilteredPreviews(filtered);
+  }, [previews, statusFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
-    fetchPreviews()
-    fetchStats()
-  }, [fetchPreviews, fetchStats])
+    fetchPreviews();
+    fetchStats();
+  }, [fetchPreviews, fetchStats]);
 
   useEffect(() => {
-    filterPreviews()
-  }, [filterPreviews])
+    filterPreviews();
+  }, [filterPreviews]);
 
   useEffect(() => {
-    setShowBulkActions(selectedPreviews.size > 0)
-  }, [selectedPreviews])
+    setShowBulkActions(selectedPreviews.size > 0);
+  }, [selectedPreviews]);
 
   const handleSelectPreview = (id: string) => {
-    const newSelected = new Set(selectedPreviews)
+    const newSelected = new Set(selectedPreviews);
     if (newSelected.has(id)) {
-      newSelected.delete(id)
+      newSelected.delete(id);
     } else {
-      newSelected.add(id)
+      newSelected.add(id);
     }
-    setSelectedPreviews(newSelected)
-  }
+    setSelectedPreviews(newSelected);
+  };
 
   const handleSelectAll = () => {
     if (selectedPreviews.size === filteredPreviews.length) {
-      setSelectedPreviews(new Set())
+      setSelectedPreviews(new Set());
     } else {
-      setSelectedPreviews(new Set(filteredPreviews.map(p => p.id)))
+      setSelectedPreviews(new Set(filteredPreviews.map((p) => p.id)));
     }
-  }
+  };
 
   const handleSendEmail = async (preview: WebsitePreview) => {
     try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
+      const response = await fetch("/api/send-email", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           businessId: preview.business_id,
           businessName: preview.business.business_name,
           email: preview.business.email,
-          previewUrl: preview.preview_url
-        })
-      })
+          previewUrl: preview.preview_url,
+        }),
+      });
 
       if (response.ok) {
-        console.log('Email sent successfully')
-        await fetchPreviews()
-        await fetchStats()
+        console.log("Email sent successfully");
+        await fetchPreviews();
+        await fetchStats();
       } else {
-        console.error('Failed to send email')
+        console.error("Failed to send email");
       }
     } catch (error) {
-      console.error('Error sending email:', error)
+      console.error("Error sending email:", error);
     }
-  }
+  };
 
   const handleBulkSendEmails = async () => {
     for (const previewId of selectedPreviews) {
-      const preview = previews.find(p => p.id === previewId)
+      const preview = previews.find((p) => p.id === previewId);
       if (preview) {
-        await handleSendEmail(preview)
+        await handleSendEmail(preview);
       }
     }
-    setSelectedPreviews(new Set())
-    await fetchPreviews()
-  }
+    setSelectedPreviews(new Set());
+    await fetchPreviews();
+  };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedPreviews.size} previews?`)) return
-    
+    if (!confirm(`Delete ${selectedPreviews.size} previews?`)) return;
+
     for (const id of selectedPreviews) {
-      await supabase.from('website_previews').delete().eq('id', id)
+      await supabase.from("website_previews").delete().eq("id", id);
     }
-    
-    await fetchPreviews()
-    await fetchStats()
-    setSelectedPreviews(new Set())
-  }
+
+    await fetchPreviews();
+    await fetchStats();
+    setSelectedPreviews(new Set());
+  };
 
   const handleCopyLink = (url: string) => {
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(url);
     // You could add a toast notification here
-  }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this preview?')) return
-    
-    await supabase.from('website_previews').delete().eq('id', id)
-    await fetchPreviews()
-    await fetchStats()
-  }
+    if (!confirm("Delete this preview?")) return;
+
+    await supabase.from("website_previews").delete().eq("id", id);
+    await fetchPreviews();
+    await fetchStats();
+  };
 
   const getBusinessTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      restaurant: 'bg-orange-100 text-orange-800',
-      beauty: 'bg-pink-100 text-pink-800',
-      medical: 'bg-blue-100 text-blue-800',
-      retail: 'bg-purple-100 text-purple-800',
-      service: 'bg-green-100 text-green-800',
-      fitness: 'bg-red-100 text-red-800',
-      default: 'bg-gray-100 text-gray-800'
-    }
-    return colors[type] || colors.default
-  }
+      restaurant: "bg-orange-100 text-orange-800",
+      beauty: "bg-pink-100 text-pink-800",
+      medical: "bg-blue-100 text-blue-800",
+      retail: "bg-purple-100 text-purple-800",
+      service: "bg-green-100 text-green-800",
+      fitness: "bg-red-100 text-red-800",
+      default: "bg-gray-100 text-gray-800",
+    };
+    return colors[type] || colors.default;
+  };
 
-  const categories = Array.from(new Set(previews.map(p => p.business.industry_type).filter(Boolean)))
+  const categories = Array.from(
+    new Set(previews.map((p) => p.business.industry_type).filter(Boolean))
+  );
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
   return (
@@ -328,7 +350,9 @@ export default function WebsiteGallery() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Generated Today</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.generatedToday}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {stats.generatedToday}
+              </p>
             </div>
             <div className="bg-green-100 p-3 rounded-lg">
               <Calendar className="w-6 h-6 text-green-600" />
@@ -340,7 +364,9 @@ export default function WebsiteGallery() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.pending}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {stats.pending}
+              </p>
             </div>
             <div className="bg-yellow-100 p-3 rounded-lg">
               <Users className="w-6 h-6 text-yellow-600" />
@@ -352,7 +378,9 @@ export default function WebsiteGallery() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">With Emails</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.withEmailsSent}</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {stats.withEmailsSent}
+              </p>
             </div>
             <div className="bg-purple-100 p-3 rounded-lg">
               <Mail className="w-6 h-6 text-purple-600" />
@@ -386,8 +414,10 @@ export default function WebsiteGallery() {
               className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
               ))}
             </select>
           </div>
@@ -410,7 +440,9 @@ export default function WebsiteGallery() {
               onClick={handleSelectAll}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
-              {selectedPreviews.size === filteredPreviews.length ? 'Deselect All' : 'Select All'}
+              {selectedPreviews.size === filteredPreviews.length
+                ? "Deselect All"
+                : "Select All"}
             </button>
           )}
         </div>
@@ -418,7 +450,9 @@ export default function WebsiteGallery() {
         {/* Bulk Actions */}
         {showBulkActions && (
           <div className="mt-4 pt-4 border-t border-gray-200 flex items-center gap-3">
-            <span className="text-sm text-gray-600">{selectedPreviews.size} selected</span>
+            <span className="text-sm text-gray-600">
+              {selectedPreviews.size} selected
+            </span>
             <button
               onClick={handleBulkSendEmails}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -440,16 +474,18 @@ export default function WebsiteGallery() {
       {/* Preview Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPreviews.map((preview) => {
-          const emailSent = preview.emails.length > 0
-          const emailOpened = preview.emails.some(e => e.opened_at !== null)
-          const linkClicked = preview.emails.some(e => e.clicked_at !== null)
-          const isCustomer = preview.business.claimed_at !== null
+          const emailSent = preview.emails.length > 0;
+          const emailOpened = preview.emails.some((e) => e.opened_at !== null);
+          const linkClicked = preview.emails.some((e) => e.clicked_at !== null);
+          const isCustomer = preview.business.claimed_at !== null;
 
           return (
             <div
               key={preview.id}
               className={`bg-white rounded-xl shadow-sm border ${
-                selectedPreviews.has(preview.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-100'
+                selectedPreviews.has(preview.id)
+                  ? "border-blue-500 ring-2 ring-blue-200"
+                  : "border-gray-100"
               } overflow-hidden hover:shadow-lg transition-all duration-200`}
             >
               {/* Selection Checkbox */}
@@ -461,7 +497,9 @@ export default function WebsiteGallery() {
                     onChange={() => handleSelectPreview(preview.id)}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm font-medium text-gray-700">Select</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    Select
+                  </span>
                 </label>
                 <button className="p-1 hover:bg-gray-100 rounded-lg">
                   <MoreVertical className="w-4 h-4 text-gray-500" />
@@ -473,7 +511,12 @@ export default function WebsiteGallery() {
                 <iframe
                   src={preview.preview_url}
                   className="w-full h-full pointer-events-none"
-                  style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%', height: '200%' }}
+                  style={{
+                    transform: "scale(0.5)",
+                    transformOrigin: "top left",
+                    width: "200%",
+                    height: "200%",
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
               </div>
@@ -482,9 +525,15 @@ export default function WebsiteGallery() {
               <div className="p-4">
                 {/* Business Name and Category */}
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{preview.business.business_name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {preview.business.business_name}
+                  </h3>
                   {preview.business.industry_type && (
-                    <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getBusinessTypeColor(preview.business.industry_type)}`}>
+                    <span
+                      className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getBusinessTypeColor(
+                        preview.business.industry_type
+                      )}`}
+                    >
                       {preview.business.industry_type}
                     </span>
                   )}
@@ -496,28 +545,28 @@ export default function WebsiteGallery() {
                     <CheckCircle className="w-3 h-3" />
                     Preview Ready
                   </span>
-                  
+
                   {emailSent && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
                       <Mail className="w-3 h-3" />
                       Email Sent
                     </span>
                   )}
-                  
+
                   {emailOpened && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
                       <MailOpen className="w-3 h-3" />
                       Opened
                     </span>
                   )}
-                  
+
                   {linkClicked && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
                       <MousePointer className="w-3 h-3" />
                       Clicked
                     </span>
                   )}
-                  
+
                   {isCustomer && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
                       <DollarSign className="w-3 h-3" />
@@ -535,7 +584,10 @@ export default function WebsiteGallery() {
                     className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    {preview.preview_url.replace('http://localhost:3000/', '').substring(0, 30)}...
+                    {preview.preview_url
+                      .replace("http://localhost:3000/", "")
+                      .substring(0, 30)}
+                    ...
                   </a>
                 </div>
 
@@ -550,20 +602,20 @@ export default function WebsiteGallery() {
                     <Eye className="w-4 h-4" />
                     View
                   </a>
-                  
+
                   <button
                     onClick={() => handleSendEmail(preview)}
                     disabled={emailSent}
                     className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium ${
-                      emailSent 
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                      emailSent
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
                     <Mail className="w-4 h-4" />
-                    {emailSent ? 'Sent' : 'Send'}
+                    {emailSent ? "Sent" : "Send"}
                   </button>
-                  
+
                   <button
                     onClick={() => handleCopyLink(preview.preview_url)}
                     className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
@@ -571,7 +623,7 @@ export default function WebsiteGallery() {
                     <Copy className="w-4 h-4" />
                     Copy
                   </button>
-                  
+
                   <button
                     onClick={() => handleDelete(preview.id)}
                     className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
@@ -582,7 +634,7 @@ export default function WebsiteGallery() {
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
 
@@ -590,10 +642,14 @@ export default function WebsiteGallery() {
       {filteredPreviews.length === 0 && (
         <div className="text-center py-12">
           <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No previews found</h3>
-          <p className="text-gray-600">Try adjusting your filters or search term</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No previews found
+          </h3>
+          <p className="text-gray-600">
+            Try adjusting your filters or search term
+          </p>
         </div>
       )}
     </div>
-  )
+  );
 }
