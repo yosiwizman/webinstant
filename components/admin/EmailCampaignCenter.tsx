@@ -104,90 +104,7 @@ export default function EmailCampaignCenter() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const fetchTemplates = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("email_templates")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setTemplates(data);
-        setSelectedTemplate(data[0].id);
-      } else {
-        // Create default templates if none exist
-        await createDefaultTemplates();
-        // Recursive call to fetch after creating
-        const { data: newData } = await supabase
-          .from("email_templates")
-          .select("*")
-          .eq("is_active", true)
-          .order("created_at", { ascending: false });
-        
-        if (newData && newData.length > 0) {
-          setTemplates(newData);
-          setSelectedTemplate(newData[0].id);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching templates:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStats();
-    fetchEmailQueue();
-    fetchEmailHistory();
-    fetchTemplates();
-    fetchABTests();
-  }, [fetchTemplates]);
-
-  const fetchStats = async () => {
-    try {
-      // Get today's date range
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Query emails sent today
-      const { data: sentToday, error: sentError } = await supabase
-        .from("emails")
-        .select("id")
-        .gte("sent_at", today.toISOString())
-        .lt("sent_at", tomorrow.toISOString())
-        .not("sent_at", "is", null);
-
-      if (sentError) throw sentError;
-
-      // Query all emails for rates
-      const { data: allEmails, error: allError } = await supabase
-        .from("emails")
-        .select("id, opened_at, clicked_at, converted_at")
-        .not("sent_at", "is", null);
-
-      if (allError) throw allError;
-
-      const total = allEmails?.length || 0;
-      const opened = allEmails?.filter((e) => e.opened_at).length || 0;
-      const clicked = allEmails?.filter((e) => e.clicked_at).length || 0;
-      const converted = allEmails?.filter((e) => e.converted_at).length || 0;
-
-      setStats({
-        emailsSentToday: sentToday?.length || 0,
-        openRate: total > 0 ? Math.round((opened / total) * 100) : 0,
-        clickRate: total > 0 ? Math.round((clicked / total) * 100) : 0,
-        conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
-      });
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
-
-  const createDefaultTemplates = async () => {
+  const createDefaultTemplates = useCallback(async () => {
     const defaultTemplates = [
       {
         name: "Professional Template",
@@ -228,9 +145,84 @@ The Team`,
     for (const template of defaultTemplates) {
       await supabase.from("email_templates").insert(template);
     }
-  };
+  }, [supabase]);
 
-  const fetchABTests = async () => {
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setTemplates(data);
+        setSelectedTemplate(data[0].id);
+      } else {
+        // Create default templates if none exist
+        await createDefaultTemplates();
+        // Recursive call to fetch after creating
+        const { data: newData } = await supabase
+          .from("email_templates")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+        
+        if (newData && newData.length > 0) {
+          setTemplates(newData);
+          setSelectedTemplate(newData[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+    }
+  }, [createDefaultTemplates, supabase]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      // Get today's date range
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Query emails sent today
+      const { data: sentToday, error: sentError } = await supabase
+        .from("emails")
+        .select("id")
+        .gte("sent_at", today.toISOString())
+        .lt("sent_at", tomorrow.toISOString())
+        .not("sent_at", "is", null);
+
+      if (sentError) throw sentError;
+
+      // Query all emails for rates
+      const { data: allEmails, error: allError } = await supabase
+        .from("emails")
+        .select("id, opened_at, clicked_at, converted_at")
+        .not("sent_at", "is", null);
+
+      if (allError) throw allError;
+
+      const total = allEmails?.length || 0;
+      const opened = allEmails?.filter((e) => e.opened_at).length || 0;
+      const clicked = allEmails?.filter((e) => e.clicked_at).length || 0;
+      const converted = allEmails?.filter((e) => e.converted_at).length || 0;
+
+      setStats({
+        emailsSentToday: sentToday?.length || 0,
+        openRate: total > 0 ? Math.round((opened / total) * 100) : 0,
+        clickRate: total > 0 ? Math.round((clicked / total) * 100) : 0,
+        conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  }, [supabase]);
+
+  const fetchABTests = useCallback(async () => {
     try {
       // Get active A/B test
       const { data: activeTest, error: testError } = await supabase
@@ -310,9 +302,9 @@ The Team`,
     } catch (error) {
       console.error("Error fetching A/B tests:", error);
     }
-  };
+  }, [supabase]);
 
-  const fetchEmailQueue = async () => {
+  const fetchEmailQueue = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("email_queue")
@@ -350,9 +342,9 @@ The Team`,
     } catch (error) {
       console.error("Error fetching email queue:", error);
     }
-  };
+  }, [supabase]);
 
-  const fetchEmailHistory = async () => {
+  const fetchEmailHistory = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("emails")
@@ -395,7 +387,15 @@ The Team`,
     } catch (error) {
       console.error("Error fetching email history:", error);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchStats();
+    fetchEmailQueue();
+    fetchEmailHistory();
+    fetchTemplates();
+    fetchABTests();
+  }, [fetchStats, fetchEmailQueue, fetchEmailHistory, fetchTemplates, fetchABTests]);
 
   const handleSendCampaign = async () => {
     setLoading(true);
