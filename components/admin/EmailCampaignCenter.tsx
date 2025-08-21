@@ -1,48 +1,48 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface CampaignStats {
-  emailsSentToday: number
-  openRate: number
-  clickRate: number
-  conversionRate: number
+  emailsSentToday: number;
+  openRate: number;
+  clickRate: number;
+  conversionRate: number;
 }
 
 interface ABTestTemplate {
-  id: string
-  name: string
-  subject: string
-  preview: string
+  id: string;
+  name: string;
+  subject: string;
+  preview: string;
   metrics: {
-    sent: number
-    opens: number
-    clicks: number
-    openRate: number
-    clickRate: number
-  }
+    sent: number;
+    opens: number;
+    clicks: number;
+    openRate: number;
+    clickRate: number;
+  };
 }
 
 interface EmailQueueItem {
-  id: string
-  businessName: string
-  email: string
-  template: string
-  scheduledFor: string
-  status: 'pending' | 'sending' | 'sent' | 'failed'
+  id: string;
+  businessName: string;
+  email: string;
+  template: string;
+  scheduledFor: string;
+  status: "pending" | "sending" | "sent" | "failed";
 }
 
 interface EmailHistoryItem {
-  id: string
-  businessName: string
-  email: string
-  template: string
-  sentAt: string
-  opened: boolean
-  clicked: boolean
-  openedAt?: string
-  clickedAt?: string
+  id: string;
+  businessName: string;
+  email: string;
+  template: string;
+  sentAt: string;
+  opened: boolean;
+  clicked: boolean;
+  openedAt?: string;
+  clickedAt?: string;
 }
 
 export default function EmailCampaignCenter() {
@@ -50,195 +50,213 @@ export default function EmailCampaignCenter() {
     emailsSentToday: 0,
     openRate: 0,
     clickRate: 0,
-    conversionRate: 0
-  })
+    conversionRate: 0,
+  });
   const [abTests, setAbTests] = useState<{
-    templateA: ABTestTemplate
-    templateB: ABTestTemplate
-    winner?: 'A' | 'B'
+    templateA: ABTestTemplate;
+    templateB: ABTestTemplate;
+    winner?: "A" | "B";
   }>({
     templateA: {
-      id: 'template-a',
-      name: 'Professional Template',
-      subject: 'Your New Professional Website is Ready!',
-      preview: 'Hi {businessName}, Your stunning new website is live and ready to attract customers...',
-      metrics: { sent: 150, opens: 75, clicks: 30, openRate: 50, clickRate: 20 }
+      id: "template-a",
+      name: "Professional Template",
+      subject: "Your New Professional Website is Ready!",
+      preview:
+        "Hi {businessName}, Your stunning new website is live and ready to attract customers...",
+      metrics: {
+        sent: 150,
+        opens: 75,
+        clicks: 30,
+        openRate: 50,
+        clickRate: 20,
+      },
     },
     templateB: {
-      id: 'template-b',
-      name: 'Friendly Template',
-      subject: 'Hey {businessName}! Check Out Your Amazing New Website 🎉',
-      preview: 'Hey there! Great news - your brand new website just went live and it looks fantastic...',
-      metrics: { sent: 150, opens: 90, clicks: 45, openRate: 60, clickRate: 30 }
+      id: "template-b",
+      name: "Friendly Template",
+      subject: "Hey {businessName}! Check Out Your Amazing New Website 🎉",
+      preview:
+        "Hey there! Great news - your brand new website just went live and it looks fantastic...",
+      metrics: {
+        sent: 150,
+        opens: 90,
+        clicks: 45,
+        openRate: 60,
+        clickRate: 30,
+      },
     },
-    winner: 'B'
-  })
-  const [selectedTemplate, setSelectedTemplate] = useState('template-a')
-  const [emailCount, setEmailCount] = useState(10)
-  const [targetSegment, setTargetSegment] = useState('no-website')
-  const [scheduleTime, setScheduleTime] = useState('')
-  const [emailQueue, setEmailQueue] = useState<EmailQueueItem[]>([])
-  const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([])
-  const [showTemplateEditor, setShowTemplateEditor] = useState(false)
-  const [editingTemplate, setEditingTemplate] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+    winner: "B",
+  });
+  const [selectedTemplate, setSelectedTemplate] = useState("template-a");
+  const [emailCount, setEmailCount] = useState(10);
+  const [targetSegment, setTargetSegment] = useState("no-website");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [emailQueue, setEmailQueue] = useState<EmailQueueItem[]>([]);
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([]);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchStats()
-    fetchEmailQueue()
-    fetchEmailHistory()
-  }, [])
+    fetchStats();
+    fetchEmailQueue();
+    fetchEmailHistory();
+  }, []);
 
   const fetchStats = async () => {
     try {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       const { data: sentToday } = await supabase
-        .from('email_logs')
-        .select('*')
-        .gte('sent_at', today.toISOString())
-        .eq('status', 'sent')
-      
+        .from("email_logs")
+        .select("*")
+        .gte("sent_at", today.toISOString())
+        .eq("status", "sent");
+
       const { data: allEmails } = await supabase
-        .from('email_logs')
-        .select('*')
-        .eq('status', 'sent')
-      
-      const opened = allEmails?.filter(e => e.opened_at).length || 0
-      const clicked = allEmails?.filter(e => e.clicked_at).length || 0
-      const converted = allEmails?.filter(e => e.converted_at).length || 0
-      const total = allEmails?.length || 1
-      
+        .from("email_logs")
+        .select("*")
+        .eq("status", "sent");
+
+      const opened = allEmails?.filter((e) => e.opened_at).length || 0;
+      const clicked = allEmails?.filter((e) => e.clicked_at).length || 0;
+      const converted = allEmails?.filter((e) => e.converted_at).length || 0;
+      const total = allEmails?.length || 1;
+
       setStats({
         emailsSentToday: sentToday?.length || 0,
         openRate: Math.round((opened / total) * 100),
         clickRate: Math.round((clicked / total) * 100),
-        conversionRate: Math.round((converted / total) * 100)
-      })
+        conversionRate: Math.round((converted / total) * 100),
+      });
     } catch (error) {
-      console.error('Error fetching stats:', error)
+      console.error("Error fetching stats:", error);
     }
-  }
+  };
 
   const fetchEmailQueue = async () => {
     try {
       const { data } = await supabase
-        .from('email_queue')
-        .select('*')
-        .eq('status', 'pending')
-        .order('scheduled_for', { ascending: true })
-        .limit(10)
-      
+        .from("email_queue")
+        .select("*")
+        .eq("status", "pending")
+        .order("scheduled_for", { ascending: true })
+        .limit(10);
+
       if (data) {
-        setEmailQueue(data.map(item => ({
-          id: item.id,
-          businessName: item.business_name,
-          email: item.email,
-          template: item.template_name,
-          scheduledFor: item.scheduled_for,
-          status: item.status
-        })))
+        setEmailQueue(
+          data.map((item) => ({
+            id: item.id,
+            businessName: item.business_name,
+            email: item.email,
+            template: item.template_name,
+            scheduledFor: item.scheduled_for,
+            status: item.status,
+          }))
+        );
       }
     } catch (error) {
-      console.error('Error fetching email queue:', error)
+      console.error("Error fetching email queue:", error);
     }
-  }
+  };
 
   const fetchEmailHistory = async () => {
     try {
       const { data } = await supabase
-        .from('email_logs')
-        .select('*')
-        .order('sent_at', { ascending: false })
-        .limit(20)
-      
+        .from("email_logs")
+        .select("*")
+        .order("sent_at", { ascending: false })
+        .limit(20);
+
       if (data) {
-        setEmailHistory(data.map(item => ({
-          id: item.id,
-          businessName: item.business_name,
-          email: item.email,
-          template: item.template_name,
-          sentAt: item.sent_at,
-          opened: !!item.opened_at,
-          clicked: !!item.clicked_at,
-          openedAt: item.opened_at,
-          clickedAt: item.clicked_at
-        })))
+        setEmailHistory(
+          data.map((item) => ({
+            id: item.id,
+            businessName: item.business_name,
+            email: item.email,
+            template: item.template_name,
+            sentAt: item.sent_at,
+            opened: !!item.opened_at,
+            clicked: !!item.clicked_at,
+            openedAt: item.opened_at,
+            clickedAt: item.clicked_at,
+          }))
+        );
       }
     } catch (error) {
-      console.error('Error fetching email history:', error)
+      console.error("Error fetching email history:", error);
     }
-  }
+  };
 
   const handleSendCampaign = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await fetch('/api/send-campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/send-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           template: selectedTemplate,
           count: emailCount,
           segment: targetSegment,
-          scheduleTime: scheduleTime || null
-        })
-      })
-      
+          scheduleTime: scheduleTime || null,
+        }),
+      });
+
       if (response.ok) {
-        alert('Campaign sent successfully!')
-        fetchStats()
-        fetchEmailQueue()
-        fetchEmailHistory()
+        alert("Campaign sent successfully!");
+        fetchStats();
+        fetchEmailQueue();
+        fetchEmailHistory();
       } else {
-        alert('Failed to send campaign')
+        alert("Failed to send campaign");
       }
     } catch (error) {
-      console.error('Error sending campaign:', error)
-      alert('Error sending campaign')
+      console.error("Error sending campaign:", error);
+      alert("Error sending campaign");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCancelEmail = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('email_queue')
-        .update({ status: 'cancelled' })
-        .eq('id', id)
-      
+        .from("email_queue")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+
       if (!error) {
-        fetchEmailQueue()
+        fetchEmailQueue();
       }
     } catch (error) {
-      console.error('Error cancelling email:', error)
+      console.error("Error cancelling email:", error);
     }
-  }
+  };
 
   const handleResendEmail = async (historyItem: EmailHistoryItem) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await fetch('/api/send-campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/send-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           template: historyItem.template,
           emails: [historyItem.email],
-          businessName: historyItem.businessName
-        })
-      })
-      
+          businessName: historyItem.businessName,
+        }),
+      });
+
       if (response.ok) {
-        alert('Email resent successfully!')
-        fetchEmailHistory()
+        alert("Email resent successfully!");
+        fetchEmailHistory();
       }
     } catch (error) {
-      console.error('Error resending email:', error)
+      console.error("Error resending email:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -248,19 +266,27 @@ export default function EmailCampaignCenter() {
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-blue-50 p-4 rounded">
             <div className="text-sm text-gray-600">Emails Sent Today</div>
-            <div className="text-2xl font-bold text-blue-600">{stats.emailsSentToday}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {stats.emailsSentToday}
+            </div>
           </div>
           <div className="bg-green-50 p-4 rounded">
             <div className="text-sm text-gray-600">Open Rate</div>
-            <div className="text-2xl font-bold text-green-600">{stats.openRate}%</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.openRate}%
+            </div>
           </div>
           <div className="bg-purple-50 p-4 rounded">
             <div className="text-sm text-gray-600">Click Rate</div>
-            <div className="text-2xl font-bold text-purple-600">{stats.clickRate}%</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {stats.clickRate}%
+            </div>
           </div>
           <div className="bg-orange-50 p-4 rounded">
             <div className="text-sm text-gray-600">Conversion Rate</div>
-            <div className="text-2xl font-bold text-orange-600">{stats.conversionRate}%</div>
+            <div className="text-2xl font-bold text-orange-600">
+              {stats.conversionRate}%
+            </div>
           </div>
         </div>
       </div>
@@ -270,35 +296,49 @@ export default function EmailCampaignCenter() {
         <h2 className="text-2xl font-bold mb-4">A/B Test Results</h2>
         <div className="grid grid-cols-2 gap-6">
           {/* Template A */}
-          <div className={`border-2 rounded-lg p-4 ${abTests.winner === 'A' ? 'border-green-500' : 'border-gray-200'}`}>
-            {abTests.winner === 'A' && (
+          <div
+            className={`border-2 rounded-lg p-4 ${
+              abTests.winner === "A" ? "border-green-500" : "border-gray-200"
+            }`}
+          >
+            {abTests.winner === "A" && (
               <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold inline-block mb-2">
                 🏆 Winner
               </div>
             )}
             <h3 className="font-bold text-lg mb-2">{abTests.templateA.name}</h3>
             <div className="bg-gray-50 p-3 rounded mb-3">
-              <div className="text-sm font-semibold mb-1">Subject: {abTests.templateA.subject}</div>
-              <div className="text-sm text-gray-600">{abTests.templateA.preview}</div>
+              <div className="text-sm font-semibold mb-1">
+                Subject: {abTests.templateA.subject}
+              </div>
+              <div className="text-sm text-gray-600">
+                {abTests.templateA.preview}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Sent:</span>
-                <span className="font-semibold">{abTests.templateA.metrics.sent}</span>
+                <span className="font-semibold">
+                  {abTests.templateA.metrics.sent}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Open Rate:</span>
-                <span className="font-semibold text-green-600">{abTests.templateA.metrics.openRate}%</span>
+                <span className="font-semibold text-green-600">
+                  {abTests.templateA.metrics.openRate}%
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Click Rate:</span>
-                <span className="font-semibold text-purple-600">{abTests.templateA.metrics.clickRate}%</span>
+                <span className="font-semibold text-purple-600">
+                  {abTests.templateA.metrics.clickRate}%
+                </span>
               </div>
             </div>
             <button
               onClick={() => {
-                setEditingTemplate('template-a')
-                setShowTemplateEditor(true)
+                setEditingTemplate("template-a");
+                setShowTemplateEditor(true);
               }}
               className="mt-3 text-sm text-blue-600 hover:text-blue-800"
             >
@@ -307,35 +347,49 @@ export default function EmailCampaignCenter() {
           </div>
 
           {/* Template B */}
-          <div className={`border-2 rounded-lg p-4 ${abTests.winner === 'B' ? 'border-green-500' : 'border-gray-200'}`}>
-            {abTests.winner === 'B' && (
+          <div
+            className={`border-2 rounded-lg p-4 ${
+              abTests.winner === "B" ? "border-green-500" : "border-gray-200"
+            }`}
+          >
+            {abTests.winner === "B" && (
               <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold inline-block mb-2">
                 🏆 Winner
               </div>
             )}
             <h3 className="font-bold text-lg mb-2">{abTests.templateB.name}</h3>
             <div className="bg-gray-50 p-3 rounded mb-3">
-              <div className="text-sm font-semibold mb-1">Subject: {abTests.templateB.subject}</div>
-              <div className="text-sm text-gray-600">{abTests.templateB.preview}</div>
+              <div className="text-sm font-semibold mb-1">
+                Subject: {abTests.templateB.subject}
+              </div>
+              <div className="text-sm text-gray-600">
+                {abTests.templateB.preview}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Sent:</span>
-                <span className="font-semibold">{abTests.templateB.metrics.sent}</span>
+                <span className="font-semibold">
+                  {abTests.templateB.metrics.sent}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Open Rate:</span>
-                <span className="font-semibold text-green-600">{abTests.templateB.metrics.openRate}%</span>
+                <span className="font-semibold text-green-600">
+                  {abTests.templateB.metrics.openRate}%
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Click Rate:</span>
-                <span className="font-semibold text-purple-600">{abTests.templateB.metrics.clickRate}%</span>
+                <span className="font-semibold text-purple-600">
+                  {abTests.templateB.metrics.clickRate}%
+                </span>
               </div>
             </div>
             <button
               onClick={() => {
-                setEditingTemplate('template-b')
-                setShowTemplateEditor(true)
+                setEditingTemplate("template-b");
+                setShowTemplateEditor(true);
               }}
               className="mt-3 text-sm text-blue-600 hover:text-blue-800"
             >
@@ -350,7 +404,9 @@ export default function EmailCampaignCenter() {
         <h2 className="text-2xl font-bold mb-4">Quick Send Campaign</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Select Template</label>
+            <label className="block text-sm font-medium mb-2">
+              Select Template
+            </label>
             <select
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
@@ -363,7 +419,9 @@ export default function EmailCampaignCenter() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Number of Emails</label>
+            <label className="block text-sm font-medium mb-2">
+              Number of Emails
+            </label>
             <input
               type="number"
               value={emailCount}
@@ -374,7 +432,9 @@ export default function EmailCampaignCenter() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Target Segment</label>
+            <label className="block text-sm font-medium mb-2">
+              Target Segment
+            </label>
             <select
               value={targetSegment}
               onChange={(e) => setTargetSegment(e.target.value)}
@@ -387,7 +447,9 @@ export default function EmailCampaignCenter() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Schedule (Optional)</label>
+            <label className="block text-sm font-medium mb-2">
+              Schedule (Optional)
+            </label>
             <input
               type="datetime-local"
               value={scheduleTime}
@@ -401,7 +463,11 @@ export default function EmailCampaignCenter() {
           disabled={loading}
           className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Sending...' : scheduleTime ? 'Schedule Campaign' : 'Send Campaign Now'}
+          {loading
+            ? "Sending..."
+            : scheduleTime
+            ? "Schedule Campaign"
+            : "Send Campaign Now"}
         </button>
       </div>
 
@@ -508,36 +574,56 @@ export default function EmailCampaignCenter() {
       {showTemplateEditor && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Edit Template: {editingTemplate}</h3>
+            <h3 className="text-xl font-bold mb-4">
+              Edit Template: {editingTemplate}
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Template Name</label>
+                <label className="block text-sm font-medium mb-2">
+                  Template Name
+                </label>
                 <input
                   type="text"
                   className="w-full border rounded-lg px-3 py-2"
-                  defaultValue={editingTemplate === 'template-a' ? abTests.templateA.name : abTests.templateB.name}
+                  defaultValue={
+                    editingTemplate === "template-a"
+                      ? abTests.templateA.name
+                      : abTests.templateB.name
+                  }
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Subject Line</label>
+                <label className="block text-sm font-medium mb-2">
+                  Subject Line
+                </label>
                 <input
                   type="text"
                   className="w-full border rounded-lg px-3 py-2"
-                  defaultValue={editingTemplate === 'template-a' ? abTests.templateA.subject : abTests.templateB.subject}
+                  defaultValue={
+                    editingTemplate === "template-a"
+                      ? abTests.templateA.subject
+                      : abTests.templateB.subject
+                  }
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Email Content</label>
+                <label className="block text-sm font-medium mb-2">
+                  Email Content
+                </label>
                 <textarea
                   className="w-full border rounded-lg px-3 py-2 h-64"
-                  defaultValue={editingTemplate === 'template-a' ? abTests.templateA.preview : abTests.templateB.preview}
+                  defaultValue={
+                    editingTemplate === "template-a"
+                      ? abTests.templateA.preview
+                      : abTests.templateB.preview
+                  }
                 />
               </div>
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => {
-                    setShowTemplateEditor(false)
-                    setEditingTemplate(null)
+                    setShowTemplateEditor(false);
+                    setEditingTemplate(null);
                   }}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
@@ -546,9 +632,9 @@ export default function EmailCampaignCenter() {
                 <button
                   onClick={() => {
                     // Save template logic here
-                    setShowTemplateEditor(false)
-                    setEditingTemplate(null)
-                    alert('Template saved!')
+                    setShowTemplateEditor(false);
+                    setEditingTemplate(null);
+                    alert("Template saved!");
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
@@ -560,5 +646,5 @@ export default function EmailCampaignCenter() {
         </div>
       )}
     </div>
-  )
+  );
 }
