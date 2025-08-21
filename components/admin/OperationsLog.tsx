@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { 
   CheckCircleIcon, 
   InformationCircleIcon, 
@@ -12,27 +13,24 @@ import {
   EnvelopeIcon,
   DocumentIcon,
   UserPlusIcon,
-  ClockIcon
+  ClockIcon,
+  CodeBracketIcon,
+  ServerIcon
 } from '@heroicons/react/24/outline'
 
 interface Operation {
   id: string
-  timestamp: Date
-  type: 'email_sent' | 'preview_generated' | 'business_imported' | 'api_warning' | 'error'
+  created_at: string
+  operation_type: string
   status: 'success' | 'info' | 'warning' | 'error'
   message: string
-  details?: string
+  details?: any
+  metadata?: any
 }
 
 interface DailySummary {
   totalOperations: number
-  byType: {
-    email_sent: number
-    preview_generated: number
-    business_imported: number
-    api_warning: number
-    error: number
-  }
+  byType: Record<string, number>
   successRate: number
   errorCount: number
 }
@@ -42,13 +40,7 @@ export default function OperationsLog() {
   const [filteredOperations, setFilteredOperations] = useState<Operation[]>([])
   const [dailySummary, setDailySummary] = useState<DailySummary>({
     totalOperations: 0,
-    byType: {
-      email_sent: 0,
-      preview_generated: 0,
-      business_imported: 0,
-      api_warning: 0,
-      error: 0
-    },
+    byType: {},
     successRate: 0,
     errorCount: 0
   })
@@ -61,6 +53,9 @@ export default function OperationsLog() {
   })
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [isLoading, setIsLoading] = useState(true)
+
+  const supabase = createClientComponentClient()
 
   // Format time helper function
   const formatTime = (date: Date): string => {
@@ -73,147 +68,86 @@ export default function OperationsLog() {
   }
 
   // Format short time helper function
-  const formatShortTime = (date: Date): string => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+  const formatShortTime = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     })
   }
 
-  // Mock data generator for demonstration
-  const generateMockOperations = (): Operation[] => {
-    const mockOperations: Operation[] = [
-      {
-        id: '1',
-        timestamp: new Date(Date.now() - 60000),
-        type: 'email_sent',
-        status: 'success',
-        message: "Email sent to Joe's Pizza",
-        details: 'Campaign: Website Ready'
-      },
-      {
-        id: '2',
-        timestamp: new Date(Date.now() - 120000),
-        type: 'preview_generated',
-        status: 'success',
-        message: "Preview generated for Bella's Salon",
-        details: 'Template: Service Business'
-      },
-      {
-        id: '3',
-        timestamp: new Date(Date.now() - 180000),
-        type: 'api_warning',
-        status: 'warning',
-        message: 'Together AI rate limit approaching',
-        details: '80% of hourly limit reached'
-      },
-      {
-        id: '4',
-        timestamp: new Date(Date.now() - 240000),
-        type: 'business_imported',
-        status: 'info',
-        message: 'New business imported: Fresh Flowers Co.',
-        details: 'Source: CSV Upload'
-      },
-      {
-        id: '5',
-        timestamp: new Date(Date.now() - 300000),
-        type: 'error',
-        status: 'error',
-        message: 'Failed to send email to invalid@example.com',
-        details: 'Error: Invalid email address'
-      },
-      {
-        id: '6',
-        timestamp: new Date(Date.now() - 360000),
-        type: 'email_sent',
-        status: 'success',
-        message: 'Email sent to Sunshine Cleaners',
-        details: 'Campaign: Follow-up'
-      },
-      {
-        id: '7',
-        timestamp: new Date(Date.now() - 420000),
-        type: 'preview_generated',
-        status: 'success',
-        message: 'Preview generated for City Dental',
-        details: 'Template: Healthcare'
-      },
-      {
-        id: '8',
-        timestamp: new Date(Date.now() - 480000),
-        type: 'business_imported',
-        status: 'info',
-        message: '5 businesses imported from batch upload',
-        details: 'Source: API Integration'
-      }
-    ]
-    
-    // Add more operations to reach 50
-    for (let i = 9; i <= 50; i++) {
-      const types: Operation['type'][] = ['email_sent', 'preview_generated', 'business_imported', 'api_warning', 'error']
-      const type = types[Math.floor(Math.random() * types.length)]
-      const status = type === 'error' ? 'error' : 
-                     type === 'api_warning' ? 'warning' :
-                     type === 'business_imported' ? 'info' : 'success'
+  // Load operations from database
+  const loadOperations = async () => {
+    try {
+      setIsLoading(true)
       
-      mockOperations.push({
-        id: i.toString(),
-        timestamp: new Date(Date.now() - (i * 60000)),
-        type,
-        status,
-        message: generateMessage(type, i),
-        details: generateDetails(type)
-      })
+      // Query operations_log table
+      const { data, error } = await supabase
+        .from('operations_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error) {
+        console.error('Error loading operations:', error)
+        return
+      }
+
+      if (data) {
+        setOperations(data)
+        calculateDailySummary(data)
+      }
+    } catch (error) {
+      console.error('Error loading operations:', error)
+    } finally {
+      setIsLoading(false)
     }
-    
-    return mockOperations
   }
 
-  const generateMessage = (type: Operation['type'], index: number): string => {
-    const messages = {
-      email_sent: [`Email sent to Business ${index}`, `Follow-up sent to Client ${index}`, `Reminder sent to Shop ${index}`],
-      preview_generated: [`Preview generated for Company ${index}`, `Website created for Store ${index}`],
-      business_imported: [`Business ${index} imported`, `New lead added: Business ${index}`],
-      api_warning: ['API rate limit warning', 'Slow response time detected', 'Queue backlog warning'],
-      error: [`Failed to send email to business${index}@example.com`, `Preview generation failed`, `Import error for row ${index}`]
-    }
-    const typeMessages = messages[type]
-    return typeMessages[Math.floor(Math.random() * typeMessages.length)]
-  }
-
-  const generateDetails = (type: Operation['type']): string => {
-    const details = {
-      email_sent: ['Campaign: Website Ready', 'Campaign: Follow-up', 'Campaign: Special Offer'],
-      preview_generated: ['Template: Restaurant', 'Template: Service', 'Template: Retail'],
-      business_imported: ['Source: CSV Upload', 'Source: Manual Entry', 'Source: API'],
-      api_warning: ['75% of limit reached', 'Response time > 5s', 'Queue size: 100+'],
-      error: ['Invalid email', 'Network timeout', 'Template error']
-    }
-    const typeDetails = details[type]
-    return typeDetails[Math.floor(Math.random() * typeDetails.length)]
-  }
-
-  // Load operations and calculate summary
+  // Initial load and setup auto-refresh
   useEffect(() => {
-    const loadOperations = () => {
-      const ops = generateMockOperations()
-      setOperations(ops)
-      calculateDailySummary(ops)
-    }
-    
     loadOperations()
     
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
-      setIsRefreshing(true)
-      loadOperations()
-      setLastRefresh(new Date())
-      setTimeout(() => setIsRefreshing(false), 500)
+      handleRefresh()
     }, 30000)
     
-    return () => clearInterval(interval)
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('operations_log_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'operations_log'
+        },
+        (payload) => {
+          console.log('New operation:', payload.new)
+          setOperations(prev => [payload.new as Operation, ...prev].slice(0, 50))
+        }
+      )
+      .subscribe()
+    
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Calculate daily summary
@@ -221,23 +155,22 @@ export default function OperationsLog() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
-    const todayOps = ops.filter(op => op.timestamp >= today)
+    const todayOps = ops.filter(op => new Date(op.created_at) >= today)
     
     const summary: DailySummary = {
       totalOperations: todayOps.length,
-      byType: {
-        email_sent: 0,
-        preview_generated: 0,
-        business_imported: 0,
-        api_warning: 0,
-        error: 0
-      },
+      byType: {},
       successRate: 0,
       errorCount: 0
     }
     
+    // Count by type
     todayOps.forEach(op => {
-      summary.byType[op.type]++
+      if (!summary.byType[op.operation_type]) {
+        summary.byType[op.operation_type] = 0
+      }
+      summary.byType[op.operation_type]++
+      
       if (op.status === 'error') summary.errorCount++
     })
     
@@ -255,13 +188,13 @@ export default function OperationsLog() {
     if (searchTerm) {
       filtered = filtered.filter(op => 
         op.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        op.details?.toLowerCase().includes(searchTerm.toLowerCase())
+        JSON.stringify(op.details).toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
     
     // Type filter
     if (filterType !== 'all') {
-      filtered = filtered.filter(op => op.type === filterType)
+      filtered = filtered.filter(op => op.operation_type === filterType)
     }
     
     // Status filter
@@ -272,12 +205,12 @@ export default function OperationsLog() {
     // Date range filter
     if (dateRange.start) {
       const startDate = new Date(dateRange.start)
-      filtered = filtered.filter(op => op.timestamp >= startDate)
+      filtered = filtered.filter(op => new Date(op.created_at) >= startDate)
     }
     if (dateRange.end) {
       const endDate = new Date(dateRange.end)
       endDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter(op => op.timestamp <= endDate)
+      filtered = filtered.filter(op => new Date(op.created_at) <= endDate)
     }
     
     setFilteredOperations(filtered)
@@ -303,23 +236,36 @@ export default function OperationsLog() {
     }
   }
 
-  const getTypeIcon = (type: Operation['type']) => {
+  const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'email_sent': return <EnvelopeIcon className="w-4 h-4" />
-      case 'preview_generated': return <DocumentIcon className="w-4 h-4" />
-      case 'business_imported': return <UserPlusIcon className="w-4 h-4" />
-      default: return null
+      case 'email_sent': 
+      case 'email_opened':
+      case 'email_clicked':
+        return <EnvelopeIcon className="w-4 h-4" />
+      case 'preview_generated': 
+      case 'website_created':
+        return <DocumentIcon className="w-4 h-4" />
+      case 'business_imported': 
+      case 'business_created':
+      case 'business_updated':
+        return <UserPlusIcon className="w-4 h-4" />
+      case 'api_call':
+      case 'api_error':
+        return <ServerIcon className="w-4 h-4" />
+      default: 
+        return <CodeBracketIcon className="w-4 h-4" />
     }
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true)
-    const ops = generateMockOperations()
-    setOperations(ops)
-    calculateDailySummary(ops)
+    await loadOperations()
     setLastRefresh(new Date())
     setTimeout(() => setIsRefreshing(false), 500)
   }
+
+  // Get unique operation types for filter
+  const uniqueTypes = Array.from(new Set(operations.map(op => op.operation_type)))
 
   return (
     <div className="space-y-6">
@@ -359,7 +305,9 @@ export default function OperationsLog() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Emails Sent</p>
-            <p className="text-2xl font-bold text-blue-600">{dailySummary.byType.email_sent}</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {dailySummary.byType['email_sent'] || 0}
+            </p>
           </div>
         </div>
         
@@ -367,15 +315,21 @@ export default function OperationsLog() {
           <div className="flex flex-wrap gap-4 text-sm">
             <span className="flex items-center gap-1">
               <DocumentIcon className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-600">Previews: {dailySummary.byType.preview_generated}</span>
+              <span className="text-gray-600">
+                Previews: {dailySummary.byType['preview_generated'] || 0}
+              </span>
             </span>
             <span className="flex items-center gap-1">
               <UserPlusIcon className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-600">Imports: {dailySummary.byType.business_imported}</span>
+              <span className="text-gray-600">
+                Imports: {dailySummary.byType['business_imported'] || 0}
+              </span>
             </span>
             <span className="flex items-center gap-1">
-              <ExclamationTriangleIcon className="w-4 h-4 text-yellow-500" />
-              <span className="text-gray-600">Warnings: {dailySummary.byType.api_warning}</span>
+              <ServerIcon className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">
+                API Calls: {dailySummary.byType['api_call'] || 0}
+              </span>
             </span>
           </div>
         </div>
@@ -405,11 +359,11 @@ export default function OperationsLog() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Types</option>
-            <option value="email_sent">Email Sent</option>
-            <option value="preview_generated">Preview Generated</option>
-            <option value="business_imported">Business Imported</option>
-            <option value="api_warning">API Warning</option>
-            <option value="error">Error</option>
+            {uniqueTypes.map(type => (
+              <option key={type} value={type}>
+                {type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </option>
+            ))}
           </select>
           
           {/* Status Filter */}
@@ -445,13 +399,27 @@ export default function OperationsLog() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Activity Feed</h3>
-          <p className="text-sm text-gray-500 mt-1">Showing {filteredOperations.length} of {operations.length} operations</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isLoading ? 'Loading...' : 
+             filteredOperations.length === 0 && operations.length === 0 ? 
+             'No operations logged yet' :
+             `Showing ${filteredOperations.length} of ${operations.length} operations`}
+          </p>
         </div>
         
         <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-          {filteredOperations.length === 0 ? (
+          {isLoading ? (
+            <div className="px-6 py-12 text-center">
+              <div className="inline-flex items-center gap-2 text-gray-500">
+                <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                Loading operations...
+              </div>
+            </div>
+          ) : filteredOperations.length === 0 ? (
             <div className="px-6 py-12 text-center text-gray-500">
-              No operations found matching your filters
+              {operations.length === 0 ? 
+                'No operations logged yet. Start by importing businesses or sending emails!' :
+                'No operations found matching your filters'}
             </div>
           ) : (
             filteredOperations.map((operation) => (
@@ -465,18 +433,26 @@ export default function OperationsLog() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {getTypeIcon(operation.type)}
+                      {getTypeIcon(operation.operation_type)}
                       <p className="text-sm font-medium text-gray-900">{operation.message}</p>
                     </div>
                     {operation.details && (
-                      <p className="text-sm text-gray-500 mt-1">{operation.details}</p>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {typeof operation.details === 'object' ? (
+                          <pre className="font-sans whitespace-pre-wrap">
+                            {JSON.stringify(operation.details, null, 2)}
+                          </pre>
+                        ) : (
+                          <p>{operation.details}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                   
                   {/* Timestamp */}
                   <div className="flex items-center gap-1 text-sm text-gray-500 whitespace-nowrap">
                     <ClockIcon className="w-4 h-4" />
-                    {formatShortTime(operation.timestamp)}
+                    {formatShortTime(operation.created_at)}
                   </div>
                 </div>
               </div>
