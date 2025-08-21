@@ -1,5 +1,6 @@
 import Together from 'together-ai';
 import Replicate from 'replicate';
+import { trackAPIUsage, estimateTokens } from './apiTracker';
 
 // Initialize AI clients
 const together = new Together({
@@ -122,7 +123,7 @@ export function getLayoutVariation(businessName: string): number {
 
 // Check existing website using SerpAPI
 export async function checkExistingWebsite(business: unknown): Promise<boolean> {
-  const businessData = business as { business_name: string; city?: string };
+  const businessData = business as { business_name: string; city?: string; business_id?: string };
   
   if (!process.env.SERPAPI_KEY || !getJson) {
     console.log('⚠️ SerpAPI not configured, skipping website check');
@@ -133,10 +134,15 @@ export async function checkExistingWebsite(business: unknown): Promise<boolean> 
   
   try {
     console.log('  → Using SerpAPI...');
+    const searchQuery = `${businessData.business_name} ${businessData.city || ''} official website`;
+    
+    // Track API usage
+    await trackAPIUsage('serpapi', 'google_search', 1, businessData.business_id);
+    
     const results = await (getJson as (params: Record<string, unknown>) => Promise<{ organic_results?: Array<{ link?: string }> }>)({
       api_key: process.env.SERPAPI_KEY,
       engine: "google",
-      q: `${businessData.business_name} ${businessData.city || ''} official website`,
+      q: searchQuery,
       location: businessData.city || 'United States',
       num: 3
     });
@@ -152,13 +158,15 @@ export async function checkExistingWebsite(business: unknown): Promise<boolean> 
     
   } catch (error) {
     console.error('  ✗ SerpAPI check failed:', error);
+    // Track failed API call
+    await trackAPIUsage('serpapi', 'google_search', 1, businessData.business_id, false, (error as Error).message);
     return false;
   }
 }
 
 // Premium content generation with Claude or Together AI
 export async function generatePremiumContent(business: unknown): Promise<BusinessContent> {
-  const businessData = business as { business_name: string; city?: string };
+  const businessData = business as { business_name: string; city?: string; business_id?: string };
   console.log('🚀 API CALL: Starting content generation for:', businessData.business_name);
   console.log(`🎨 Generating content for ${businessData.business_name}...`);
   
@@ -180,7 +188,7 @@ export async function generatePremiumContent(business: unknown): Promise<Busines
 }
 
 async function generateContentWithClaude(business: unknown): Promise<BusinessContent> {
-  const businessData = business as { business_name: string; city?: string };
+  const businessData = business as { business_name: string; city?: string; business_id?: string };
   
   try {
     const anthropic = new (Anthropic as new (config: { apiKey: string }) => {
@@ -195,13 +203,7 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
 
     const businessType = detectBusinessType(businessData.business_name);
     
-    const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1000,
-      temperature: 0.7,
-      messages: [{
-        role: "user",
-        content: `Create compelling website content for ${businessData.business_name}, a ${businessType} in ${businessData.city || 'the area'}. 
+    const prompt = `Create compelling website content for ${businessData.business_name}, a ${businessType} in ${businessData.city || 'the area'}. 
         
         Generate a JSON response with:
         {
@@ -213,9 +215,24 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
           ]
         }
         
-        Make it persuasive, professional, and unique to this business. Return ONLY valid JSON.`
+        Make it persuasive, professional, and unique to this business. Return ONLY valid JSON.`;
+    
+    // Estimate tokens for tracking
+    const estimatedTokens = estimateTokens(prompt) + 1000; // Add estimated response tokens
+    
+    console.log('🚀 Calling Anthropic Claude API...');
+    const response = await anthropic.messages.create({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 1000,
+      temperature: 0.7,
+      messages: [{
+        role: "user",
+        content: prompt
       }]
     });
+
+    // Track API usage
+    await trackAPIUsage('anthropic', 'claude-3-haiku', estimatedTokens, businessData.business_id);
 
     console.log('  ✓ Anthropic Claude content generated successfully');
     
@@ -227,13 +244,15 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
       content = JSON.parse(responseText);
     } catch {
       console.error('  ⚠️ Failed to parse Claude response, using fallback content');
+      // Track parsing failure
+      await trackAPIUsage('anthropic', 'claude-3-haiku-parse-error', 0, businessData.business_id, false, 'Failed to parse response');
       // Return fallback if parsing fails
       return generateBusinessContent(business);
     }
     
     // Generate logo and video background
-    const logo = await generateBusinessLogo(businessData.business_name, businessType);
-    const videoBackground = await generateVideoBackground(businessType);
+    const logo = await generateBusinessLogo(businessData.business_name, businessType, businessData.business_id);
+    const videoBackground = await generateVideoBackground(businessType, businessData.business_id);
     
     // Ensure services are strings (add emojis if not present)
     const services = Array.isArray(content.services) 
@@ -281,13 +300,15 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
     };
   } catch (error) {
     console.error('  ✗ Claude generation failed:', error);
+    // Track error
+    await trackAPIUsage('anthropic', 'claude-3-haiku', 0, businessData.business_id, false, (error as Error).message);
     // Return fallback content on error
     return generateBusinessContent(business);
   }
 }
 
 async function generateContentWithTogether(business: unknown): Promise<BusinessContent> {
-  const businessData = business as { business_name: string; city?: string };
+  const businessData = business as { business_name: string; city?: string; business_id?: string };
   
   try {
     const businessType = detectBusinessType(businessData.business_name);
@@ -306,6 +327,9 @@ Format your response as JSON with these fields:
   ]
 }`;
 
+    // Estimate tokens for tracking
+    const estimatedTokens = estimateTokens(prompt) + 800;
+
     console.log('🚀 Calling Together AI API...');
     const completion = await together.chat.completions.create({
       model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
@@ -323,6 +347,9 @@ Format your response as JSON with these fields:
       max_tokens: 800,
     });
 
+    // Track API usage
+    await trackAPIUsage('together_ai', 'mixtral-8x7b', estimatedTokens, businessData.business_id);
+
     const response = completion.choices[0]?.message?.content;
     if (!response) {
       throw new Error('Failed to generate content');
@@ -334,8 +361,8 @@ Format your response as JSON with these fields:
       const content = JSON.parse(response) as { tagline?: string; description?: string; services?: unknown[]; testimonials?: unknown[] };
       
       // Generate logo and video background
-      const logo = await generateBusinessLogo(businessData.business_name, businessType);
-      const videoBackground = await generateVideoBackground(businessType);
+      const logo = await generateBusinessLogo(businessData.business_name, businessType, businessData.business_id);
+      const videoBackground = await generateVideoBackground(businessType, businessData.business_id);
       
       // Ensure services are strings
       const services = Array.isArray(content.services) 
@@ -367,18 +394,22 @@ Format your response as JSON with these fields:
       };
     } catch (parseError) {
       console.error('  ✗ Failed to parse AI response:', parseError);
+      // Track parsing error
+      await trackAPIUsage('together_ai', 'mixtral-parse-error', 0, businessData.business_id, false, 'Failed to parse response');
       // Return fallback content on parse error
       return generateBusinessContent(business);
     }
   } catch (error) {
     console.error('  ✗ Together AI generation failed:', error);
+    // Track error
+    await trackAPIUsage('together_ai', 'mixtral-8x7b', 0, businessData.business_id, false, (error as Error).message);
     // Return fallback content on error
     return generateBusinessContent(business);
   }
 }
 
 // AI Logo Generation
-async function generateBusinessLogo(businessName: string, businessType: string): Promise<BusinessLogo> {
+async function generateBusinessLogo(businessName: string, businessType: string, businessId?: string): Promise<BusinessLogo> {
   console.log('  🎨 Generating logo...');
   
   // Option A: Try AI-generated logo first
@@ -406,6 +437,9 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       }
     );
     
+    // Track API usage
+    await trackAPIUsage('replicate', 'stable-diffusion-logo', 1, businessId);
+    
     if (Array.isArray(output) && output.length > 0) {
       console.log('    ✓ Logo generated with Replicate');
       
@@ -415,9 +449,13 @@ async function generateBusinessLogo(businessName: string, businessType: string):
           console.log('    → Using TinyPNG to compress logo...');
           const source = (tinify as { fromUrl: (url: string) => { toBuffer: () => Promise<Buffer> } }).fromUrl(output[0]);
           await source.toBuffer();
+          // Track TinyPNG usage
+          await trackAPIUsage('tinypng', 'compress', 1, businessId);
           console.log('    ✓ Logo compressed with TinyPNG');
-        } catch {
+        } catch (error) {
           console.log('    ⚠️ TinyPNG compression failed, using original');
+          // Track failed compression
+          await trackAPIUsage('tinypng', 'compress', 1, businessId, false, (error as Error).message);
         }
       }
       
@@ -427,9 +465,11 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       };
     }
     throw new Error('No logo generated');
-  } catch {
+  } catch (error) {
     // Option B: Fallback to premium typography logo
     console.log('    ⚠️ AI logo generation failed, using typography logo fallback');
+    // Track failed logo generation
+    await trackAPIUsage('replicate', 'stable-diffusion-logo', 1, businessId, false, (error as Error).message);
     return {
       type: 'text',
       html: generateTypographyLogo(businessName, businessType)
@@ -455,7 +495,7 @@ function generateTypographyLogo(name: string, type: string): string {
 }
 
 // Video Background Generation
-async function generateVideoBackground(businessType: string): Promise<string | null> {
+async function generateVideoBackground(businessType: string, businessId?: string): Promise<string | null> {
   console.log('  🎬 Generating video background...');
   
   try {
@@ -486,10 +526,15 @@ async function generateVideoBackground(businessType: string): Promise<string | n
       }
     );
     
+    // Track API usage
+    await trackAPIUsage('replicate', 'stable-video-diffusion', 1, businessId);
+    
     console.log('    ✓ Video background generated with Replicate');
     return (output as unknown as string) || null;
-  } catch {
+  } catch (error) {
     console.log('    ⚠️ Video generation failed, using static image');
+    // Track failed video generation
+    await trackAPIUsage('replicate', 'stable-video-diffusion', 1, businessId, false, (error as Error).message);
     return null;
   }
 }
@@ -710,7 +755,7 @@ export function generateExitIntentPopup(businessName: string): string {
 }
 
 // AI Image Generation with Together AI - FIXED to force AI usage
-export async function generateBusinessImages(businessType: string, businessName: string): Promise<BusinessImages> {
+export async function generateBusinessImages(businessType: string, businessName: string, businessId?: string): Promise<BusinessImages> {
   console.log('🚀 API CALL: Starting AI image generation for:', businessType);
   console.log(`📸 GENERATING AI IMAGES for ${businessName}`);
   
@@ -747,10 +792,14 @@ export async function generateBusinessImages(businessType: string, businessName:
       if (!response.ok) {
         const error = await response.text();
         console.error(`    ✗ Together AI error for ${type}:`, error);
+        // Track failed API call
+        await trackAPIUsage('together_ai', 'stable-diffusion-xl', 1, businessId, false, `Failed for ${type}: ${error}`);
         throw new Error(`Together AI failed for ${type}: ${error}`);
       }
       
       const data = await response.json();
+      // Track successful API call
+      await trackAPIUsage('together_ai', 'stable-diffusion-xl', 1, businessId);
       console.log(`    ✓ ${type} image generated with Together AI`);
       return data.data[0].url;
     };
@@ -775,9 +824,13 @@ export async function generateBusinessImages(businessType: string, businessName:
           try {
             const source = (tinify as { fromUrl: (url: string) => { toBuffer: () => Promise<Buffer> } }).fromUrl(images[i]);
             await source.toBuffer();
+            // Track TinyPNG usage
+            await trackAPIUsage('tinypng', 'compress', 1, businessId);
             compressedCount++;
-          } catch {
+          } catch (error) {
             // Keep original if compression fails
+            // Track failed compression
+            await trackAPIUsage('tinypng', 'compress', 1, businessId, false, (error as Error).message);
           }
         }
       }
@@ -880,11 +933,16 @@ export class ContentGenerator {
   async generateContent(businessInfo: BusinessInfo): Promise<GeneratedContent> {
     console.log(`🎨 Generating content for ${businessInfo.businessName}...`);
     
+    const businessId = (businessInfo as unknown as { business_id?: string }).business_id;
+    
     try {
       const businessType = this.inferBusinessType(businessInfo);
       const industryKeywords = this.getIndustryKeywords(businessType);
       
       const prompt = this.buildPrompt(businessInfo, businessType, industryKeywords);
+      
+      // Estimate tokens for tracking
+      const estimatedTokens = estimateTokens(prompt) + 800;
       
       // Use Together AI with Mixtral for better quality and cost efficiency
       console.log('  → Using Together AI...');
@@ -905,6 +963,9 @@ export class ContentGenerator {
         max_tokens: 800,
       });
 
+      // Track API usage
+      await trackAPIUsage('together_ai', 'mixtral-8x7b', estimatedTokens, businessId);
+
       const response = completion.choices[0]?.message?.content;
       if (!response) {
         throw new Error('Failed to generate content');
@@ -914,6 +975,8 @@ export class ContentGenerator {
       return this.parseResponse(response);
     } catch (error) {
       console.error('  ✗ Error generating content:', error);
+      // Track failed API call
+      await trackAPIUsage('together_ai', 'mixtral-8x7b', 0, businessId, false, (error as Error).message);
       // Fallback to default content if AI fails
       return this.getDefaultContent(businessInfo);
     }
@@ -929,7 +992,8 @@ export class ContentGenerator {
   }
 
   async generateImages(businessType: string, businessName: string): Promise<BusinessImages> {
-    return await generateBusinessImages(businessType, businessName);
+    const businessId = (businessName as unknown as { business_id?: string }).business_id;
+    return await generateBusinessImages(businessType, businessName, businessId);
   }
 
   private getDefaultContent(businessInfo: BusinessInfo): GeneratedContent {
@@ -1283,17 +1347,17 @@ export function getCategoryTheme(type: string): CategoryTheme {
 
 // New functions for enhanced content generation
 export async function generateBusinessContent(business: unknown): Promise<BusinessContent> {
-  const businessData = business as { business_name?: string; businessName?: string; city?: string };
+  const businessData = business as { business_name?: string; businessName?: string; city?: string; business_id?: string };
   const businessName = businessData.business_name || businessData.businessName || '';
   const businessType = detectBusinessType(businessName);
   
   console.log(`  📝 Generating fallback content for ${businessType} business...`);
   
   // Generate logo
-  const logo = await generateBusinessLogo(businessName, businessType);
+  const logo = await generateBusinessLogo(businessName, businessType, businessData.business_id);
   
   // Try to generate video background
-  const videoBackground = await generateVideoBackground(businessType);
+  const videoBackground = await generateVideoBackground(businessType, businessData.business_id);
   
   return {
     tagline: generateTagline(businessType, businessName),
@@ -1380,7 +1444,7 @@ export function generateTagline(type: string, businessName: string): string {
     ],
     plumbing: [
       'Your Trusted Plumbing Experts, Available 24/7',
-      'Fast, Reliable, Professional Plumbing Solutions',
+      'Fast, Reliable, Professional Plum bing Solutions',
       'Fixing Problems, Building Trust Daily',
       'Emergency Plumbing Services You Can Trust',
       'Quality Plumbing at Honest Prices'
