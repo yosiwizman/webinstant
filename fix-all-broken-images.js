@@ -110,7 +110,7 @@ function fixImagesInHtml(html, businessType) {
   fixedHtml = fixedHtml.replace(/style="([^"]*?)background:\s*url\(["']?([^"')]+)["']?\)([^"]*?)"/gi, 
     (match, before, url, after) => {
       if (!isValidHttpUrl(url)) {
-        change Count++;
+        changeCount++;
         console.log(`  ✓ Replaced broken background: ${url.substring(0, 50)}...`);
         return `style="${before}background: url('${imageUrl}')${after}"`;
       }
