@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, ChevronRight, Calendar, Activity, Star, AlertCircle } from 'lucide-react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 
 interface Lead {
   id: string
@@ -57,7 +57,10 @@ export default function CustomerPipeline() {
   })
   const [loading, setLoading] = useState(true)
 
-  const supabase = createClientComponentClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     fetchRealBusinessData()
