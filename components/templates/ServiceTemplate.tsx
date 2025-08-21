@@ -132,18 +132,18 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                 About {businessName}
               </h2>
               <p className="text-gray-600 mb-4 leading-relaxed">
-                With over two decades of experience serving {serviceArea}, we've built our reputation on quality 
+                With over two decades of experience serving {serviceArea}, we&apos;ve built our reputation on quality 
                 workmanship, honest pricing, and exceptional customer service. Our team of certified professionals 
                 is committed to solving your problems quickly and efficiently.
               </p>
               <p className="text-gray-600 mb-6 leading-relaxed">
                 We understand that inviting service professionals into your home or business requires trust. 
-                That's why all our technicians are background-checked, fully licensed, and insured. We stand 
+                That&apos;s why all our technicians are background-checked, fully licensed, and insured. We stand 
                 behind our work with comprehensive warranties and guarantees.
               </p>
               <div className="bg-blue-100 border-l-4 border-blue-600 p-4 rounded">
                 <p className="text-blue-800 font-semibold">
-                  "Your satisfaction is our top priority. We're not happy until you're happy."
+                  &quot;Your satisfaction is our top priority. We&apos;re not happy until you&apos;re happy.&quot;
                 </p>
               </div>
             </div>
@@ -227,7 +227,7 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
               What Our Customers Say
             </h2>
             <p className="text-lg text-gray-600">
-              Don't just take our word for it
+              Don&apos;t just take our word for it
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -238,8 +238,8 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                 ))}
               </div>
               <p className="text-gray-600 mb-4 italic">
-                "Excellent service! They arrived on time, diagnosed the problem quickly, and had everything 
-                fixed within an hour. Very professional and clean work. Highly recommend!"
+                &quot;Excellent service! They arrived on time, diagnosed the problem quickly, and had everything 
+                fixed within an hour. Very professional and clean work. Highly recommend!&quot;
               </p>
               <div className="font-semibold text-gray-800">- Sarah Johnson</div>
               <div className="text-sm text-gray-500">Residential Customer</div>
@@ -251,8 +251,8 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                 ))}
               </div>
               <p className="text-gray-600 mb-4 italic">
-                "We've been using their services for our business for years. Always reliable, fair pricing, 
-                and they stand behind their work. Can't ask for more!"
+                &quot;We&apos;ve been using their services for our business for years. Always reliable, fair pricing, 
+                and they stand behind their work. Can&apos;t ask for more!&quot;
               </p>
               <div className="font-semibold text-gray-800">- Mike Chen</div>
               <div className="text-sm text-gray-500">Commercial Client</div>
@@ -264,8 +264,8 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                 ))}
               </div>
               <p className="text-gray-600 mb-4 italic">
-                "Had an emergency late at night and they came right away. The technician was knowledgeable 
-                and explained everything clearly. Saved the day!"
+                &quot;Had an emergency late at night and they came right away. The technician was knowledgeable 
+                and explained everything clearly. Saved the day!&quot;
               </p>
               <div className="font-semibold text-gray-800">- Emily Rodriguez</div>
               <div className="text-sm text-gray-500">Emergency Service</div>
@@ -283,7 +283,7 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                 Get Your Free Quote
               </h2>
               <p className="text-lg text-gray-600">
-                Fill out the form below and we'll get back to you within 24 hours
+                Fill out the form below and we&apos;ll get back to you within 24 hours
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg shadow-lg p-8">
@@ -366,7 +366,7 @@ const ServiceTemplate: React.FC<ServiceTemplateProps> = ({
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="emergency" className="ml-2 block text-sm text-gray-700">
-                    This is an emergency (we'll prioritize your request)
+                    This is an emergency (we&apos;ll prioritize your request)
                   </label>
                 </div>
                 <button
