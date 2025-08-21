@@ -77,6 +77,7 @@ export default function ApiUsageMonitor() {
   const [totalSpentToday, setTotalSpentToday] = useState(0)
   const [totalSpentMonth, setTotalSpentMonth] = useState(0)
   const [hasData, setHasData] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -84,25 +85,87 @@ export default function ApiUsageMonitor() {
   )
 
   const fetchApiUsageData = useCallback(async () => {
+    // Prevent multiple simultaneous fetches
+    if (loading && !error) return;
+    
     try {
-      // Get today's date and start of month
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-      const startOfMonthISO = startOfMonth.toISOString()
+      setLoading(true)
+      setError(null)
 
-      // Fetch all usage data for the month
-      const { data: monthlyUsage, error: monthlyError } = await supabase
+      // Simple query - just get last 50 records
+      const { data: usageData, error: usageError } = await supabase
         .from('api_usage')
         .select('*')
-        .gte('created_at', startOfMonthISO)
         .order('created_at', { ascending: false })
+        .limit(50)
 
-      if (monthlyError) throw monthlyError
+      if (usageError) {
+        console.error('Error fetching API usage:', usageError)
+        setError('Unable to load API usage data')
+        setHasData(false)
+        
+        // Set default empty state
+        setApiBalances([
+          {
+            provider: 'Together AI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#8B5CF6',
+            bgColor: 'bg-purple-500'
+          },
+          {
+            provider: 'OpenAI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#10B981',
+            bgColor: 'bg-green-500'
+          },
+          {
+            provider: 'Replicate',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#3B82F6',
+            bgColor: 'bg-blue-500'
+          },
+          {
+            provider: 'Anthropic',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#F59E0B',
+            bgColor: 'bg-amber-500'
+          }
+        ])
+        setUsageHistory([])
+        setDailyTrend([])
+        setPieChartData([])
+        setTotalSpentToday(0)
+        setTotalSpentMonth(0)
+        setLoading(false)
+        return
+      }
 
       // Check if we have any data
-      const hasAnyData = monthlyUsage && monthlyUsage.length > 0
+      const hasAnyData = usageData && usageData.length > 0
       setHasData(hasAnyData)
 
       if (!hasAnyData) {
@@ -166,6 +229,14 @@ export default function ApiUsageMonitor() {
         return
       }
 
+      // Process the data we have
+      setUsageHistory(usageData)
+
+      // Get today's date and start of month
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+
       // Calculate usage by provider for today and month
       const providerStats: Record<ProviderKey, ProviderStats> = {
         'together_ai': {
@@ -206,20 +277,23 @@ export default function ApiUsageMonitor() {
         }
       }
 
-      // Process monthly usage
-      monthlyUsage.forEach(item => {
+      // Process usage data
+      usageData.forEach(item => {
         const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
         const cost = item.cost || 0
         const itemDate = new Date(item.created_at)
 
         if (provider && provider in providerStats) {
-          providerStats[provider].month += cost
-          providerStats[provider].callsMonth += 1
+          // Check if it's from this month
+          if (itemDate >= startOfMonth) {
+            providerStats[provider].month += cost
+            providerStats[provider].callsMonth += 1
 
-          // Check if it's today's usage
-          if (itemDate >= today) {
-            providerStats[provider].today += cost
-            providerStats[provider].callsToday += 1
+            // Check if it's today's usage
+            if (itemDate >= today) {
+              providerStats[provider].today += cost
+              providerStats[provider].callsToday += 1
+            }
           }
         }
       })
@@ -260,28 +334,6 @@ export default function ApiUsageMonitor() {
 
       setApiBalances(balances)
 
-      // Fetch usage history with business names (last 50 calls)
-      const { data: historyWithBusiness, error: historyError } = await supabase
-        .from('api_usage')
-        .select(`
-          *,
-          businesses (
-            business_name
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (historyError) throw historyError
-
-      // Process usage history
-      const processedHistory = historyWithBusiness?.map(item => ({
-        ...item,
-        business_name: item.businesses?.business_name || 'Unknown'
-      })) || []
-
-      setUsageHistory(processedHistory)
-
       // Calculate pie chart data for today's usage
       const pieData = (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
         .filter(([, stats]) => stats.today > 0)
@@ -293,7 +345,7 @@ export default function ApiUsageMonitor() {
 
       setPieChartData(pieData)
 
-      // Calculate daily trend (last 7 days)
+      // Calculate daily trend (last 7 days) - simplified
       const last7Days = []
       for (let i = 6; i >= 0; i--) {
         const date = new Date()
@@ -302,25 +354,15 @@ export default function ApiUsageMonitor() {
         last7Days.push(date)
       }
 
-      // Fetch usage for last 7 days
-      const sevenDaysAgo = last7Days[0].toISOString()
-      const { data: weeklyUsage, error: weeklyError } = await supabase
-        .from('api_usage')
-        .select('api_name, cost, created_at')
-        .gte('created_at', sevenDaysAgo)
-        .order('created_at', { ascending: true })
-
-      if (weeklyError) throw weeklyError
-
-      // Group by day and provider
+      // Group by day and provider using the data we already have
       const dailyData = last7Days.map(date => {
         const nextDay = new Date(date)
         nextDay.setDate(nextDay.getDate() + 1)
 
-        const dayUsage = weeklyUsage?.filter(item => {
+        const dayUsage = usageData.filter(item => {
           const itemDate = new Date(item.created_at)
           return itemDate >= date && itemDate < nextDay
-        }) || []
+        })
 
         const dayTotals: DailyUsage = {
           date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
@@ -356,16 +398,16 @@ export default function ApiUsageMonitor() {
       setLoading(false)
     } catch (error) {
       console.error('Error fetching API usage:', error)
+      setError('Unable to load API usage data')
+      setHasData(false)
       setLoading(false)
     }
   }, [supabase])
 
   useEffect(() => {
     fetchApiUsageData()
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchApiUsageData, 30000)
-    return () => clearInterval(interval)
-  }, [fetchApiUsageData])
+    // NO auto-refresh to prevent loops
+  }, [])
 
   const getProviderBgClass = (provider: string) => {
     const classes: Record<string, string> = {
@@ -404,6 +446,29 @@ export default function ApiUsageMonitor() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">No Data Available</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            {error}
+          </p>
+          <button
+            onClick={() => {
+              setError(null)
+              fetchApiUsageData()
+            }}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }
