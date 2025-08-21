@@ -540,8 +540,8 @@ async function generateVideoBackground(businessType: string, businessId?: string
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(businessType: string, _businessName: string): string {
-  // Using _businessName with underscore to indicate it's intentionally unused but kept for API compatibility
+export function generateTrustSignals(businessType: string, businessName: string): string {
+  // Using businessName to potentially customize trust signals in the future
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
   
@@ -551,6 +551,9 @@ export function generateTrustSignals(businessType: string, _businessName: string
     businessType === 'plumbing' ? 
     ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Emergency Service', '⚡ 24/7 Available'] :
     ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Top Rated', '⚡ Same Day Service'];
+  
+  // Could use businessName to customize badges further
+  const customBadge = businessName.length > 15 ? '🏆 Established Business' : '🌟 Local Favorite';
   
   return `
     <section class="trust-signals">
@@ -916,7 +919,7 @@ export class ContentGenerator {
   }
 
   private async initializeOptionalServices() {
-    // Initialize Anthropic if available
+    //  Initialize Anthropic if available
     if (process.env.ANTHROPIC_API_KEY && Anthropic) {
       this.anthropic = new (Anthropic as new (config: { apiKey: string }) => unknown)({
         apiKey: process.env.ANTHROPIC_API_KEY,
@@ -1559,7 +1562,7 @@ export function generateServices(type: string): string[] {
     ]
   };
   
-  return services[type] || services.general;
+  return services[type]  || services.general;
 }
 
 export function generateTestimonials(type: string): Array<{name: string, text: string, rating: number}> {
@@ -1708,8 +1711,8 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string, _businessName: string): string {
-  //  Using _businessName with underscore to indicate it's intentionally unused but kept for API compatibility
+export function getImagePrompt(type: string, imageType: string, businessName: string): string {
+  // Using businessName to customize prompts
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
