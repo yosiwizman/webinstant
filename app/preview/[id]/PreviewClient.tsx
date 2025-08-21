@@ -14,7 +14,7 @@ interface PreviewClientProps {
   id: string
 }
 
-export default function PreviewClient({ preview, id }: PreviewClientProps) {
+export default function PreviewClient({ preview }: PreviewClientProps) {
   const [showEditModal, setShowEditModal] = useState(false)
 
   const fixBrokenImages = (html: string) => {
@@ -134,7 +134,7 @@ export default function PreviewClient({ preview, id }: PreviewClientProps) {
             maxWidth: '90vw'
           }}>
             <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>Edit Options</h2>
-            <p style={{ color: '#666', marginBottom: '20px' }}>Choose what you'd like to edit:</p>
+            <p style={{ color: '#666', marginBottom: '20px' }}>Choose what you&apos;d like to edit:</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button style={{ padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
                 📞 Update Phone Number
