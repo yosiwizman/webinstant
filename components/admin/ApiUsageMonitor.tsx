@@ -102,16 +102,18 @@ export default function ApiUsageMonitor() {
         .gte('created_at', startOfMonthISO)
         .order('created_at', { ascending: false })
 
+      let currentHasData = false
+
       if (monthlyError) {
         console.error('Error fetching monthly usage:', monthlyError)
         // Don't throw, just use empty data
-        setHasData(false)
+        currentHasData = false
       } else {
         // Check if we have any data
-        const hasAnyData = monthlyUsage && monthlyUsage.length > 0
-        setHasData(hasAnyData)
+        currentHasData = monthlyUsage && monthlyUsage.length > 0
+        setHasData(currentHasData)
 
-        if (hasAnyData) {
+        if (currentHasData) {
           // Calculate usage by provider for today and month
           const providerStats: Record<ProviderKey, ProviderStats> = {
             'together_ai': {
@@ -211,7 +213,7 @@ export default function ApiUsageMonitor() {
             .filter(([, stats]) => stats.today > 0)
             .map(([, stats]) => ({
               name: stats.displayName,
-              value: parseFloat(stats.today.toFixed(4)),
+              value: parseFloat(stats.today.toFixe d(4)),
               color: stats.color
             }))
 
@@ -285,7 +287,7 @@ export default function ApiUsageMonitor() {
       }
 
       // Set default empty state if no data
-      if (!hasData) {
+      if (!currentHasData) {
         setApiBalances([
           {
             provider: 'Together AI',

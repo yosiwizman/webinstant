@@ -376,7 +376,7 @@ export default function RevenueDashboard() {
   useEffect(() => {
     fetchDashboardData();
     // Only fetch once on mount, no auto-refresh to prevent loops
-  }, []);
+  }, [fetchDashboardData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
