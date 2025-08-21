@@ -2,724 +2,438 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import dynamic from 'next/dynamic'
 
-interface Statistics {
-  totalBusinesses: number
-  websitesGenerated: number
-  emailsSent: number
-  openRate: number
-  clickRate: number
+// Dynamic imports for better code splitting
+const RevenueDashboard = dynamic(() => import('@/components/admin/RevenueDashboard'), {
+  loading: () => <LoadingComponent />
+})
+const ApiUsageMonitor = dynamic(() => import('@/components/admin/ApiUsageMonitor'), {
+  loading: () => <LoadingComponent />
+})
+const WebsiteGallery = dynamic(() => import('@/components/admin/WebsiteGallery'), {
+  loading: () => <LoadingComponent />
+})
+const EmailCampaignCenter = dynamic(() => import('@/components/admin/EmailCampaignCenter'), {
+  loading: () => <LoadingComponent />
+})
+const CustomerPipeline = dynamic(() => import('@/components/admin/CustomerPipeline'), {
+  loading: () => <LoadingComponent />
+})
+const OperationsLog = dynamic(() => import('@/components/admin/OperationsLog'), {
+  loading: () => <LoadingComponent />
+})
+
+interface QuickStats {
+  revenueToday: number
+  emailsSentToday: number
+  newCustomersToday: number
+  activeWebsites: number
 }
 
-interface BusinessActivity {
-  id: string
-  business_name: string
-  email: string
-  phone: string
-  city: string
-  state: string
-  created_at: string
-  preview_url?: string
-  status: {
-    imported: boolean
-    generated: boolean
-    sent: boolean
-    opened: boolean
-    clicked: boolean
-  }
+interface SystemStatus {
+  database: 'operational' | 'degraded' | 'down'
+  email: 'operational' | 'degraded' | 'down'
+  api: 'operational' | 'degraded' | 'down'
 }
+
+type ActiveSection = 'revenue' | 'pipeline' | 'campaigns' | 'websites' | 'api' | 'operations'
+
+const LoadingComponent = () => (
+  <div className="flex items-center justify-center h-96">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto"></div>
+      <p className="mt-4 text-gray-700 dark:text-gray-300 font-medium">Loading...</p>
+    </div>
+  </div>
+)
 
 export default function AdminPage() {
-  const [stats, setStats] = useState<Statistics>({
-    totalBusinesses: 0,
-    websitesGenerated: 0,
-    emailsSent: 0,
-    openRate: 0,
-    clickRate: 0
+  const [activeSection, setActiveSection] = useState<ActiveSection>('revenue')
+  const [quickStats, setQuickStats] = useState<QuickStats>({
+    revenueToday: 0,
+    emailsSentToday: 0,
+    newCustomersToday: 0,
+    activeWebsites: 0
   })
-  
-  const [recentActivity, setRecentActivity] = useState<BusinessActivity[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [uploadingFile, setUploadingFile] = useState(false)
-  const [generatingPreviews, setGeneratingPreviews] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 })
-  const [sendingCampaign, setSendingCampaign] = useState(false)
-  const [testingEmail, setTestingEmail] = useState(false)
-  const [fixingUrls, setFixingUrls] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>({
+    database: 'operational',
+    email: 'operational',
+    api: 'operational'
+  })
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
-    setIsMounted(true)
+    // Update time every second
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+
+    return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {
-    if (isMounted) {
-      fetchDashboardData()
-    }
-  }, [isMounted])
-
-  const fetchDashboardData = async () => {
-    setIsLoading(true)
-    try {
-      // Fetch statistics
-      const [
-        businessesResult,
-        websitesResult,
-        emailsResult
-      ] = await Promise.all([
-        supabase.from('businesses').select('id', { count: 'exact' }),
-        supabase.from('website_previews').select('id', { count: 'exact' }),
-        supabase.from('email_logs').select('id', { count: 'exact' })
-      ])
-
-      const totalBusinesses = businessesResult.count || 0
-      const websitesGenerated = websitesResult.count || 0
-      const emailsSent = emailsResult.count || 0
-
-      // Fetch email tracking stats for open and click rates
-      const { data: emailTracking } = await supabase
-        .from('email_tracking')
-        .select('event_type')
-
-      const opens = emailTracking?.filter(e => e.event_type === 'open').length || 0
-      const clicks = emailTracking?.filter(e => e.event_type === 'click').length || 0
-      
-      const openRate = emailsSent > 0 ? (opens / emailsSent) * 100 : 0
-      const clickRate = emailsSent > 0 ? (clicks / emailsSent) * 100 : 0
-
-      setStats({
-        totalBusinesses,
-        websitesGenerated,
-        emailsSent,
-        openRate: Math.round(openRate * 10) / 10,
-        clickRate: Math.round(clickRate * 10) / 10
-      })
-
-      // Fetch all businesses
-      const { data: allBusinesses } = await supabase
-        .from('businesses')
-        .select('id, business_name, email, phone, city, state, created_at')
-        .order('created_at', { ascending: false })
-
-      if (allBusinesses) {
-        // Fetch all website previews in one query
-        const businessIds = allBusinesses.map(b => b.id)
-        const { data: allPreviews } = await supabase
-          .from('website_previews')
-          .select('id, business_id')
-          .in('business_id', businessIds)
-
-        console.log('Fetched previews:', allPreviews?.length || 0, 'previews')
-
-        // Create a map of business_id to preview URL using the preview ID
-        const previewMap = new Map()
-        allPreviews?.forEach(preview => {
-          // Use the preview ID (not business_id) to construct the URL
-          const previewUrl = `/preview/${preview.id}`
-          previewMap.set(preview.business_id, previewUrl)
-          console.log(`Mapped business ${preview.business_id} to preview URL: ${previewUrl}`)
-        })
-
-        console.log('Preview map size:', previewMap.size)
-
-        const activityData = await Promise.all(
-          allBusinesses.map(async (business) => {
-            const [email, tracking] = await Promise.all([
-              supabase.from('email_logs').select('id').eq('business_id', business.id).maybeSingle(),
-              supabase.from('email_tracking').select('event_type').eq('business_id', business.id)
-            ])
-
-            const opened = tracking.data?.some(t => t.event_type === 'open') || false
-            const clicked = tracking.data?.some(t => t.event_type === 'click') || false
-            const previewUrl = previewMap.get(business.id)
-
-            return {
-              id: business.id,
-              business_name: business.business_name,
-              email: business.email,
-              phone: business.phone,
-              city: business.city,
-              state: business.state,
-              created_at: business.created_at,
-              preview_url: previewUrl,
-              status: {
-                imported: true,
-                generated: !!previewUrl,
-                sent: !!email.data,
-                opened,
-                clicked
-              }
-            }
-          })
-        )
-        setRecentActivity(activityData)
-      }
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleTestEmail = async () => {
-    if (recentActivity.length === 0) {
-      alert('No businesses available to test email with. Please import businesses first.')
-      return
-    }
-
-    setTestingEmail(true)
-    try {
-      const firstBusiness = recentActivity[0]
-      console.log('Testing email with business:', firstBusiness.business_name)
-
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: firstBusiness.id,
-          test_mode: true
-        })
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        alert(`✅ Test email sent successfully!\n\nBusiness: ${firstBusiness.business_name}\nEmail: ${firstBusiness.email}\nMessage ID: ${result.messageId}`)
-      } else {
-        alert(`❌ Failed to send test email\n\nError: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('Test email error:', error)
-      alert(`❌ Failed to send test email\n\nError: ${error}`)
-    } finally {
-      setTestingEmail(false)
-    }
-  }
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setUploadingFile(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/import-businesses', {
-        method: 'POST',
-        body: formData
-      })
-
-      const result = await response.json()
-      
-      if (response.ok) {
-        alert(`Successfully imported ${result.statistics.imported} businesses`)
-        fetchDashboardData()
-      } else {
-        alert(`Error: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Upload error:', error)
-      alert('Failed to upload file')
-    } finally {
-      setUploadingFile(false)
-      if (event.target) {
-        event.target.value = ''
-      }
-    }
-  }
-
-  const handleGeneratePreviews = async () => {
-    setGeneratingPreviews(true)
-    setGenerationProgress({ current: 0, total: 0 })
+    fetchQuickStats()
+    checkSystemStatus()
     
+    // Refresh every 5 minutes
+    const refreshInterval = setInterval(() => {
+      fetchQuickStats()
+      checkSystemStatus()
+    }, 5 * 60 * 1000)
+
+    return () => clearInterval(refreshInterval)
+  }, [])
+
+  const fetchQuickStats = async () => {
     try {
-      // Get all businesses (only the fields we need)
-      const { data: allBusinesses, error: fetchError } = await supabase
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayISO = today.toISOString()
+
+      // Fetch revenue today
+      const { data: revenueData } = await supabase
+        .from('subscriptions')
+        .select('amount')
+        .gte('created_at', todayISO)
+        .eq('status', 'active')
+
+      const revenueToday = revenueData?.reduce((sum, sub) => sum + (sub.amount || 0), 0) || 0
+
+      // Fetch emails sent today
+      const { count: emailCount } = await supabase
+        .from('email_logs')
+        .select('id', { count: 'exact' })
+        .gte('created_at', todayISO)
+
+      // Fetch new customers today
+      const { count: customerCount } = await supabase
         .from('businesses')
-        .select('id, business_name')
+        .select('id', { count: 'exact' })
+        .gte('created_at', todayISO)
+        .not('claimed_at', 'is', null)
 
-      if (fetchError) {
-        console.error('Error fetching businesses:', fetchError)
-        alert('Failed to fetch businesses')
-        return
-      }
-
-      if (!allBusinesses || allBusinesses.length === 0) {
-        alert('No businesses found to generate previews for')
-        return
-      }
-
-      // Get all existing previews
-      const { data: existingPreviews } = await supabase
+      // Fetch active websites
+      const { count: websiteCount } = await supabase
         .from('website_previews')
-        .select('business_id')
+        .select('id', { count: 'exact' })
 
-      // Create a set of business IDs that already have previews
-      const businessesWithPreviews = new Set(existingPreviews?.map(p => p.business_id) || [])
+      setQuickStats({
+        revenueToday,
+        emailsSentToday: emailCount || 0,
+        newCustomersToday: customerCount || 0,
+        activeWebsites: websiteCount || 0
+      })
+    } catch (error) {
+      console.error('Error fetching quick stats:', error)
+    }
+  }
 
-      // Filter businesses without previews
-      const businessesWithoutPreviews = allBusinesses.filter(
-        business => !businessesWithPreviews.has(business.id)
+  const checkSystemStatus = async () => {
+    try {
+      // Check database
+      const { error: dbError } = await supabase.from('businesses').select('id').limit(1)
+      
+      // Check email service (mock check - replace with actual email service check)
+      const emailStatus = 'operational' // Replace with actual check
+      
+      // Check API services (mock check - replace with actual API check)
+      const apiStatus = 'operational' // Replace with actual check
+
+      setSystemStatus({
+        database: dbError ? 'down' : 'operational',
+        email: emailStatus as 'operational' | 'degraded' | 'down',
+        api: apiStatus as 'operational' | 'degraded' | 'down'
+      })
+    } catch (error) {
+      console.error('Error checking system status:', error)
+      setSystemStatus({
+        database: 'down',
+        email: 'degraded',
+        api: 'degraded'
+      })
+    }
+  }
+
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true)
+    await Promise.all([
+      fetchQuickStats(),
+      checkSystemStatus()
+    ])
+    setLastRefresh(new Date())
+    setIsRefreshing(false)
+  }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  }
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const getStatusColor = (status: 'operational' | 'degraded' | 'down') => {
+    switch (status) {
+      case 'operational':
+        return 'bg-green-500'
+      case 'degraded':
+        return 'bg-yellow-500'
+      case 'down':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  const sections: { id: ActiveSection; label: string; icon: JSX.Element }[] = [
+    {
+      id: 'revenue',
+      label: 'Revenue',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
       )
-
-      if (businessesWithoutPreviews.length === 0) {
-        alert('All businesses already have previews generated')
-        return
-      }
-
-      const totalToGenerate = businessesWithoutPreviews.length
-      setGenerationProgress({ current: 0, total: totalToGenerate })
-
-      let successCount = 0
-      let failCount = 0
-      const errors = []
-
-      // Generate previews one by one
-      for (let i = 0; i < businessesWithoutPreviews.length; i++) {
-        const business = businessesWithoutPreviews[i]
-        setGenerationProgress({ current: i + 1, total: totalToGenerate })
-
-        try {
-          console.log(`Generating preview for ${business.business_name} (${i + 1}/${totalToGenerate})`)
-          
-          const response = await fetch('/api/generate-preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ business_id: business.id })
-          })
-
-          const result = await response.json()
-
-          if (response.ok) {
-            successCount++
-            console.log(`Successfully generated preview for ${business.business_name}`)
-          } else {
-            failCount++
-            errors.push(`${business.business_name}: ${result.error || 'Unknown error'}`)
-            console.error(`Failed to generate preview for ${business.business_name}:`, result.error)
-          }
-
-          // Add a small delay to avoid overwhelming the API
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-        } catch (error) {
-          failCount++
-          errors.push(`${business.business_name}: ${error}`)
-          console.error(`Error generating preview for ${business.business_name}:`, error)
-        }
-      }
-
-      // Show results
-      let message = `Preview generation complete!\n\n`
-      message += `✓ Successfully generated: ${successCount}\n`
-      if (failCount > 0) {
-        message += `✗ Failed: ${failCount}\n`
-        if (errors.length > 0) {
-          message += `\nErrors:\n${errors.slice(0, 5).join('\n')}`
-          if (errors.length > 5) {
-            message += `\n... and ${errors.length - 5} more errors`
-          }
-        }
-      }
-      
-      alert(message)
-      
-      // Refresh the dashboard data to show new previews
-      await fetchDashboardData()
-      
-    } catch (error) {
-      console.error('Generate previews error:', error)
-      alert('Failed to generate previews: ' + error)
-    } finally {
-      setGeneratingPreviews(false)
-      setGenerationProgress({ current: 0, total: 0 })
+    },
+    {
+      id: 'pipeline',
+      label: 'Pipeline',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'campaigns',
+      label: 'Campaigns',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'websites',
+      label: 'Websites',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+        </svg>
+      )
+    },
+    {
+      id: 'api',
+      label: 'API Usage',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+      )
+    },
+    {
+      id: 'operations',
+      label: 'Operations',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
     }
-  }
-
-  const handleSendCampaign = async () => {
-    if (!confirm('Are you sure you want to send emails to all businesses with previews?')) {
-      return
-    }
-
-    setSendingCampaign(true)
-    try {
-      const response = await fetch('/api/send-campaign', {
-        method: 'POST',
-        headers: {  'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-
-      const result = await response.json()
-      
-      if (response.ok) {
-        alert(`Campaign sent! Emails sent: ${result.emailsSent}, Failed: ${result.emailsFailed}`)
-        fetchDashboardData()
-      } else {
-        alert(`Error: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Send campaign error:', error)
-      alert('Failed to send campaign')
-    } finally {
-      setSendingCampaign(false)
-    }
-  }
-
-  const handleFixPreviewUrls = async () => {
-    if (!confirm('This will update all preview URLs to use the correct format. Continue?')) {
-      return
-    }
-
-    setFixingUrls(true)
-    try {
-      const response = await fetch('/api/fix-preview-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      })
-
-      const result = await response.json()
-      
-      if (response.ok && result.success) {
-        let message = `✅ Preview URLs fixed successfully!\n\n`
-        message += `Total previews: ${result.stats.total}\n`
-        message += `Updated: ${result.stats.updated}\n`
-        message += `Already correct: ${result.stats.skipped}`
-        
-        if (result.stats.errors > 0) {
-          message += `\nErrors: ${result.stats.errors}`
-          if (result.errors && result.errors.length > 0) {
-            message += `\n\nError details:\n${result.errors.slice(0, 3).join('\n')}`
-          }
-        }
-        
-        alert(message)
-        
-        // Refresh the dashboard to show updated URLs
-        await fetchDashboardData()
-      } else {
-        alert(`❌ Failed to fix preview URLs\n\nError: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('Fix preview URLs error:', error)
-      alert(`❌ Failed to fix preview URLs\n\nError: ${error}`)
-    } finally {
-      setFixingUrls(false)
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    if (!isMounted) return '—'
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-      })
-    } catch {
-      return '—'
-    }
-  }
-
-  const StatCard = ({ title, value, suffix = '' }: { title: string; value: number | string; suffix?: string }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-      <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">{title}</h3>
-      <p className="text-3xl font-bold text-gray-900 dark:text-white">
-        {typeof value === 'number' ? value.toLocaleString() : value}{suffix}
-      </p>
-    </div>
-  )
-
-  const StatusBadge = ({ active }: { active: boolean }) => (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-      active 
-        ? 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800' 
-        : 'bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600'
-    }`}>
-      {active ? '✓' : '○'}
-    </span>
-  )
-
-  if (!isMounted || isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-700 dark:text-gray-300 font-medium">Loading dashboard...</p>
-        </div>
-      </div>
-    )
-  }
+  ]
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your business outreach campaigns</p>
-        
-        {/* Test and Fix Buttons */}
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            onClick={handleTestEmail}
-            disabled={testingEmail || recentActivity.length === 0}
-            className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
-              testingEmail || recentActivity.length === 0
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-600 hover:bg-green-700 active:bg-green-800 shadow-lg hover:shadow-xl'
-            }`}
-          >
-            {testingEmail ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Testing Email System...
-              </>
-            ) : (
-              <>
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Test Email System
-              </>
-            )}
-          </button>
-          
-          <button
-            onClick={handleFixPreviewUrls}
-            disabled={fixingUrls || stats.websitesGenerated === 0}
-            className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
-              fixingUrls || stats.websitesGenerated === 0
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800 shadow-lg hover:shadow-xl'
-            }`}
-          >
-            {fixingUrls ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Fixing URLs...
-              </>
-            ) : (
-              <>
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                </svg>
-                Fix Preview URLs
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-      
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <StatCard title="Total Businesses" value={stats.totalBusinesses} />
-        <StatCard title="Websites Generated" value={stats.websitesGenerated} />
-        <StatCard title="Emails Sent" value={stats.emailsSent} />
-        <StatCard title="Open Rate" value={stats.openRate} suffix="%" />
-        <StatCard title="Click Rate" value={stats.clickRate} suffix="%" />
-      </div>
-
-      {/* Action Buttons */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 border border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Campaign Actions</h2>
-        <div className="flex flex-wrap gap-4">
-          <div className="relative">
-            <input
-              type="file"
-              id="csv-upload"
-              accept=".csv"
-              onChange={handleFileUpload}
-              disabled={uploadingFile}
-              className="sr-only"
-            />
-            <label
-              htmlFor="csv-upload"
-              className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white cursor-pointer transition-colors ${
-                uploadingFile 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {formatDate(currentTime)} • {formatTime(currentTime)}
+              </p>
+            </div>
+            <button
+              onClick={handleRefreshAll}
+              disabled={isRefreshing}
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white transition-colors ${
+                isRefreshing
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
-              {uploadingFile ? (
+              {isRefreshing ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Uploading...
+                  Refreshing...
                 </>
               ) : (
                 <>
-                  <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Import CSV
+                  Refresh All
                 </>
               )}
-            </label>
+            </button>
           </div>
-          
-          <button
-            onClick={handleGeneratePreviews}
-            disabled={generatingPreviews}
-            className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
-              generatingPreviews 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
-            }`}
-          >
-            {generatingPreviews ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+          {/* Quick Stats */}
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm">Revenue Today</p>
+                  <p className="text-2xl font-bold">${quickStats.revenueToday.toFixed(2)}</p>
+                </div>
+                <svg className="w-8 h-8 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {generationProgress.total > 0 
-                  ? `Generating ${generationProgress.current} of ${generationProgress.total}...`
-                  : 'Generating...'}
-              </>
-            ) : (
-              <>
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                Generate Previews
-              </>
-            )}
-          </button>
-          
-          <button
-            onClick={handleSendCampaign}
-            disabled={sendingCampaign}
-            className={`inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white transition-colors ${
-              sendingCampaign 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800'
-            }`}
-          >
-            {sendingCampaign ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Sending...
-              </>
-            ) : (
-              <>
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm">Emails Sent Today</p>
+                  <p className="text-2xl font-bold">{quickStats.emailsSentToday}</p>
+                </div>
+                <svg className="w-8 h-8 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Send Campaign
-              </>
-            )}
-          </button>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm">New Customers</p>
+                  <p className="text-2xl font-bold">{quickStats.newCustomersToday}</p>
+                </div>
+                <svg className="w-8 h-8 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-4 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-orange-100 text-sm">Active Websites</p>
+                  <p className="text-2xl font-bold">{quickStats.activeWebsites}</p>
+                </div>
+                <svg className="w-8 h-8 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation Tabs */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={`
+                  flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                  ${activeSection === section.id
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }
+                `}
+              >
+                {section.icon}
+                {section.label}
+              </button>
+            ))}
+          </nav>
         </div>
       </div>
 
-      {/* Imported Businesses Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Imported Businesses ({recentActivity.length})</h2>
+      {/* Main Content */}
+      <main className="flex-1 px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="transition-all duration-300 ease-in-out">
+            {activeSection === 'revenue' && <RevenueDashboard />}
+            {activeSection === 'pipeline' && <CustomerPipeline />}
+            {activeSection === 'campaigns' && <EmailCampaignCenter />}
+            {activeSection === 'websites' && <WebsiteGallery />}
+            {activeSection === 'api' && <ApiUsageMonitor />}
+            {activeSection === 'operations' && <OperationsLog />}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Business Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Phone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Date Added
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Preview
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Email Sent
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Opened
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Clicked
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {recentActivity.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    No businesses imported yet. Upload a CSV file to get started.
-                  </td>
-                </tr>
-              ) : (
-                recentActivity.map((business) => (
-                  <tr key={business.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {business.business_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {business.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {business.phone}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {business.city}, {business.state}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {formatDate(business.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {business.preview_url ? (
-                        <a
-                          href={business.preview_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900 transition-colors"
-                        >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                          View
-                        </a>
-                      ) : (
-                        <StatusBadge active={false} />
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.sent} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.opened} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge active={business.status.clicked} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-white dark:bg-gray-800 shadow-sm border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div className="px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-6">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Last refresh: {formatTime(lastRefresh)}
+              </div>
+              
+              {/* System Status Indicators */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Database:</span>
+                  <div className="flex items-center">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.database)}`}></div>
+                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                      {systemStatus.database}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Email:</span>
+                  <div className="flex items-center">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.email)}`}></div>
+                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                      {systemStatus.email}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">API:</span>
+                  <div className="flex items-center">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.api)}`}></div>
+                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                      {systemStatus.api}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Version 2.0.0
+            </div>
+          </div>
         </div>
-      </div>
+      </footer>
     </div>
   )
 }
