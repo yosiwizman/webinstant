@@ -1,5 +1,4 @@
 import { Resend } from "resend";
-import React from "react";
 
 export interface EmailOptions {
   to: string;
@@ -33,17 +32,6 @@ interface ResendEmailData {
   subject: string;
   html: string;
   tags?: Array<{ name: string; value: string }>;
-}
-
-interface ResendSendResult {
-  data?: { id: string };
-  error?:
-    | string
-    | {
-        message?: string;
-        name?: string;
-        [key: string]: unknown;
-      };
 }
 
 // Email template as a function that returns HTML string
@@ -196,6 +184,111 @@ function WebsiteReadyEmailTemplate({
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${previewUrl}" class="cta-button">Review & Edit Your Website →</a>
+    </div>
+
+    <div class="footer">
+      <p>Questions? Reply to this email and we'll be happy to help!</p>
+      <p style="margin-top: 10px;">
+        © ${new Date().getFullYear()} Your Website Builder. All rights reserved.
+      </p>
+    </div>
+  </div>
+  ${
+    trackingPixelUrl
+      ? `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />`
+      : ""
+  }
+</body>
+</html>
+  `;
+}
+
+// Follow-up email template
+function FollowUpEmailTemplate({
+  businessName,
+  previewUrl,
+  daysSinceSent,
+  trackingPixelUrl,
+}: {
+  businessName: string;
+  previewUrl: string;
+  daysSinceSent: number;
+  trackingPixelUrl?: string;
+}): string {
+  const isFirstFollowUp = daysSinceSent === 3;
+  
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${businessName} - ${isFirstFollowUp ? 'Have you checked out your new website?' : 'Your website is waiting for you!'}</title>
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    h1 {
+      color: #2563eb;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 14px 32px;
+      text-decoration: none;
+      border-radius: 50px;
+      font-weight: bold;
+      font-size: 16px;
+      margin: 20px 0;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e9ecef;
+      color: #6c757d;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${isFirstFollowUp ? '👋' : '🔔'} ${businessName}</h1>
+      <p style="font-size: 18px; color: #6c757d;">
+        ${isFirstFollowUp 
+          ? "We noticed you haven't had a chance to review your new website yet." 
+          : "Your professional website is still waiting for you!"}
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <p style="font-size: 16px; margin-bottom: 20px;">
+        ${isFirstFollowUp
+          ? "We've put together something special for your business. Take a moment to see how great it looks!"
+          : "Don't miss out on the opportunity to enhance your online presence. Your website is ready and waiting!"}
+      </p>
+      <a href="${previewUrl}" class="cta-button">View Your Website →</a>
     </div>
 
     <div class="footer">
@@ -460,18 +553,82 @@ export class EmailService {
   async sendFollowUpEmail(
     options: EmailOptions & { daysSinceSent: number }
   ): Promise<EmailResult> {
+    const { to, businessName, previewUrl, businessId, daysSinceSent } = options;
+    
     console.log(
-      `📧 Sending follow-up email to: ${options.to} (${options.daysSinceSent} days since initial)`
+      `📧 Sending follow-up email to: ${to} (${daysSinceSent} days since initial)`
     );
 
-    // You can create different follow-up templates based on days
-    const subject =
-      options.daysSinceSent === 3
-        ? `${options.businessName} - Have you checked out your new website?`
-        : `${options.businessName} - Your website is waiting for you!`;
+    // Create tracking URLs
+    const trackingParams = new URLSearchParams({
+      business_id: businessId,
+      email: to,
+      campaign: "follow_up",
+      days_since: daysSinceSent.toString(),
+      timestamp: Date.now().toString(),
+    });
 
-    // For now, reuse the main template
-    return this.sendWebsiteReadyEmail(options);
+    const trackedPreviewUrl = `${previewUrl}?${trackingParams.toString()}&action=click`;
+    const trackingPixelUrl = `${
+      process.env.NEXT_PUBLIC_APP_URL
+    }/api/track-email?${trackingParams.toString()}&action=open`;
+
+    // Determine subject based on days since sent
+    const subject =
+      daysSinceSent === 3
+        ? `${businessName} - Have you checked out your new website?`
+        : `${businessName} - Your website is waiting for you!`;
+
+    try {
+      // Generate follow-up email HTML
+      const emailHtml = FollowUpEmailTemplate({
+        businessName,
+        previewUrl: trackedPreviewUrl,
+        daysSinceSent,
+        trackingPixelUrl,
+      });
+
+      // If Resend is not configured, simulate sending
+      if (!this.resend) {
+        console.log("📧 SIMULATED: Follow-up email would be sent to:", to);
+        console.log("   Subject:", subject);
+        console.log("   Days since initial:", daysSinceSent);
+        console.log("✅ Follow-up email sent successfully (simulated)");
+
+        return {
+          success: true,
+          messageId: `simulated-followup-${Date.now()}`,
+        };
+      }
+
+      // Actually send the email with Resend
+      const result = await this.sendWithRetry({
+        from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+        to: [to],
+        subject,
+        html: emailHtml,
+        tags: [
+          { name: "campaign", value: "follow_up" },
+          { name: "business_id", value: businessId },
+          { name: "days_since", value: daysSinceSent.toString() },
+        ],
+      });
+
+      console.log(
+        `✅ Follow-up email sent successfully to ${to}! Message ID: ${result.id}`
+      );
+
+      return {
+        success: true,
+        messageId: result.id,
+      };
+    } catch (error) {
+      console.error(`❌ Error sending follow-up email to ${to}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   }
 
   async sendReminderEmail(options: EmailOptions): Promise<EmailResult> {
