@@ -61,21 +61,22 @@ export default function CustomerPipeline() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const getTimeAgo = (date: Date): string => {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-    
-    if (seconds < 60) return 'Just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
-    return date.toLocaleDateString()
-  }
-
-  const getDaysSince = (date: Date): number => {
-    return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
-  }
-
   const fetchRealBusinessData = useCallback(async () => {
+    // Move helper functions inside the callback
+    const getTimeAgo = (date: Date): string => {
+      const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+      
+      if (seconds < 60) return 'Just now'
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
+      return date.toLocaleDateString()
+    }
+
+    const getDaysSince = (date: Date): number => {
+      return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
+    }
+
     try {
       // Fetch all businesses with their email tracking data
       const { data: businesses, error } = await supabase
@@ -198,7 +199,7 @@ export default function CustomerPipeline() {
       console.error('Error processing business data:', error)
       setLoading(false)
     }
-  }, [supabase, getTimeAgo, getDaysSince])
+  }, [supabase])
 
   useEffect(() => {
     fetchRealBusinessData()
