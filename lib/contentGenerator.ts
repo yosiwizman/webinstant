@@ -949,9 +949,7 @@ export class ContentGenerator {
     const businessTypeField = (businessInfo.businessType || '').toLowerCase();
     
     // Combine both for better detection
-    const combined = `${businessName} ${businessTypeFiel
-
-d}`;
+    const combined = `${businessName} ${businessTypeField}`;
     
     let detectedType = 'general'; // Default
     
