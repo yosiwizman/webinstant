@@ -79,7 +79,9 @@ export default function RevenueDashboard() {
           .lt('created_at', todayEnd.toISOString())
           .eq('status', 'completed');
         
-        if (!todayError && todayData) {
+        if (todayError) {
+          console.log('Transactions table not available:', todayError.message);
+        } else if (todayData) {
           todayRevenue = todayData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
@@ -114,8 +116,8 @@ export default function RevenueDashboard() {
         if (!totalError && totalData) {
           totalRevenue = totalData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
-      } catch {
-        console.log('Transactions table not set up yet');
+      } catch (err) {
+        console.log('Transactions table not set up yet:', err);
       }
       
       setMetrics({
@@ -181,8 +183,8 @@ export default function RevenueDashboard() {
         if (!clickError && clickCount !== null) {
           linksClickedCount = clickCount;
         }
-      } catch {
-        console.log('Emails table not set up yet');
+      } catch (err) {
+        console.log('Emails table not set up yet:', err);
       }
       
       // Count customers (businesses that have been claimed)
@@ -205,8 +207,8 @@ export default function RevenueDashboard() {
           if (!custError && custCount !== null) {
             customersCount = custCount;
           }
-        } catch {
-          console.log('Customers table not set up yet');
+        } catch (err) {
+          console.log('Customers table not set up yet:', err);
         }
       }
       
@@ -260,7 +262,18 @@ export default function RevenueDashboard() {
           .eq('status', 'completed')
           .order('created_at', { ascending: true });
         
-        if (!chartError && chartData) {
+        if (chartError) {
+          console.log('Error fetching chart data:', chartError.message);
+          // Fill with zeros if error
+          for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            chartArray.push({
+              date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              revenue: 0
+            });
+          }
+        } else if (chartData) {
           // Group by day
           const revenueByDay: { [key: string]: number } = {};
           
@@ -290,7 +303,8 @@ export default function RevenueDashboard() {
             });
           }
         }
-      } catch {
+      } catch (err) {
+        console.log('Error with transactions table:', err);
         // If table doesn't exist, show 30 days of zeros
         for (let i = 29; i >= 0; i--) {
           const date = new Date();
@@ -310,42 +324,30 @@ export default function RevenueDashboard() {
       try {
         const { data: recentTransactions, error: transError } = await supabase
           .from('transactions')
-          .select(`
-            id,
-            amount,
-            created_at,
-            status,
-            customer_name,
-            business_id,
-            customer_id
-          `)
+          .select('id, amount, created_at, status, customer_name, business_id')
           .order('created_at', { ascending: false })
           .limit(10);
         
-        if (!transError && recentTransactions && recentTransactions.length > 0) {
+        if (transError) {
+          console.log('Error fetching transactions:', transError.message);
+        } else if (recentTransactions && recentTransactions.length > 0) {
           // Try to get business names if business_id exists
           for (const trans of recentTransactions) {
             let customerName = trans.customer_name || 'Unknown';
             
             if (trans.business_id) {
-              const { data: business } = await supabase
-                .from('businesses')
-                .select('name')
-                .eq('id', trans.business_id)
-                .single();
-              
-              if (business) {
-                customerName = business.name;
-              }
-            } else if (trans.customer_id) {
-              const { data: customer } = await supabase
-                .from('customers')
-                .select('name')
-                .eq('id', trans.customer_id)
-                .single();
-              
-              if (customer) {
-                customerName = customer.name;
+              try {
+                const { data: business, error: bizError } = await supabase
+                  .from('businesses')
+                  .select('name')
+                  .eq('id', trans.business_id)
+                  .single();
+                
+                if (!bizError && business) {
+                  customerName = business.name;
+                }
+              } catch (err) {
+                console.log('Error fetching business name:', err);
               }
             }
             
@@ -358,8 +360,8 @@ export default function RevenueDashboard() {
             });
           }
         }
-      } catch {
-        console.log('Transactions table not set up yet');
+      } catch (err) {
+        console.log('Transactions table not set up yet:', err);
       }
       
       setTransactions(recentTransactionsList);
@@ -374,7 +376,8 @@ export default function RevenueDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]);
+    // Only fetch once on mount, no auto-refresh to prevent loops
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
