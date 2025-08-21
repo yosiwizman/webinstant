@@ -1,0 +1,11 @@
+# Run diagnostic first to see what's broken
+node regenerate-previews.js --diagnostic
+
+# Fix only broken previews
+node regenerate-previews.js --only-broken
+
+# Fix a specific business
+node regenerate-previews.js --business-id <business-id>
+
+# Fix all (careful, this regenerates everything)
+node regenerate-previews.js
