@@ -41,6 +41,7 @@ export default function RevenueDashboard() {
   const [revenueChart, setRevenueChart] = useState<RevenueData[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -49,139 +50,322 @@ export default function RevenueDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Fetch revenue metrics
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      // Get current date boundaries
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart);
+      todayEnd.setDate(todayEnd.getDate() + 1);
       
-      // Fetch today's revenue
-      const { data: todayData } = await supabase
-        .from('transactions')
-        .select('amount')
-        .gte('created_at', startOfDay.toISOString())
-        .eq('status', 'completed');
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
       
-      // Fetch week's revenue
-      const { data: weekData } = await supabase
-        .from('transactions')
-        .select('amount')
-        .gte('created_at', startOfWeek.toISOString())
-        .eq('status', 'completed');
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
-      // Fetch month's revenue (MRR)
-      const { data: monthData } = await supabase
-        .from('transactions')
-        .select('amount')
-        .gte('created_at', startOfMonth.toISOString())
-        .eq('status', 'completed');
+      // Check if transactions table exists and fetch revenue metrics
+      let todayRevenue = 0;
+      let weekRevenue = 0;
+      let monthRevenue = 0;
+      let totalRevenue = 0;
       
-      // Fetch total revenue
-      const { data: totalData } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('status', 'completed');
+      try {
+        // Fetch today's revenue
+        const { data: todayData, error: todayError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .gte('created_at', todayStart.toISOString())
+          .lt('created_at', todayEnd.toISOString())
+          .eq('status', 'completed');
+        
+        if (!todayError && todayData) {
+          todayRevenue = todayData.reduce((sum, t) => sum + (t.amount || 0), 0);
+        }
+        
+        // Fetch this week's revenue
+        const { data: weekData, error: weekError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .gte('created_at', weekAgo.toISOString())
+          .eq('status', 'completed');
+        
+        if (!weekError && weekData) {
+          weekRevenue = weekData.reduce((sum, t) => sum + (t.amount || 0), 0);
+        }
+        
+        // Fetch this month's revenue
+        const { data: monthData, error: monthError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .gte('created_at', monthStart.toISOString())
+          .eq('status', 'completed');
+        
+        if (!monthError && monthData) {
+          monthRevenue = monthData.reduce((sum, t) => sum + (t.amount || 0), 0);
+        }
+        
+        // Fetch total revenue
+        const { data: totalData, error: totalError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('status', 'completed');
+        
+        if (!totalError && totalData) {
+          totalRevenue = totalData.reduce((sum, t) => sum + (t.amount || 0), 0);
+        }
+      } catch (err) {
+        console.log('Transactions table not set up yet');
+      }
       
       setMetrics({
-        todayRevenue: todayData?.reduce((sum, t) => sum + t.amount, 0) || 0,
-        weekRevenue: weekData?.reduce((sum, t) => sum + t.amount, 0) || 0,
-        monthRevenue: monthData?.reduce((sum, t) => sum + t.amount, 0) || 0,
-        totalRevenue: totalData?.reduce((sum, t) => sum + t.amount, 0) || 0
+        todayRevenue,
+        weekRevenue,
+        monthRevenue,
+        totalRevenue
       });
       
-      // Fetch funnel data
-      const { data: businessesData } = await supabase
+      // Fetch funnel data with actual counts
+      let businessCount = 0;
+      let previewCount = 0;
+      let emailsSentCount = 0;
+      let emailsOpenedCount = 0;
+      let linksClickedCount = 0;
+      let customersCount = 0;
+      
+      // Count businesses
+      const { count: bizCount, error: bizError } = await supabase
         .from('businesses')
-        .select('id', { count: 'exact' });
+        .select('*', { count: 'exact', head: true });
       
-      const { data: previewsData } = await supabase
-        .from('previews')
-        .select('id', { count: 'exact' });
+      if (!bizError && bizCount !== null) {
+        businessCount = bizCount;
+      }
       
-      const { data: emailsSentData } = await supabase
-        .from('emails')
-        .select('id', { count: 'exact' });
+      // Count previews with actual content
+      const { count: prevCount, error: prevError } = await supabase
+        .from('website_previews')
+        .select('*', { count: 'exact', head: true })
+        .not('html_content', 'is', null);
       
-      const { data: emailsOpenedData } = await supabase
-        .from('emails')
-        .select('id', { count: 'exact' })
-        .not('opened_at', 'is', null);
+      if (!prevError && prevCount !== null) {
+        previewCount = prevCount;
+      }
       
-      const { data: linksClickedData } = await supabase
-        .from('emails')
-        .select('id', { count: 'exact' })
-        .not('clicked_at', 'is', null);
+      // Count emails sent
+      try {
+        const { count: emailCount, error: emailError } = await supabase
+          .from('emails')
+          .select('*', { count: 'exact', head: true });
+        
+        if (!emailError && emailCount !== null) {
+          emailsSentCount = emailCount;
+        }
+        
+        // Count emails opened
+        const { count: openCount, error: openError } = await supabase
+          .from('emails')
+          .select('*', { count: 'exact', head: true })
+          .not('opened_at', 'is', null);
+        
+        if (!openError && openCount !== null) {
+          emailsOpenedCount = openCount;
+        }
+        
+        // Count links clicked
+        const { count: clickCount, error: clickError } = await supabase
+          .from('emails')
+          .select('*', { count: 'exact', head: true })
+          .not('clicked_at', 'is', null);
+        
+        if (!clickError && clickCount !== null) {
+          linksClickedCount = clickCount;
+        }
+      } catch (err) {
+        console.log('Emails table not set up yet');
+      }
       
-      const { data: customersData } = await supabase
-        .from('customers')
-        .select('id', { count: 'exact' });
+      // Count customers (businesses that have been claimed)
+      const { count: claimedCount, error: claimedError } = await supabase
+        .from('businesses')
+        .select('*', { count: 'exact', head: true })
+        .not('claimed_at', 'is', null);
       
-      const businessCount = businessesData?.length || 0;
-      const previewCount = previewsData?.length || 0;
-      const emailsSentCount = emailsSentData?.length || 0;
-      const emailsOpenedCount = emailsOpenedData?.length || 0;
-      const linksClickedCount = linksClickedData?.length || 0;
-      const customersCount = customersData?.length || 0;
+      if (!claimedError && claimedCount !== null) {
+        customersCount = claimedCount;
+      }
       
-      setFunnelData([
-        { stage: 'Businesses Imported', value: businessCount, percentage: 100 },
-        { stage: 'Previews Created', value: previewCount, percentage: businessCount > 0 ? (previewCount / businessCount) * 100 : 0 },
-        { stage: 'Emails Sent', value: emailsSentCount, percentage: businessCount > 0 ? (emailsSentCount / businessCount) * 100 : 0 },
-        { stage: 'Emails Opened', value: emailsOpenedCount, percentage: emailsSentCount > 0 ? (emailsOpenedCount / emailsSentCount) * 100 : 0 },
-        { stage: 'Links Clicked', value: linksClickedCount, percentage: emailsOpenedCount > 0 ? (linksClickedCount / emailsOpenedCount) * 100 : 0 },
-        { stage: 'Customers', value: customersCount, percentage: linksClickedCount > 0 ? (customersCount / linksClickedCount) * 100 : 0 }
-      ]);
+      // Try customers table as fallback
+      if (customersCount === 0) {
+        try {
+          const { count: custCount, error: custError } = await supabase
+            .from('customers')
+            .select('*', { count: 'exact', head: true });
+          
+          if (!custError && custCount !== null) {
+            customersCount = custCount;
+          }
+        } catch (err) {
+          console.log('Customers table not set up yet');
+        }
+      }
       
-      // Fetch revenue chart data (last 30 days)
+      // Calculate percentages for funnel
+      const funnelStages: FunnelData[] = [
+        { 
+          stage: 'Businesses Imported', 
+          value: businessCount, 
+          percentage: 100 
+        },
+        { 
+          stage: 'Previews Created', 
+          value: previewCount, 
+          percentage: businessCount > 0 ? (previewCount / businessCount) * 100 : 0 
+        },
+        { 
+          stage: 'Emails Sent', 
+          value: emailsSentCount, 
+          percentage: businessCount > 0 ? (emailsSentCount / businessCount) * 100 : 0 
+        },
+        { 
+          stage: 'Emails Opened', 
+          value: emailsOpenedCount, 
+          percentage: emailsSentCount > 0 ? (emailsOpenedCount / emailsSentCount) * 100 : 0 
+        },
+        { 
+          stage: 'Links Clicked', 
+          value: linksClickedCount, 
+          percentage: emailsOpenedCount > 0 ? (linksClickedCount / emailsOpenedCount) * 100 : 0 
+        },
+        { 
+          stage: 'Customers', 
+          value: customersCount, 
+          percentage: linksClickedCount > 0 ? (customersCount / linksClickedCount) * 100 : 0 
+        }
+      ];
+      
+      setFunnelData(funnelStages);
+      
+      // Fetch revenue chart data for last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const { data: chartData } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .eq('status', 'completed')
-        .order('created_at', { ascending: true });
-      
-      // Group by day
-      const revenueByDay: { [key: string]: number } = {};
-      chartData?.forEach(transaction => {
-        const date = new Date(transaction.created_at).toLocaleDateString();
-        revenueByDay[date] = (revenueByDay[date] || 0) + transaction.amount;
-      });
-      
-      // Fill in missing days with 0
       const chartArray: RevenueData[] = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toLocaleDateString();
-        chartArray.push({
-          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          revenue: revenueByDay[dateStr] || 0
-        });
+      
+      try {
+        const { data: chartData, error: chartError } = await supabase
+          .from('transactions')
+          .select('amount, created_at')
+          .gte('created_at', thirtyDaysAgo.toISOString())
+          .eq('status', 'completed')
+          .order('created_at', { ascending: true });
+        
+        if (!chartError && chartData) {
+          // Group by day
+          const revenueByDay: { [key: string]: number } = {};
+          
+          chartData.forEach(transaction => {
+            const date = new Date(transaction.created_at).toLocaleDateString();
+            revenueByDay[date] = (revenueByDay[date] || 0) + (transaction.amount || 0);
+          });
+          
+          // Fill in all days with actual data or 0
+          for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toLocaleDateString();
+            chartArray.push({
+              date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              revenue: revenueByDay[dateStr] || 0
+            });
+          }
+        } else {
+          // If no data, show 30 days of zeros
+          for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            chartArray.push({
+              date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              revenue: 0
+            });
+          }
+        }
+      } catch (err) {
+        // If table doesn't exist, show 30 days of zeros
+        for (let i = 29; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          chartArray.push({
+            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            revenue: 0
+          });
+        }
       }
       
       setRevenueChart(chartArray);
       
       // Fetch recent transactions
-      const { data: recentTransactions } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const recentTransactionsList: Transaction[] = [];
       
-      setTransactions(recentTransactions?.map(t => ({
-        id: t.id,
-        customer: t.customer_name || 'Unknown',
-        amount: t.amount,
-        date: new Date(t.created_at).toLocaleDateString(),
-        status: t.status
-      })) || []);
+      try {
+        const { data: recentTransactions, error: transError } = await supabase
+          .from('transactions')
+          .select(`
+            id,
+            amount,
+            created_at,
+            status,
+            customer_name,
+            business_id,
+            customer_id
+          `)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (!transError && recentTransactions && recentTransactions.length > 0) {
+          // Try to get business names if business_id exists
+          for (const trans of recentTransactions) {
+            let customerName = trans.customer_name || 'Unknown';
+            
+            if (trans.business_id) {
+              const { data: business } = await supabase
+                .from('businesses')
+                .select('name')
+                .eq('id', trans.business_id)
+                .single();
+              
+              if (business) {
+                customerName = business.name;
+              }
+            } else if (trans.customer_id) {
+              const { data: customer } = await supabase
+                .from('customers')
+                .select('name')
+                .eq('id', trans.customer_id)
+                .single();
+              
+              if (customer) {
+                customerName = customer.name;
+              }
+            }
+            
+            recentTransactionsList.push({
+              id: trans.id,
+              customer: customerName,
+              amount: trans.amount || 0,
+              date: new Date(trans.created_at).toLocaleDateString(),
+              status: trans.status || 'pending'
+            });
+          }
+        }
+      } catch (err) {
+        console.log('Transactions table not set up yet');
+      }
+      
+      setTransactions(recentTransactionsList);
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError('Error loading dashboard data');
     } finally {
       setLoading(false);
     }
@@ -200,26 +384,22 @@ export default function RevenueDashboard() {
     {
       title: "Today's Revenue",
       value: formatCurrency(metrics.todayRevenue),
-      icon: <DollarSign className="w-5 h-5" />,
-      change: '+12%'
+      icon: <DollarSign className="w-5 h-5" />
     },
     {
       title: 'This Week',
       value: formatCurrency(metrics.weekRevenue),
-      icon: <Calendar className="w-5 h-5" />,
-      change: '+8%'
+      icon: <Calendar className="w-5 h-5" />
     },
     {
       title: 'This Month (MRR)',
       value: formatCurrency(metrics.monthRevenue),
-      icon: <TrendingUp className="w-5 h-5" />,
-      change: '+15%'
+      icon: <TrendingUp className="w-5 h-5" />
     },
     {
       title: 'Total Revenue',
       value: formatCurrency(metrics.totalRevenue),
-      icon: <CreditCard className="w-5 h-5" />,
-      change: '+23%'
+      icon: <CreditCard className="w-5 h-5" />
     }
   ];
 
@@ -227,6 +407,22 @@ export default function RevenueDashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -248,9 +444,6 @@ export default function RevenueDashboard() {
                 <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg text-white">
                   {metric.icon}
                 </div>
-                {metric.change && (
-                  <span className="text-sm font-semibold text-green-600">{metric.change}</span>
-                )}
               </div>
               <h3 className="text-sm font-medium text-gray-600 mb-1">{metric.title}</h3>
               <p className="text-2xl font-bold text-gray-900">{metric.value}</p>
@@ -262,110 +455,130 @@ export default function RevenueDashboard() {
       {/* Conversion Funnel Chart */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Conversion Funnel</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={funnelData}
-            layout="horizontal"
-            margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" />
-            <YAxis dataKey="stage" type="category" />
-            <Tooltip 
-              formatter={(value: any, name: string) => {
-                if (name === 'percentage') {
-                  return `${value.toFixed(1)}%`;
-                }
-                return value;
-              }}
-            />
-            <Bar dataKey="value" fill="url(#colorGradient)" />
-            <defs>
-              <linearGradient id="colorGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="100%" stopColor="#8B5CF6" />
-              </linearGradient>
-            </defs>
-          </BarChart>
-        </ResponsiveContainer>
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {funnelData.map((item, index) => (
-            <div key={index} className="text-center">
-              <p className="text-sm text-gray-600">{item.stage}</p>
-              <p className="text-lg font-bold text-gray-900">{item.value}</p>
-              <p className="text-sm text-blue-600">{item.percentage.toFixed(1)}%</p>
+        {funnelData.some(item => item.value > 0) ? (
+          <>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={funnelData}
+                layout="horizontal"
+                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="stage" type="category" />
+                <Tooltip 
+                  formatter={(value: any, name: string) => {
+                    if (name === 'percentage') {
+                      return `${value.toFixed(1)}%`;
+                    }
+                    return value;
+                  }}
+                />
+                <Bar dataKey="value" fill="url(#colorGradient)" />
+                <defs>
+                  <linearGradient id="colorGradient" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#3B82F6" />
+                    <stop offset="100%" stopColor="#8B5CF6" />
+                  </linearGradient>
+                </defs>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {funnelData.map((item, index) => (
+                <div key={index} className="text-center">
+                  <p className="text-sm text-gray-600">{item.stage}</p>
+                  <p className="text-lg font-bold text-gray-900">{item.value}</p>
+                  <p className="text-sm text-blue-600">{item.percentage.toFixed(1)}%</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            <p>No data yet. Start importing businesses to see your funnel.</p>
+          </div>
+        )}
       </div>
 
       {/* Revenue Chart */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Revenue (Last 30 Days)</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={revenueChart}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip formatter={(value: any) => formatCurrency(value)} />
-            <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="revenue" 
-              stroke="url(#lineGradient)" 
-              strokeWidth={3}
-              dot={{ fill: '#8B5CF6', r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-            <defs>
-              <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="100%" stopColor="#8B5CF6" />
-              </linearGradient>
-            </defs>
-          </LineChart>
-        </ResponsiveContainer>
+        {revenueChart.some(item => item.revenue > 0) ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={revenueChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip formatter={(value: any) => formatCurrency(value)} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="revenue" 
+                stroke="url(#lineGradient)" 
+                strokeWidth={3}
+                dot={{ fill: '#8B5CF6', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <defs>
+                <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#3B82F6" />
+                  <stop offset="100%" stopColor="#8B5CF6" />
+                </linearGradient>
+              </defs>
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            <p>No revenue data yet. Complete transactions will appear here.</p>
+          </div>
+        )}
       </div>
 
       {/* Recent Transactions Table */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Recent Transactions</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Customer</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Amount</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((transaction) => (
-                <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-gray-900">{transaction.customer}</td>
-                  <td className="py-3 px-4 font-semibold text-gray-900">
-                    {formatCurrency(transaction.amount)}
-                  </td>
-                  <td className="py-3 px-4 text-gray-600">{transaction.date}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        transaction.status === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : transaction.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {transaction.status}
-                    </span>
-                  </td>
+        {transactions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Customer</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Amount</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {transactions.map((transaction) => (
+                  <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4 text-gray-900">{transaction.customer}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">
+                      {formatCurrency(transaction.amount)}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">{transaction.date}</td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          transaction.status === 'completed'
+                            ? 'bg-green-100 text-green-800'
+                            : transaction.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {transaction.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            <p>No transactions yet</p>
+          </div>
+        )}
       </div>
     </div>
   );
