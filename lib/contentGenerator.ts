@@ -437,7 +437,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
   }
 }
 
-function generateTypographyLogo(name: string): string {
+function generateTypographyLogo(name: string, _type: string): string {
   const firstLetter = name.charAt(0);
   const restOfName = name.slice(1);
   
@@ -490,7 +490,7 @@ async function generateVideoBackground(businessType: string): Promise<string | n
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(): string {
+export function generateTrustSignals(_businessType: string, _businessName: string): string {
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
   
@@ -680,7 +680,7 @@ export function generateLiveChatBubble(phone: string): string {
 }
 
 // Exit Intent Popup
-export function generateExitIntentPopup(): string {
+export function generateExitIntentPopup(_businessName: string): string {
   return `
     <div class="exit-popup" id="exitPopup">
       <div class="popup-content">
@@ -1355,7 +1355,7 @@ export function detectBusinessType(businessName: string): string {
   return detectedType;
 }
 
-export function generateTagline(type: string): string {
+export function generateTagline(type: string, _businessName: string): string {
   const taglines: { [key: string]: string[] } = {
     restaurant: [
       'Where Every Meal Becomes a Memory',
@@ -1523,7 +1523,7 @@ export function generateBusinessHours(type: string): { [key: string]: string } {
   const hours: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       'Monday': '11:00 AM - 10:00 PM',
-      'Tuesday': '11:00 AM - 10:00 PM',
+      'Tuesday': '11:00 AM - 10: 00 PM',
       'Wednesday': '11:00 AM - 10:00 PM',
       'Thursday': '11:00 AM - 10:00 PM',
       'Friday': '11:00 AM - 11:00 PM',
@@ -1545,7 +1545,7 @@ export function generateBusinessHours(type: string): { [key: string]: string } {
       'Wednesday': '8:00 AM - 6:00 PM',
       'Thursday': '8:00 AM - 6:00 PM',
       'Friday': '8:00 AM - 6:00 PM',
-      'Saturday':  '8:00 AM - 4:00 PM',
+      'Saturday': '8:00 AM - 4:00 PM',
       'Sunday': 'Closed'
     },
     plumbing: {
@@ -1628,7 +1628,7 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string): string {
+export function getImagePrompt(type: string, imageType: string, _businessName: string): string {
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
@@ -1670,4 +1670,47 @@ export function getImagePrompt(type: string, imageType: string): string {
   
   const businessPrompts = prompts[type] || prompts.general;
   return businessPrompts[imageType] || businessPrompts.hero;
+}
+
+// Helper function to get industry keywords
+function getIndustryKeywords(businessType: string): string[] {
+  const keywordMap: { [key: string]: string[] } = {
+    restaurant: [
+      'fresh', 'delicious', 'menu', 'dining', 'cuisine', 'chef',
+      'ingredients', 'atmosphere', 'reservation', 'takeout', 'delivery',
+      'locally sourced', 'homemade', 'authentic', 'flavors', 'gourmet',
+      'award-winning', 'signature dishes', 'craft cocktails'
+    ],
+    plumbing: [
+      'emergency', '24/7', 'licensed', 'insured', 'leak repair',
+      'drain cleaning', 'water heater', 'pipe replacement', 'certified',
+      'reliable', 'professional', 'fast response', 'guaranteed work',
+      'master plumber', 'residential', 'commercial'
+    ],
+    beauty: [
+      'luxury', 'pamper', 'transform', 'glamorous', 'trendy',
+      'professional stylists', 'premium products', 'relaxation',
+      'makeover', 'cutting-edge', 'personalized', 'rejuvenate',
+      'award-winning', 'celebrity stylist', 'organic products'
+    ],
+    auto: [
+      'certified mechanics', 'diagnostic', 'warranty', 'genuine parts',
+      'preventive maintenance', 'ASE certified', 'state-of-the-art',
+      'honest pricing', 'quick turnaround', 'all makes models',
+      'factory trained', 'computer diagnostics', 'fleet service'
+    ],
+    cleaning: [
+      'eco-friendly', 'spotless', 'sanitized', 'deep clean',
+      'professional grade', 'bonded', 'insured', 'thorough',
+      'attention to detail', 'green cleaning', 'satisfaction guaranteed',
+      'commercial grade', 'HEPA filtration', 'CDC compliant'
+    ],
+    service: [
+      'professional', 'reliable', 'experienced', 'licensed', 'insured',
+      'quality', 'affordable', 'trusted', 'expert', 'certified',
+      'emergency', 'available', 'satisfaction guaranteed', 'free estimate'
+    ]
+  };
+
+  return keywordMap[businessType] || keywordMap.service;
 }

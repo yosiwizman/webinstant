@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    
     // TODO: Implement campaign sending logic
     // This is a placeholder implementation
+    // The request body can be accessed with: await request.json()
     
     return NextResponse.json({
       success: true,
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   return NextResponse.json({
     message: 'Campaign send endpoint',
     method: 'POST',
