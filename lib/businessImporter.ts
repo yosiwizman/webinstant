@@ -387,7 +387,7 @@ export class BusinessImporter {
             this.stats.imported += batch.length;
             console.log(`Successfully inserted batch of ${batch.length} businesses`);
             if (data) {
-              console.log(`Inserted business IDs:`, data.map((b: any) => b.id));
+              console.log(`Inserted business IDs:`, data.map((b: { id: string | number }) => b.id));
             }
           }
         }
