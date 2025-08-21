@@ -85,329 +85,354 @@ export default function ApiUsageMonitor() {
   )
 
   const fetchApiUsageData = useCallback(async () => {
-    // Prevent multiple simultaneous fetches
-    if (loading && !error) return;
-    
     try {
-      setLoading(true)
       setError(null)
+      
+      // Get today's date and start of month
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+      const startOfMonthISO = startOfMonth.toISOString()
 
-      // Simple query - just get last 50 records
-      const { data: usageData, error: usageError } = await supabase
+      // Fetch all usage data for the month - simple query without retry
+      const { data: monthlyUsage, error: monthlyError } = await supabase
+        .from('api_usage')
+        .select('*')
+        .gte('created_at', startOfMonthISO)
+        .order('created_at', { ascending: false })
+
+      if (monthlyError) {
+        console.error('Error fetching monthly usage:', monthlyError)
+        // Don't throw, just use empty data
+        setHasData(false)
+      } else {
+        // Check if we have any data
+        const hasAnyData = monthlyUsage && monthlyUsage.length > 0
+        setHasData(hasAnyData)
+
+        if (hasAnyData) {
+          // Calculate usage by provider for today and month
+          const providerStats: Record<ProviderKey, ProviderStats> = {
+            'together_ai': {
+              today: 0,
+              month: 0,
+              callsToday: 0,
+              callsMonth: 0,
+              color: '#8B5CF6',
+              bgColor: 'bg-purple-500',
+              displayName: 'Together AI'
+            },
+            'openai': {
+              today: 0,
+              month: 0,
+              callsToday: 0,
+              callsMonth: 0,
+              color: '#10B981',
+              bgColor: 'bg-green-500',
+              displayName: 'OpenAI'
+            },
+            'replicate': {
+              today: 0,
+              month: 0,
+              callsToday: 0,
+              callsMonth: 0,
+              color: '#3B82F6',
+              bgColor: 'bg-blue-500',
+              displayName: 'Replicate'
+            },
+            'anthropic': {
+              today: 0,
+              month: 0,
+              callsToday: 0,
+              callsMonth: 0,
+              color: '#F59E0B',
+              bgColor: 'bg-amber-500',
+              displayName: 'Anthropic'
+            }
+          }
+
+          // Process monthly usage
+          monthlyUsage.forEach(item => {
+            const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
+            const cost = item.cost || 0
+            const itemDate = new Date(item.created_at)
+
+            if (provider && provider in providerStats) {
+              providerStats[provider].month += cost
+              providerStats[provider].callsMonth += 1
+
+              // Check if it's today's usage
+              if (itemDate >= today) {
+                providerStats[provider].today += cost
+                providerStats[provider].callsToday += 1
+              }
+            }
+          })
+
+          // Calculate totals
+          let todayTotal = 0
+          let monthTotal = 0
+
+          Object.values(providerStats).forEach(stats => {
+            todayTotal += stats.today
+            monthTotal += stats.month
+          })
+
+          setTotalSpentToday(todayTotal)
+          setTotalSpentMonth(monthTotal)
+
+          // Get initial balances from environment or use defaults
+          const initialBalances: Record<ProviderKey, number> = {
+            'together_ai': parseFloat(process.env.NEXT_PUBLIC_TOGETHER_AI_BALANCE || '100'),
+            'openai': parseFloat(process.env.NEXT_PUBLIC_OPENAI_BALANCE || '100'),
+            'replicate': parseFloat(process.env.NEXT_PUBLIC_REPLICATE_BALANCE || '100'),
+            'anthropic': parseFloat(process.env.NEXT_PUBLIC_ANTHROPIC_BALANCE || '100')
+          }
+
+          // Update API balances with real data
+          const balances = (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
+            provider: stats.displayName,
+            initialBalance: initialBalances[key],
+            totalUsed: stats.month,
+            balance: initialBalances[key] - stats.month,
+            usedToday: stats.today,
+            usedThisMonth: stats.month,
+            callsToday: stats.callsToday,
+            callsThisMonth: stats.callsMonth,
+            color: stats.color,
+            bgColor: stats.bgColor
+          }))
+
+          setApiBalances(balances)
+
+          // Calculate pie chart data for today's usage
+          const pieData = (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
+            .filter(([, stats]) => stats.today > 0)
+            .map(([, stats]) => ({
+              name: stats.displayName,
+              value: parseFloat(stats.today.toFixed(4)),
+              color: stats.color
+            }))
+
+          setPieChartData(pieData)
+
+          // Calculate daily trend (last 7 days)
+          const last7Days = []
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date()
+            date.setDate(date.getDate() - i)
+            date.setHours(0, 0, 0, 0)
+            last7Days.push(date)
+          }
+
+          // Fetch usage for last 7 days - simple query without retry
+          const sevenDaysAgo = last7Days[0].toISOString()
+          const { data: weeklyUsage, error: weeklyError } = await supabase
+            .from('api_usage')
+            .select('*')
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: true })
+
+          if (weeklyError) {
+            console.error('Error fetching weekly usage:', weeklyError)
+            // Use empty array if error
+            setDailyTrend([])
+          } else if (weeklyUsage) {
+            // Group by day and provider
+            const dailyData = last7Days.map(date => {
+              const nextDay = new Date(date)
+              nextDay.setDate(nextDay.getDate() + 1)
+
+              const dayUsage = weeklyUsage?.filter(item => {
+                const itemDate = new Date(item.created_at)
+                return itemDate >= date && itemDate < nextDay
+              }) || []
+
+              const dayTotals: DailyUsage = {
+                date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                together_ai: 0,
+                openai: 0,
+                replicate: 0,
+                anthropic: 0,
+                total: 0
+              }
+
+              dayUsage.forEach(item => {
+                const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
+                const cost = item.cost || 0
+
+                if (provider && provider in dayTotals) {
+                  dayTotals[provider] += cost
+                }
+                dayTotals.total += cost
+              })
+
+              // Round to 4 decimal places
+              Object.keys(dayTotals).forEach(key => {
+                if (key !== 'date') {
+                  const numKey = key as keyof Omit<DailyUsage, 'date'>
+                  dayTotals[numKey] = parseFloat(dayTotals[numKey].toFixed(4))
+                }
+              })
+
+              return dayTotals
+            })
+
+            setDailyTrend(dailyData)
+          }
+        }
+      }
+
+      // Set default empty state if no data
+      if (!hasData) {
+        setApiBalances([
+          {
+            provider: 'Together AI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#8B5CF6',
+            bgColor: 'bg-purple-500'
+          },
+          {
+            provider: 'OpenAI',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#10B981',
+            bgColor: 'bg-green-500'
+          },
+          {
+            provider: 'Replicate',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#3B82F6',
+            bgColor: 'bg-blue-500'
+          },
+          {
+            provider: 'Anthropic',
+            initialBalance: 100,
+            totalUsed: 0,
+            balance: 100,
+            usedToday: 0,
+            usedThisMonth: 0,
+            callsToday: 0,
+            callsThisMonth: 0,
+            color: '#F59E0B',
+            bgColor: 'bg-amber-500'
+          }
+        ])
+        setUsageHistory([])
+        setDailyTrend([])
+        setPieChartData([])
+        setTotalSpentToday(0)
+        setTotalSpentMonth(0)
+      }
+
+      // Fetch usage history - simple query without joins or retry
+      const { data: historyData, error: historyError } = await supabase
         .from('api_usage')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
 
-      if (usageError) {
-        console.error('Error fetching API usage:', usageError)
-        setError('Unable to load API usage data')
-        setHasData(false)
-        
-        // Set default empty state
-        setApiBalances([
-          {
-            provider: 'Together AI',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#8B5CF6',
-            bgColor: 'bg-purple-500'
-          },
-          {
-            provider: 'OpenAI',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#10B981',
-            bgColor: 'bg-green-500'
-          },
-          {
-            provider: 'Replicate',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#3B82F6',
-            bgColor: 'bg-blue-500'
-          },
-          {
-            provider: 'Anthropic',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#F59E0B',
-            bgColor: 'bg-amber-500'
-          }
-        ])
+      if (historyError) {
+        console.error('Error fetching usage history:', historyError)
         setUsageHistory([])
-        setDailyTrend([])
-        setPieChartData([])
-        setTotalSpentToday(0)
-        setTotalSpentMonth(0)
-        setLoading(false)
-        return
-      }
-
-      // Check if we have any data
-      const hasAnyData = usageData && usageData.length > 0
-      setHasData(hasAnyData)
-
-      if (!hasAnyData) {
-        // Set empty state
-        setApiBalances([
-          {
-            provider: 'Together AI',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#8B5CF6',
-            bgColor: 'bg-purple-500'
-          },
-          {
-            provider: 'OpenAI',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#10B981',
-            bgColor: 'bg-green-500'
-          },
-          {
-            provider: 'Replicate',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#3B82F6',
-            bgColor: 'bg-blue-500'
-          },
-          {
-            provider: 'Anthropic',
-            initialBalance: 100,
-            totalUsed: 0,
-            balance: 100,
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#F59E0B',
-            bgColor: 'bg-amber-500'
-          }
-        ])
-        setUsageHistory([])
-        setDailyTrend([])
-        setPieChartData([])
-        setTotalSpentToday(0)
-        setTotalSpentMonth(0)
-        setLoading(false)
-        return
-      }
-
-      // Process the data we have
-      setUsageHistory(usageData)
-
-      // Get today's date and start of month
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-
-      // Calculate usage by provider for today and month
-      const providerStats: Record<ProviderKey, ProviderStats> = {
-        'together_ai': {
-          today: 0,
-          month: 0,
-          callsToday: 0,
-          callsMonth: 0,
-          color: '#8B5CF6',
-          bgColor: 'bg-purple-500',
-          displayName: 'Together AI'
-        },
-        'openai': {
-          today: 0,
-          month: 0,
-          callsToday: 0,
-          callsMonth: 0,
-          color: '#10B981',
-          bgColor: 'bg-green-500',
-          displayName: 'OpenAI'
-        },
-        'replicate': {
-          today: 0,
-          month: 0,
-          callsToday: 0,
-          callsMonth: 0,
-          color: '#3B82F6',
-          bgColor: 'bg-blue-500',
-          displayName: 'Replicate'
-        },
-        'anthropic': {
-          today: 0,
-          month: 0,
-          callsToday: 0,
-          callsMonth: 0,
-          color: '#F59E0B',
-          bgColor: 'bg-amber-500',
-          displayName: 'Anthropic'
-        }
-      }
-
-      // Process usage data
-      usageData.forEach(item => {
-        const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
-        const cost = item.cost || 0
-        const itemDate = new Date(item.created_at)
-
-        if (provider && provider in providerStats) {
-          // Check if it's from this month
-          if (itemDate >= startOfMonth) {
-            providerStats[provider].month += cost
-            providerStats[provider].callsMonth += 1
-
-            // Check if it's today's usage
-            if (itemDate >= today) {
-              providerStats[provider].today += cost
-              providerStats[provider].callsToday += 1
-            }
-          }
-        }
-      })
-
-      // Calculate totals
-      let todayTotal = 0
-      let monthTotal = 0
-
-      Object.values(providerStats).forEach(stats => {
-        todayTotal += stats.today
-        monthTotal += stats.month
-      })
-
-      setTotalSpentToday(todayTotal)
-      setTotalSpentMonth(monthTotal)
-
-      // Get initial balances from environment or use defaults
-      const initialBalances: Record<ProviderKey, number> = {
-        'together_ai': parseFloat(process.env.NEXT_PUBLIC_TOGETHER_AI_BALANCE || '100'),
-        'openai': parseFloat(process.env.NEXT_PUBLIC_OPENAI_BALANCE || '100'),
-        'replicate': parseFloat(process.env.NEXT_PUBLIC_REPLICATE_BALANCE || '100'),
-        'anthropic': parseFloat(process.env.NEXT_PUBLIC_ANTHROPIC_BALANCE || '100')
-      }
-
-      // Update API balances with real data
-      const balances = (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
-        provider: stats.displayName,
-        initialBalance: initialBalances[key],
-        totalUsed: stats.month,
-        balance: initialBalances[key] - stats.month,
-        usedToday: stats.today,
-        usedThisMonth: stats.month,
-        callsToday: stats.callsToday,
-        callsThisMonth: stats.callsMonth,
-        color: stats.color,
-        bgColor: stats.bgColor
-      }))
-
-      setApiBalances(balances)
-
-      // Calculate pie chart data for today's usage
-      const pieData = (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
-        .filter(([, stats]) => stats.today > 0)
-        .map(([, stats]) => ({
-          name: stats.displayName,
-          value: parseFloat(stats.today.toFixed(4)),
-          color: stats.color
+      } else if (historyData) {
+        // Process usage history without business names
+        const processedHistory = historyData.map(item => ({
+          ...item,
+          business_name: 'Business ' + (item.business_id ? item.business_id.substring(0, 8) : 'Unknown')
         }))
 
-      setPieChartData(pieData)
-
-      // Calculate daily trend (last 7 days) - simplified
-      const last7Days = []
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date()
-        date.setDate(date.getDate() - i)
-        date.setHours(0, 0, 0, 0)
-        last7Days.push(date)
+        setUsageHistory(processedHistory)
       }
 
-      // Group by day and provider using the data we already have
-      const dailyData = last7Days.map(date => {
-        const nextDay = new Date(date)
-        nextDay.setDate(nextDay.getDate() + 1)
-
-        const dayUsage = usageData.filter(item => {
-          const itemDate = new Date(item.created_at)
-          return itemDate >= date && itemDate < nextDay
-        })
-
-        const dayTotals: DailyUsage = {
-          date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-          together_ai: 0,
-          openai: 0,
-          replicate: 0,
-          anthropic: 0,
-          total: 0
-        }
-
-        dayUsage.forEach(item => {
-          const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
-          const cost = item.cost || 0
-
-          if (provider && provider in dayTotals) {
-            dayTotals[provider] += cost
-          }
-          dayTotals.total += cost
-        })
-
-        // Round to 4 decimal places
-        Object.keys(dayTotals).forEach(key => {
-          if (key !== 'date') {
-            const numKey = key as keyof Omit<DailyUsage, 'date'>
-            dayTotals[numKey] = parseFloat(dayTotals[numKey].toFixed(4))
-          }
-        })
-
-        return dayTotals
-      })
-
-      setDailyTrend(dailyData)
       setLoading(false)
     } catch (error) {
-      console.error('Error fetching API usage:', error)
+      console.error('Error in fetchApiUsageData:', error)
       setError('Unable to load API usage data')
       setHasData(false)
       setLoading(false)
+      
+      // Set default empty state on error
+      setApiBalances([
+        {
+          provider: 'Together AI',
+          initialBalance: 100,
+          totalUsed: 0,
+          balance: 100,
+          usedToday: 0,
+          usedThisMonth: 0,
+          callsToday: 0,
+          callsThisMonth: 0,
+          color: '#8B5CF6',
+          bgColor: 'bg-purple-500'
+        },
+        {
+          provider: 'OpenAI',
+          initialBalance: 100,
+          totalUsed: 0,
+          balance: 100,
+          usedToday: 0,
+          usedThisMonth: 0,
+          callsToday: 0,
+          callsThisMonth: 0,
+          color: '#10B981',
+          bgColor: 'bg-green-500'
+        },
+        {
+          provider: 'Replicate',
+          initialBalance: 100,
+          totalUsed: 0,
+          balance: 100,
+          usedToday: 0,
+          usedThisMonth: 0,
+          callsToday: 0,
+          callsThisMonth: 0,
+          color: '#3B82F6',
+          bgColor: 'bg-blue-500'
+        },
+        {
+          provider: 'Anthropic',
+          initialBalance: 100,
+          totalUsed: 0,
+          balance: 100,
+          usedToday: 0,
+          usedThisMonth: 0,
+          callsToday: 0,
+          callsThisMonth: 0,
+          color: '#F59E0B',
+          bgColor: 'bg-amber-500'
+        }
+      ])
+      setUsageHistory([])
+      setDailyTrend([])
+      setPieChartData([])
+      setTotalSpentToday(0)
+      setTotalSpentMonth(0)
     }
   }, [supabase])
 
   useEffect(() => {
     fetchApiUsageData()
-    // NO auto-refresh to prevent loops
-  }, [])
+    // Don't auto-refresh to prevent retry loops
+  }, [fetchApiUsageData])
 
   const getProviderBgClass = (provider: string) => {
     const classes: Record<string, string> = {
@@ -454,16 +479,11 @@ export default function ApiUsageMonitor() {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
         <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">No Data Available</h3>
-          <p className="mt-2 text-sm text-gray-500">
-            {error}
-          </p>
+          <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Error Loading API Usage</h3>
+          <p className="mt-2 text-sm text-gray-500">{error}</p>
           <button
-            onClick={() => {
-              setError(null)
-              fetchApiUsageData()
-            }}
+            onClick={fetchApiUsageData}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Try Again

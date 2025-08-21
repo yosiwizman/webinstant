@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive Container } from 'recharts';
 import { DollarSign, TrendingUp, Calendar, CreditCard } from 'lucide-react';
 
 interface MetricCard {
@@ -42,7 +42,6 @@ export default function RevenueDashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,13 +49,9 @@ export default function RevenueDashboard() {
   )
 
   const fetchDashboardData = useCallback(async () => {
-    // Prevent multiple simultaneous fetches
-    if (hasAttemptedFetch) return;
-    
     try {
       setLoading(true);
       setError(null);
-      setHasAttemptedFetch(true);
       
       // Get current date boundaries
       const now = new Date();
@@ -69,18 +64,18 @@ export default function RevenueDashboard() {
       
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
-      // Initialize default values
+      // Initialize revenue metrics
       let todayRevenue = 0;
       let weekRevenue = 0;
       let monthRevenue = 0;
       let totalRevenue = 0;
       
-      // Try to fetch transactions with no retry
+      // Try to fetch transactions data with proper error handling
       try {
-        // Fetch today's revenue
+        // Fetch today's revenue - simple query
         const { data: todayData, error: todayError } = await supabase
           .from('transactions')
-          .select('amount')
+          .select('*')
           .gte('created_at', todayStart.toISOString())
           .lt('created_at', todayEnd.toISOString())
           .eq('status', 'completed');
@@ -89,10 +84,10 @@ export default function RevenueDashboard() {
           todayRevenue = todayData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch this week's revenue
+        // Fetch this week's revenue - simple query
         const { data: weekData, error: weekError } = await supabase
           .from('transactions')
-          .select('amount')
+          .select('*')
           .gte('created_at', weekAgo.toISOString())
           .eq('status', 'completed');
         
@@ -100,10 +95,10 @@ export default function RevenueDashboard() {
           weekRevenue = weekData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch this month's revenue
+        // Fetch this month's revenue - simple query
         const { data: monthData, error: monthError } = await supabase
           .from('transactions')
-          .select('amount')
+          .select('*')
           .gte('created_at', monthStart.toISOString())
           .eq('status', 'completed');
         
@@ -111,18 +106,17 @@ export default function RevenueDashboard() {
           monthRevenue = monthData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch total revenue
+        // Fetch total revenue - simple query
         const { data: totalData, error: totalError } = await supabase
           .from('transactions')
-          .select('amount')
+          .select('*')
           .eq('status', 'completed');
         
         if (!totalError && totalData) {
           totalRevenue = totalData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
       } catch (err) {
-        // Silently handle if transactions table doesn't exist
-        console.log('Transactions table not available');
+        console.log('Transactions table not available:', err);
       }
       
       setMetrics({
@@ -132,7 +126,7 @@ export default function RevenueDashboard() {
         totalRevenue
       });
       
-      // Initialize funnel data with defaults
+      // Fetch funnel data with actual counts
       let businessCount = 0;
       let previewCount = 0;
       let emailsSentCount = 0;
@@ -140,92 +134,92 @@ export default function RevenueDashboard() {
       let linksClickedCount = 0;
       let customersCount = 0;
       
-      // Count businesses - single attempt
+      // Count businesses - simple query
       try {
-        const { count: bizCount } = await supabase
+        const { count: bizCount, error: bizError } = await supabase
           .from('businesses')
           .select('*', { count: 'exact', head: true });
         
-        if (bizCount !== null) {
+        if (!bizError && bizCount !== null) {
           businessCount = bizCount;
         }
       } catch (err) {
-        console.log('Error counting businesses');
+        console.log('Error counting businesses:', err);
       }
       
-      // Count previews - single attempt
+      // Count previews - simple query
       try {
-        const { count: prevCount } = await supabase
+        const { count: prevCount, error: prevError } = await supabase
           .from('website_previews')
           .select('*', { count: 'exact', head: true })
           .not('html_content', 'is', null);
         
-        if (prevCount !== null) {
+        if (!prevError && prevCount !== null) {
           previewCount = prevCount;
         }
       } catch (err) {
-        console.log('Error counting previews');
+        console.log('Error counting previews:', err);
       }
       
-      // Count emails - single attempt
+      // Count emails - simple queries
       try {
-        const { count: emailCount } = await supabase
+        const { count: emailCount, error: emailError } = await supabase
           .from('emails')
           .select('*', { count: 'exact', head: true });
         
-        if (emailCount !== null) {
+        if (!emailError && emailCount !== null) {
           emailsSentCount = emailCount;
         }
         
         // Count emails opened
-        const { count: openCount } = await supabase
+        const { count: openCount, error: openError } = await supabase
           .from('emails')
           .select('*', { count: 'exact', head: true })
           .not('opened_at', 'is', null);
         
-        if (openCount !== null) {
+        if (!openError && openCount !== null) {
           emailsOpenedCount = openCount;
         }
         
         // Count links clicked
-        const { count: clickCount } = await supabase
+        const { count: clickCount, error: clickError } = await supabase
           .from('emails')
           .select('*', { count: 'exact', head: true })
           .not('clicked_at', 'is', null);
         
-        if (clickCount !== null) {
+        if (!clickError && clickCount !== null) {
           linksClickedCount = clickCount;
         }
       } catch (err) {
-        console.log('Emails table not available');
+        console.log('Emails table not available:', err);
       }
       
-      // Count customers - single attempt
+      // Count customers - simple query
       try {
-        const { count: claimedCount } = await supabase
+        const { count: claimedCount, error: claimedError } = await supabase
           .from('businesses')
           .select('*', { count: 'exact', head: true })
           .not('claimed_at', 'is', null);
         
-        if (claimedCount !== null) {
+        if (!claimedError && claimedCount !== null) {
           customersCount = claimedCount;
         }
       } catch (err) {
-        console.log('Error counting claimed businesses');
+        console.log('Error counting claimed businesses:', err);
       }
       
-      // Try customers table as fallback - single attempt
+      // Try customers table as fallback
       if (customersCount === 0) {
         try {
-          const { count: custCount } = await supabase
+          const { count: custCount, error: custError } = await supabase
             .from('customers')
             .select('*', { count: 'exact', head: true });
           
-          if (custCount !== null) {
+          if (!custError && custCount !== null) {
             customersCount = custCount;
           }
         } catch (err) {
-          console.log('Customers table not available');
+          console.log('Customers table not available:', err);
         }
       }
       
@@ -265,21 +259,21 @@ export default function RevenueDashboard() {
       
       setFunnelData(funnelStages);
       
-      // Initialize chart with 30 days of data
-      const chartArray: RevenueData[] = [];
+      // Fetch revenue chart data for last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      // Try to fetch revenue chart data - single attempt
+      const chartArray: RevenueData[] = [];
+      
       try {
-        const { data: chartData } = await supabase
+        const { data: chartData, error: chartError } = await supabase
           .from('transactions')
-          .select('amount, created_at')
+          .select('*')
           .gte('created_at', thirtyDaysAgo.toISOString())
           .eq('status', 'completed')
           .order('created_at', { ascending: true });
         
-        if (chartData && chartData.length > 0) {
+        if (!chartError && chartData && chartData.length > 0) {
           // Group by day
           const revenueByDay: { [key: string]: number } = {};
           
@@ -299,7 +293,7 @@ export default function RevenueDashboard() {
             });
           }
         } else {
-          // If no data, show 30 days of zeros
+          // If no data or error, show 30 days of zeros
           for (let i = 29; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
@@ -310,7 +304,8 @@ export default function RevenueDashboard() {
           }
         }
       } catch (err) {
-        // If error, show 30 days of zeros
+        console.log('Error fetching chart data:', err);
+        // Fill with zeros on error
         for (let i = 29; i >= 0; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
@@ -323,33 +318,35 @@ export default function RevenueDashboard() {
       
       setRevenueChart(chartArray);
       
-      // Fetch recent transactions - single attempt
+      // Fetch recent transactions - simple query
       const recentTransactionsList: Transaction[] = [];
       
       try {
-        const { data: recentTransactions } = await supabase
+        const { data: recentTransactions, error: transError } = await supabase
           .from('transactions')
-          .select('id, amount, created_at, status, customer_name, business_id')
+          .select('*')
           .order('created_at', { ascending: false })
           .limit(10);
         
-        if (recentTransactions && recentTransactions.length > 0) {
+        if (!transError && recentTransactions && recentTransactions.length > 0) {
+          // Process transactions without complex joins
           for (const trans of recentTransactions) {
             let customerName = trans.customer_name || 'Unknown';
             
+            // If we have a business_id, try to get the business name separately
             if (trans.business_id) {
               try {
-                const { data: business } = await supabase
+                const { data: business, error: bizError } = await supabase
                   .from('businesses')
-                  .select('name')
+                  .select('*')
                   .eq('id', trans.business_id)
-                  .single();
+                  .limit(1);
                 
-                if (business) {
-                  customerName = business.name;
+                if (!bizError && business && business.length > 0) {
+                  customerName = business[0].business_name || business[0].name || customerName;
                 }
               } catch (err) {
-                // Use default name if error
+                console.log('Error fetching business name:', err);
               }
             }
             
@@ -363,25 +360,23 @@ export default function RevenueDashboard() {
           }
         }
       } catch (err) {
-        console.log('Unable to fetch transactions');
+        console.log('Transactions table not available:', err);
       }
       
       setTransactions(recentTransactionsList);
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError('Unable to load dashboard data');
+      setError('Unable to load dashboard data. Some features may be unavailable.');
     } finally {
       setLoading(false);
     }
-  }, [supabase, hasAttemptedFetch]);
+  }, [supabase]);
 
   useEffect(() => {
-    // Only fetch once on mount
-    if (!hasAttemptedFetch) {
-      fetchDashboardData();
-    }
-  }, [fetchDashboardData, hasAttemptedFetch]);
+    fetchDashboardData();
+    // Only fetch once on mount, no auto-refresh to prevent loops
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -423,28 +418,15 @@ export default function RevenueDashboard() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => {
-              setHasAttemptedFetch(false);
-              fetchDashboardData();
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-bold text-gray-900">Revenue Dashboard</h1>
+      
+      {error && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
       
       {/* Key Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
