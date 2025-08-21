@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @next/next/no-head-element */
 import React from 'react';
 
 interface WebsiteReadyEmailProps {
@@ -104,7 +106,7 @@ export const WebsiteReadyEmail: React.FC<WebsiteReadyEmailProps> = ({
                       color: '#52525b',
                       textAlign: 'center'
                     }}>
-                      We've created a stunning, professional website for <strong>{businessName}</strong> that's ready to attract new customers and grow your business online.
+                      We&apos;ve created a stunning, professional website for <strong>{businessName}</strong> that&apos;s ready to attract new customers and grow your business online.
                     </p>
 
                     <div style={{
@@ -120,7 +122,7 @@ export const WebsiteReadyEmail: React.FC<WebsiteReadyEmailProps> = ({
                         fontWeight: '600',
                         color: '#18181b'
                       }}>
-                        ✨ What's Included:
+                        ✨ What&apos;s Included:
                       </h3>
                       <ul style={{
                         margin: 0,
@@ -153,7 +155,7 @@ export const WebsiteReadyEmail: React.FC<WebsiteReadyEmailProps> = ({
                             boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)',
                             transition: 'all 0.3s ease'
                           }}>
-                            Claim Your Website - It's FREE to Preview!
+                            Claim Your Website - It&apos;s FREE to Preview!
                           </a>
                         </td>
                       </tr>
