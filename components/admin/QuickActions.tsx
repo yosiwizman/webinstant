@@ -19,10 +19,6 @@ interface ActionButton {
   action: () => Promise<void>
 }
 
-interface ToastOptions {
-  duration?: number
-}
-
 // Simple toast implementation since react-hot-toast is not available
 const toast = {
   error: (message: string) => {
@@ -33,7 +29,7 @@ const toast = {
     console.log(message)
     alert(`Success: ${message}`)
   },
-  loading: (message: string, options?: ToastOptions) => {
+  loading: (message: string) => {
     console.log(message)
     return message
   },
@@ -44,11 +40,25 @@ const toast = {
 
 // Simple motion components replacement
 const AnimatePresence = ({ children }: { children: React.ReactNode }) => <>{children}</>
+
+interface MotionDivProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: (e: MouseEvent) => void
+  style?: React.CSSProperties
+}
+
+interface MotionButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+}
+
 const motion = {
-  div: ({ children, className, initial, animate, exit, transition, onClick, style }: any) => (
+  div: ({ children, className, onClick, style }: MotionDivProps) => (
     <div className={className} onClick={onClick} style={style}>{children}</div>
   ),
-  button: ({ children, className, onClick, whileHover, whileTap }: any) => (
+  button: ({ children, className, onClick }: MotionButtonProps) => (
     <button className={className} onClick={onClick}>{children}</button>
   )
 }
@@ -116,9 +126,7 @@ export default function QuickActions() {
     
     try {
       // Show progress toast
-      const toastId = toast.loading('Generating previews...', {
-        duration: Infinity
-      })
+      const toastId = toast.loading('Generating previews...')
 
       const response = await fetch('/api/admin/batch-generate', {
         method: 'POST',
@@ -262,9 +270,6 @@ export default function QuickActions() {
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
               className="absolute bottom-16 right-0 flex flex-col gap-3 mb-2"
             >
               {actions.map((action, index) => {
@@ -274,10 +279,6 @@ export default function QuickActions() {
                 return (
                   <motion.div
                     key={action.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: index * 0.05 }}
                     className="flex items-center gap-3"
                   >
                     <span className="bg-gray-900 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap shadow-lg">
@@ -308,8 +309,6 @@ export default function QuickActions() {
         </AnimatePresence>
 
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(!isOpen)}
           className={`
             ${isOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}
@@ -328,16 +327,10 @@ export default function QuickActions() {
       <AnimatePresence>
         {showImportModal && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             onClick={() => !loadingAction && setShowImportModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e: MouseEvent) => e.stopPropagation()}
               className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
             >
