@@ -1,5 +1,22 @@
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config({ path: '.env.local' });
+const fs = require('fs');
+const path = require('path');
+
+// Read .env.local file manually
+function loadEnv() {
+  const envPath = path.join(__dirname, '.env.local');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const [key, value] = line.split('=');
+      if (key && value) {
+        process.env[key.trim()] = value.trim();
+      }
+    });
+  }
+}
+
+loadEnv();
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -93,7 +110,7 @@ function fixImagesInHtml(html, businessType) {
   fixedHtml = fixedHtml.replace(/style="([^"]*?)background:\s*url\(["']?([^"')]+)["']?\)([^"]*?)"/gi, 
     (match, before, url, after) => {
       if (!isValidHttpUrl(url)) {
-        changeCount++;
+        change Count++;
         console.log(`  ✓ Replaced broken background: ${url.substring(0, 50)}...`);
         return `style="${before}background: url('${imageUrl}')${after}"`;
       }
