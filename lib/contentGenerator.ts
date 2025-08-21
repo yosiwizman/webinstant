@@ -495,8 +495,8 @@ async function generateVideoBackground(businessType: string): Promise<string | n
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(businessType: string, businessName: string): string {
-  // Using both parameters for potential future customization
+export function generateTrustSignals(businessType: string, _businessName: string): string {
+  // Using _businessName with underscore to indicate it's intentionally unused but kept for API compatibility
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
   
@@ -1644,8 +1644,8 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string, businessName: string): string {
-  // Using businessName parameter for potential future customization
+export function getImagePrompt(type: string, imageType: string, _businessName: string): string {
+  //  Using _businessName with underscore to indicate it's intentionally unused but kept for API compatibility
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,

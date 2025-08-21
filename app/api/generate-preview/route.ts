@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { 
-  generateBusinessContent, 
   detectBusinessType, 
   getCategoryTheme,
   generateBusinessImages,
-  getImagePrompt,
   getLayoutVariation,
   generatePremiumContent,
   generateTrustSignals,
@@ -16,8 +14,34 @@ import {
   generateExitIntentPopup,
   checkExistingWebsite,
   ContentGenerator,
-  BusinessImages
+  BusinessImages,
+  BusinessContent
 } from '@/lib/contentGenerator';
+
+interface BusinessRecord {
+  id: string;
+  business_name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  phone?: string;
+  email?: string;
+  industry_type?: string;
+  website_url?: string;
+  updated_at?: string;
+}
+
+interface PreviewRecord {
+  id: string;
+  business_id: string;
+}
+
+interface UpdateData {
+  website_url: string;
+  updated_at: string;
+  industry_type?: string;
+}
 
 function generateSlug(name: string): string {
   return name
@@ -59,7 +83,7 @@ export async function POST(request: NextRequest) {
       businessId = undefined;
     }
 
-    let businessesToProcess = [];
+    let businessesToProcess: BusinessRecord[] = [];
     
     if (businessId) {
       console.log(`📋 Generating premium preview for business ID: ${businessId}`);
@@ -78,7 +102,7 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      businessesToProcess = [business];
+      businessesToProcess = [business as BusinessRecord];
     } else {
       console.log('📋 Finding businesses without previews...');
       
@@ -106,17 +130,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existingBusinessIds = new Set(existingPreviews?.map(p => p.business_id) || []);
-      businessesToProcess = (allBusinesses || []).filter(b => !existingBusinessIds.has(b.id));
+      const existingBusinessIds = new Set((existingPreviews as PreviewRecord[] || []).map(p => p.business_id));
+      businessesToProcess = ((allBusinesses as BusinessRecord[]) || []).filter(b => !existingBusinessIds.has(b.id));
 
       console.log(`📊 Found ${businessesToProcess.length} businesses without previews`);
     }
 
     let generatedCount = 0;
     let failedCount = 0;
-
-    // Initialize content generator
-    const generator = new ContentGenerator();
 
     for (const business of businessesToProcess) {
       try {
@@ -201,7 +222,7 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        const updateData: any = {
+        const updateData: UpdateData = {
           website_url: previewUrl,
           updated_at: new Date().toISOString()
         };
@@ -258,7 +279,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generatePremiumHTML(business: any, content: any, theme: any, layoutVariation: number): string {
+interface ThemeColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  hero: string;
+  text: string;
+  light: string;
+  dark: string;
+}
+
+interface ThemeFonts {
+  heading: string;
+  body: string;
+  accent?: string;
+}
+
+interface Theme {
+  colors: ThemeColors;
+  fonts: ThemeFonts;
+  style: string;
+}
+
+function generatePremiumHTML(business: BusinessRecord, content: BusinessContent, theme: Theme, layoutVariation: number): string {
   const businessName = business.business_name || 'Business';
   const address = business.address || '';
   const city = business.city || '';
@@ -401,6 +444,23 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               <div class="scroll-arrow" style="border-color: ${heroTextColor} !important;"></div>
             </div>
           </section>`;
+          
+      default:
+        return `
+          <section id="home" class="hero hero-classic">
+            <div class="hero-background">
+              <img src="${images.hero}" alt="${businessName}" class="hero-image parallax" />
+            </div>
+            <div class="hero-overlay"></div>
+            <div class="hero-content animate-on-scroll" style="--delay: 0; ${heroTextAlign}">
+              <h1 class="hero-title" style="color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important;">${businessName}</h1>
+              <div class="tagline" style="color: ${heroTextColor} !important; text-shadow: ${heroTextShadow} !important; --delay: 1">${content.tagline}</div>
+              <div class="hero-cta" style="--delay: 2">
+                <a href="tel:${phone}" class="btn-premium pulse">Call Now</a>
+                <a href="#contact" class="btn-secondary" style="border-color: ${heroTextColor}; color: ${heroTextColor} !important;">Get Directions</a>
+              </div>
+            </div>
+          </section>`;
     }
   };
   
@@ -511,6 +571,38 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
               </div>
               <div class="about-description animate-on-scroll" style="--delay: 4">
                 <p>${content.description}</p>
+              </div>
+            </div>
+          </section>`;
+          
+      default:
+        return `
+          <section id="about" class="about-section">
+            <div class="container">
+              <h2 class="section-title animate-on-scroll">About Us</h2>
+              <p class="section-subtitle animate-on-scroll">Discover Our Story</p>
+              <div class="about-content about-left">
+                <div class="about-image animate-on-scroll" style="--delay: 1">
+                  <img src="${images.service}" alt="About ${businessName}" />
+                  <div class="image-decoration"></div>
+                </div>
+                <div class="about-text animate-on-scroll" style="--delay: 2">
+                  <p>${content.description}</p>
+                  <div class="about-stats">
+                    <div class="stat-card">
+                      <div class="stat-number counter" data-target="${Math.floor(Math.random() * 15) + 5}">0</div>
+                      <div class="stat-label">Years Experience</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-number counter" data-target="${Math.floor(Math.random() * 9000) + 1000}">0</div>
+                      <div class="stat-label">Happy Customers</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-number">100%</div>
+                      <div class="stat-label">Satisfaction</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>`;
@@ -684,7 +776,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
   };
   
   // Generate testimonials HTML
-  const testimonialsHTML = content.testimonials.map((t: any, i: number) => `
+  const testimonialsHTML = content.testimonials.map((t: {name: string; text: string; rating: number}, i: number) => `
     <div class="testimonial-card premium-card animate-on-scroll" style="--delay: ${i + 1}">
       <div class="testimonial-header">
         <div class="customer-info">
@@ -2553,7 +2645,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
         <div class="contact-card premium-card animate-on-scroll" style="--delay: 2">
           <h3>📞 Contact</h3>
           <p><a href="tel:${phone}">${phone}</a></p>
-          ${email ? `<p>< href="mailto:${email}">${email}</a></p>` : ''}
+          ${email ? `<p><a href="mailto:${email}">${email}</a></p>` : ''}
           <div class="social-links">
             <a href="#" aria-label="Facebook">f</a>
             <a href="#" aria-label="Instagram">i</a>
@@ -2873,7 +2965,7 @@ function generatePremiumHTML(business: any, content: any, theme: any, layoutVari
 </html>`;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   return NextResponse.json({
     message: 'Premium website preview generator endpoint',
     method: 'POST',
