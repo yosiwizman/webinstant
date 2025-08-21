@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { 
   CheckCircleIcon, 
@@ -8,7 +8,6 @@ import {
   ExclamationTriangleIcon, 
   XCircleIcon,
   MagnifyingGlassIcon,
-  FunnelIcon,
   ArrowPathIcon,
   EnvelopeIcon,
   DocumentIcon,
@@ -24,8 +23,8 @@ interface Operation {
   operation_type: string
   status: 'success' | 'info' | 'warning' | 'error'
   message: string
-  details?: any
-  metadata?: any
+  details?: Record<string, unknown>
+  metadata?: Record<string, unknown>
 }
 
 interface DailySummary {
@@ -93,8 +92,38 @@ export default function OperationsLog() {
     })
   }
 
+  // Calculate daily summary
+  const calculateDailySummary = (ops: Operation[]) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const todayOps = ops.filter(op => new Date(op.created_at) >= today)
+    
+    const summary: DailySummary = {
+      totalOperations: todayOps.length,
+      byType: {},
+      successRate: 0,
+      errorCount: 0
+    }
+    
+    // Count by type
+    todayOps.forEach(op => {
+      if (!summary.byType[op.operation_type]) {
+        summary.byType[op.operation_type] = 0
+      }
+      summary.byType[op.operation_type]++
+      
+      if (op.status === 'error') summary.errorCount++
+    })
+    
+    const successCount = todayOps.filter(op => op.status === 'success').length
+    summary.successRate = todayOps.length > 0 ? (successCount / todayOps.length) * 100 : 0
+    
+    setDailySummary(summary)
+  }
+
   // Load operations from database
-  const loadOperations = async () => {
+  const loadOperations = useCallback(async () => {
     try {
       setIsLoading(true)
       
@@ -119,7 +148,14 @@ export default function OperationsLog() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase])
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    await loadOperations()
+    setLastRefresh(new Date())
+    setTimeout(() => setIsRefreshing(false), 500)
+  }, [loadOperations])
 
   // Initial load and setup auto-refresh
   useEffect(() => {
@@ -151,37 +187,7 @@ export default function OperationsLog() {
       clearInterval(interval)
       supabase.removeChannel(channel)
     }
-  }, [])
-
-  // Calculate daily summary
-  const calculateDailySummary = (ops: Operation[]) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const todayOps = ops.filter(op => new Date(op.created_at) >= today)
-    
-    const summary: DailySummary = {
-      totalOperations: todayOps.length,
-      byType: {},
-      successRate: 0,
-      errorCount: 0
-    }
-    
-    // Count by type
-    todayOps.forEach(op => {
-      if (!summary.byType[op.operation_type]) {
-        summary.byType[op.operation_type] = 0
-      }
-      summary.byType[op.operation_type]++
-      
-      if (op.status === 'error') summary.errorCount++
-    })
-    
-    const successCount = todayOps.filter(op => op.status === 'success').length
-    summary.successRate = todayOps.length > 0 ? (successCount / todayOps.length) * 100 : 0
-    
-    setDailySummary(summary)
-  }
+  }, [loadOperations, handleRefresh, supabase])
 
   // Filter operations
   useEffect(() => {
@@ -260,13 +266,6 @@ export default function OperationsLog() {
     }
   }
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    await loadOperations()
-    setLastRefresh(new Date())
-    setTimeout(() => setIsRefreshing(false), 500)
-  }
-
   // Get unique operation types for filter
   const uniqueTypes = Array.from(new Set(operations.map(op => op.operation_type)))
 
@@ -292,7 +291,7 @@ export default function OperationsLog() {
 
       {/* Daily Summary */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Summary</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Today&apos;s Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-sm text-gray-500">Total Operations</p>
