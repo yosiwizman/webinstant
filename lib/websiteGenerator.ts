@@ -59,7 +59,7 @@ export class WebsiteGenerator {
       const htmlContent = this.renderTemplate(business, content, templateType);
 
       // Save to database and get preview URL
-      const { previewUrl, previewId } = await this.savePreview(businessId, htmlContent);
+      const { previewUrl } = await this.savePreview(businessId, htmlContent);
 
       // Generate screenshot URL (using our API endpoint)
       const screenshot = this.generateScreenshotUrl(previewUrl);
