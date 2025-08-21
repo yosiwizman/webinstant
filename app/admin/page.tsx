@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
 
@@ -247,7 +247,7 @@ export default function AdminPage() {
     }
   }
 
-  const sections: { id: ActiveSection; label: string; icon: JSX.Element }[] = [
+  const sections: { id: ActiveSection; label: string; icon: ReactElement }[] = [
     {
       id: 'revenue',
       label: 'Revenue',

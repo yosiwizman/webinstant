@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase'
-import { notFound } from 'next/navigation'
 import PreviewClient from './PreviewClient'
 
 interface PageProps {

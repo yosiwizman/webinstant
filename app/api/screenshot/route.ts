@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         // For now, just use a generic name
         businessName = 'Your Business';
       }
-    } catch (e) {
+    } catch {
       // Ignore URL parsing errors
     }
 
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, html, businessName } = body;
+    const { businessName } = body;
     
     // Generate a placeholder screenshot
     const svg = generatePlaceholderSVG(businessName);

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // TODO: Implement campaign sending logic
     // This is a placeholder implementation
-    // The request body can be accessed with: await request.json()
     
     return NextResponse.json({
       success: true,

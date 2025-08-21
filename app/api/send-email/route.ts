@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
             </div>
             <div class="content">
               <h2>Hi ${business.business_name},</h2>
-              <p>Great news! We've created a stunning, professional website for your business that's ready to help you attract more customers.</p>
+              <p>Great news! We&apos;ve created a stunning, professional website for your business that&apos;s ready to help you attract more customers.</p>
               
               <div class="preview-box">
                 <h3>✨ Your Website Features:</h3>
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
               <div class="preview-box" style="text-align: center;">
                 <p>Claim your website now for only</p>
                 <p class="price">$150/year</p>
-                <p style="color: #666;">That's less than $13/month for a professional online presence!</p>
+                <p style="color: #666;">That&apos;s less than $13/month for a professional online presence!</p>
               </div>
               
               <h3>Why claim your website today?</h3>
@@ -116,10 +116,10 @@ export async function POST(request: NextRequest) {
                 <li><strong>Instant activation</strong> - Your website goes live immediately</li>
                 <li><strong>Custom domain</strong> - Get your own professional web address</li>
                 <li><strong>Free updates</strong> - Keep your information current</li>
-                <li><strong>Support included</strong> - We're here to help you succeed</li>
+                <li><strong>Support included</strong> - We&apos;re here to help you succeed</li>
               </ul>
               
-              <p>Don't miss out on potential customers searching for your business online!</p>
+              <p>Don&apos;t miss out on potential customers searching for your business online!</p>
               
               <div style="text-align: center;">
                 <a href="${preview.preview_url}" class="button">Claim Your Website Now →</a>
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
             </div>
             <div class="footer">
               <p>© 2024 WebInstant. All rights reserved.</p>
-              <p>Questions? Reply to this email and we'll be happy to help!</p>
+              <p>Questions? Reply to this email and we&apos;ll be happy to help!</p>
             </div>
           </div>
         </body>
@@ -240,11 +240,15 @@ export async function GET() {
       });
     }
 
+    interface StatAccumulator {
+      [key: string]: number;
+    }
+
     const summary = {
       total: stats?.length || 0,
       sent: stats?.filter(s => s.status === 'sent').length || 0,
       failed: stats?.filter(s => s.status === 'failed').length || 0,
-      byType: stats?.reduce((acc: any, s) => {
+      byType: stats?.reduce((acc: StatAccumulator, s) => {
         acc[s.email_type] = (acc[s.email_type] || 0) + 1;
         return acc;
       }, {})
@@ -262,7 +266,7 @@ export async function GET() {
         fromEmail: 'noreply@webinstant.io'
       }
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({
       message: 'Email sending endpoint',
       status: 'ready',

@@ -13,7 +13,6 @@ import {
   generateLiveChatBubble,
   generateExitIntentPopup,
   checkExistingWebsite,
-  ContentGenerator,
   BusinessImages,
   BusinessContent
 } from '@/lib/contentGenerator';

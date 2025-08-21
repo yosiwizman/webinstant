@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   console.log('🔧 Starting preview URL fix process')
   console.log('================================================')
   
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   return NextResponse.json({
     message: 'Preview URL fix endpoint',
     description: 'Updates all preview URLs to use localhost:3000 format',

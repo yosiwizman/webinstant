@@ -4,8 +4,13 @@ import { createClient } from '@supabase/supabase-js'
 // Initialize Supabase client with service role for write operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_AN_KEY!
 )
+
+interface PriceUpdate {
+  old: string;
+  new: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +65,6 @@ export async function POST(request: NextRequest) {
           updatedHtml = updatedHtml.replace(pattern, (match: string) => {
             // Preserve any HTML tags in the match
             if (match.includes('<')) {
-              const beforeTag = match.substring(0, match.indexOf('<'))
               const afterTag = match.substring(match.indexOf('<'))
               return `${dayCapitalized}: ${hours}${afterTag}`
             }
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     // Update prices
     if (updates.prices && Array.isArray(updates.prices)) {
-      updates.prices.forEach((priceUpdate: any) => {
+      updates.prices.forEach((priceUpdate: PriceUpdate) => {
         if (priceUpdate.old && priceUpdate.new) {
           // Escape special regex characters in price
           const escapedOld = priceUpdate.old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
