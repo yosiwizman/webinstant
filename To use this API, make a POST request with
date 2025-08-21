@@ -1,0 +1,4 @@
+{
+  "businessId": "your-business-id",
+  "template": "website_ready"  // optional
+}
