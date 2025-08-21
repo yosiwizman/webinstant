@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
 
@@ -64,61 +64,52 @@ export default function AdminPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => {
-    // Update time every second
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    fetchQuickStats()
-    checkSystemStatus()
-    
-    // Refresh every 5 minutes
-    const refreshInterval = setInterval(() => {
-      fetchQuickStats()
-      checkSystemStatus()
-    }, 5 * 60 * 1000)
-
-    return () => clearInterval(refreshInterval)
-  }, [])
-
-  const fetchQuickStats = async () => {
+  // Fetch quick stats with error handling
+  const fetchQuickStats = useCallback(async () => {
     try {
+      setError(null)
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const todayISO = today.toISOString()
 
       // Fetch revenue today
-      const { data: revenueData } = await supabase
+      const { data: revenueData, error: revenueError } = await supabase
         .from('subscriptions')
         .select('amount')
         .gte('created_at', todayISO)
         .eq('status', 'active')
 
+      if (revenueError) throw revenueError
+
       const revenueToday = revenueData?.reduce((sum, sub) => sum + (sub.amount || 0), 0) || 0
 
       // Fetch emails sent today
-      const { count: emailCount } = await supabase
+      const { count: emailCount, error: emailError } = await supabase
         .from('email_logs')
         .select('id', { count: 'exact' })
         .gte('created_at', todayISO)
 
+      if (emailError) throw emailError
+
       // Fetch new customers today
-      const { count: customerCount } = await supabase
+      const { count: customerCount, error: customerError } = await supabase
         .from('businesses')
         .select('id', { count: 'exact' })
         .gte('created_at', todayISO)
         .not('claimed_at', 'is', null)
 
+      if (customerError) throw customerError
+
       // Fetch active websites
-      const { count: websiteCount } = await supabase
+      const { count: websiteCount, error: websiteError } = await supabase
         .from('website_previews')
         .select('id', { count: 'exact' })
+
+      if (websiteError) throw websiteError
 
       setQuickStats({
         revenueToday,
@@ -128,24 +119,38 @@ export default function AdminPage() {
       })
     } catch (error) {
       console.error('Error fetching quick stats:', error)
+      setError('Failed to fetch statistics. Please try refreshing.')
     }
-  }
+  }, [])
 
-  const checkSystemStatus = async () => {
+  // Check system status with error handling
+  const checkSystemStatus = useCallback(async () => {
     try {
       // Check database
-      const { error: dbError } = await supabase.from('businesses').select('id').limit(1)
+      const { error: dbError } = await supabase
+        .from('businesses')
+        .select('id')
+        .limit(1)
+        .single()
       
-      // Check email service (mock check - replace with actual email service check)
-      const emailStatus = 'operational' // Replace with actual check
+      // Check email service by checking if we have email logs
+      const { error: emailCheckError } = await supabase
+        .from('email_logs')
+        .select('id')
+        .limit(1)
+        .single()
       
-      // Check API services (mock check - replace with actual API check)
-      const apiStatus = 'operational' // Replace with actual check
+      // Check API usage logs
+      const { error: apiCheckError } = await supabase
+        .from('api_usage')
+        .select('id')
+        .limit(1)
+        .single()
 
       setSystemStatus({
-        database: dbError ? 'down' : 'operational',
-        email: emailStatus as 'operational' | 'degraded' | 'down',
-        api: apiStatus as 'operational' | 'degraded' | 'down'
+        database: dbError ? (dbError.code === 'PGRST116' ? 'operational' : 'down') : 'operational',
+        email: emailCheckError ? (emailCheckError.code === 'PGRST116' ? 'operational' : 'degraded') : 'operational',
+        api: apiCheckError ? (apiCheckError.code === 'PGRST116' ? 'operational' : 'degraded') : 'operational'
       })
     } catch (error) {
       console.error('Error checking system status:', error)
@@ -155,17 +160,62 @@ export default function AdminPage() {
         api: 'degraded'
       })
     }
-  }
+  }, [])
 
-  const handleRefreshAll = async () => {
+  // Handle refresh all data
+  const handleRefreshAll = useCallback(async () => {
     setIsRefreshing(true)
-    await Promise.all([
-      fetchQuickStats(),
+    try {
+      await Promise.all([
+        fetchQuickStats(),
+        checkSystemStatus()
+      ])
+      setLastRefresh(new Date())
+      // Increment refresh key to force child components to refresh
+      setRefreshKey(prev => prev + 1)
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+      setError('Failed to refresh data. Please try again.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [fetchQuickStats, checkSystemStatus])
+
+  // Initial load
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setIsLoading(true)
+      try {
+        await Promise.all([
+          fetchQuickStats(),
+          checkSystemStatus()
+        ])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadInitialData()
+  }, [fetchQuickStats, checkSystemStatus])
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  // Auto-refresh every 60 seconds
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      fetchQuickStats()
       checkSystemStatus()
-    ])
-    setLastRefresh(new Date())
-    setIsRefreshing(false)
-  }
+      setLastRefresh(new Date())
+    }, 60 * 1000) // 60 seconds
+
+    return () => clearInterval(refreshInterval)
+  }, [fetchQuickStats, checkSystemStatus])
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -254,8 +304,45 @@ export default function AdminPage() {
     }
   ]
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-700 dark:text-gray-300 font-medium">Loading Dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setError(null)}
+                className="inline-flex text-red-400 hover:text-red-500 focus:outline-none"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="px-6 py-4">
@@ -269,10 +356,10 @@ export default function AdminPage() {
             <button
               onClick={handleRefreshAll}
               disabled={isRefreshing}
-              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white transition-colors ${
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white transition-all duration-200 ${
                 isRefreshing
                   ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg transform hover:scale-105'
               }`}
             >
               {isRefreshing ? (
@@ -288,7 +375,7 @@ export default function AdminPage() {
                   <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Refresh All
+                  Refresh Data
                 </>
               )}
             </button>
@@ -296,7 +383,7 @@ export default function AdminPage() {
 
           {/* Quick Stats */}
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm">Revenue Today</p>
@@ -308,7 +395,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100 text-sm">Emails Sent Today</p>
@@ -320,7 +407,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 text-white">
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-purple-100 text-sm">New Customers</p>
@@ -332,7 +419,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-4 text-white">
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-orange-100 text-sm">Active Websites</p>
@@ -350,13 +437,13 @@ export default function AdminPage() {
       {/* Navigation Tabs */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="px-6">
-          <nav className="flex space-x-8" aria-label="Tabs">
+          <nav className="flex space-x-8 overflow-x-auto" aria-label="Tabs">
             {sections.map((section) => (
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
                 className={`
-                  flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                  flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap
                   ${activeSection === section.id
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -375,12 +462,12 @@ export default function AdminPage() {
       <main className="flex-1 px-6 py-8">
         <div className="max-w-7xl mx-auto">
           <div className="transition-all duration-300 ease-in-out">
-            {activeSection === 'revenue' && <RevenueDashboard />}
-            {activeSection === 'pipeline' && <CustomerPipeline />}
-            {activeSection === 'campaigns' && <EmailCampaignCenter />}
-            {activeSection === 'websites' && <WebsiteGallery />}
-            {activeSection === 'api' && <ApiUsageMonitor />}
-            {activeSection === 'operations' && <OperationsLog />}
+            {activeSection === 'revenue' && <RevenueDashboard key={`revenue-${refreshKey}`} />}
+            {activeSection === 'pipeline' && <CustomerPipeline key={`pipeline-${refreshKey}`} />}
+            {activeSection === 'campaigns' && <EmailCampaignCenter key={`campaigns-${refreshKey}`} />}
+            {activeSection === 'websites' && <WebsiteGallery key={`websites-${refreshKey}`} />}
+            {activeSection === 'api' && <ApiUsageMonitor key={`api-${refreshKey}`} />}
+            {activeSection === 'operations' && <OperationsLog key={`operations-${refreshKey}`} />}
           </div>
         </div>
       </main>
@@ -388,8 +475,8 @@ export default function AdminPage() {
       {/* Footer */}
       <footer className="bg-white dark:bg-gray-800 shadow-sm border-t border-gray-200 dark:border-gray-700 mt-auto">
         <div className="px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
               <div className="text-sm text-gray-500 dark:text-gray-400">
                 Last refresh: {formatTime(lastRefresh)}
               </div>
@@ -399,7 +486,7 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Database:</span>
                   <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.database)}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.database)} animate-pulse`}></div>
                     <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
                       {systemStatus.database}
                     </span>
@@ -409,7 +496,7 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Email:</span>
                   <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.email)}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.email)} animate-pulse`}></div>
                     <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
                       {systemStatus.email}
                     </span>
@@ -419,7 +506,7 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">API:</span>
                   <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.api)}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.api)} animate-pulse`}></div>
                     <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
                       {systemStatus.api}
                     </span>
@@ -428,8 +515,13 @@ export default function AdminPage() {
               </div>
             </div>
             
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Version 2.0.0
+            <div className="flex items-center gap-4">
+              <div className="text-xs text-gray-400 dark:text-gray-500">
+                Auto-refresh: 60s
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Version 2.0.0
+              </div>
             </div>
           </div>
         </div>
