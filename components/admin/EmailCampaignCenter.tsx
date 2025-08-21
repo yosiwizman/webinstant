@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabase'
 
 interface CampaignStats {
   emailsSentToday: number
@@ -46,7 +46,6 @@ interface EmailHistoryItem {
 }
 
 export default function EmailCampaignCenter() {
-  const supabase = createClientComponentClient()
   const [stats, setStats] = useState<CampaignStats>({
     emailsSentToday: 0,
     openRate: 0,

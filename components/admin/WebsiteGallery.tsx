@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabase'
 import { 
   Eye, 
   Mail, 
@@ -63,8 +63,6 @@ export default function WebsiteGallery() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showBulkActions, setShowBulkActions] = useState(false)
-  
-  const supabase = createClientComponentClient()
 
   useEffect(() => {
     fetchPreviews()

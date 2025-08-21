@@ -1,10 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Progress } from '@/components/ui/progress'
+import { supabase } from '@/lib/supabase'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
   LineChart,
@@ -63,8 +60,6 @@ export default function ApiUsageMonitor() {
   const [pieChartData, setPieChartData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [totalSpentToday, setTotalSpentToday] = useState(0)
-  
-  const supabase = createClientComponentClient()
 
   useEffect(() => {
     fetchApiUsageData()
@@ -230,22 +225,30 @@ export default function ApiUsageMonitor() {
       {(hasLowBalance || hasHighDailySpend) && (
         <div className="space-y-3">
           {hasLowBalance && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertTitle className="text-red-800">Low Balance Alert</AlertTitle>
-              <AlertDescription className="text-red-700">
-                One or more API providers have a balance below $5. Please add funds to avoid service interruption.
-              </AlertDescription>
-            </Alert>
+            <div className="border border-red-200 bg-red-50 rounded-lg p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">Low Balance Alert</h3>
+                  <p className="mt-1 text-sm text-red-700">
+                    One or more API providers have a balance below $5. Please add funds to avoid service interruption.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
           {hasHighDailySpend && (
-            <Alert className="border-yellow-200 bg-yellow-50">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle className="text-yellow-800">High Usage Warning</AlertTitle>
-              <AlertDescription className="text-yellow-700">
-                Daily API spend has exceeded $50 (${totalSpentToday.toFixed(2)}). Monitor usage to control costs.
-              </AlertDescription>
-            </Alert>
+            <div className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">High Usage Warning</h3>
+                  <p className="mt-1 text-sm text-yellow-700">
+                    Daily API spend has exceeded $50 (${totalSpentToday.toFixed(2)}). Monitor usage to control costs.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -253,47 +256,47 @@ export default function ApiUsageMonitor() {
       {/* API Balance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {apiBalances.map((api) => (
-          <Card key={api.provider} className="relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+          <div key={api.provider} className="bg-white rounded-lg shadow-sm border border-gray-200 relative overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">
                 {api.provider}
-              </CardTitle>
+              </h3>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-bold">${api.balance.toFixed(2)}</span>
                 <span className="text-sm text-gray-500">Balance</span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
+              <div className="mt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Used Today</span>
                   <span className="font-medium">${api.usedToday.toFixed(2)}</span>
                 </div>
-                <Progress 
-                  value={(api.usedToday / 100) * 100} 
-                  className="h-2"
-                  style={{
-                    '--progress-background': api.color
-                  } as any}
-                />
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.min((api.usedToday / 100) * 100, 100)}%`,
+                      backgroundColor: api.color
+                    }}
+                  />
+                </div>
               </div>
               <div className={`absolute top-0 right-0 w-24 h-24 ${api.bgColor} opacity-10 rounded-full -mr-8 -mt-8`}></div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Cost Breakdown Pie Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
               <DollarSign className="h-5 w-5" />
               Cost Breakdown by API
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-6">
             {pieChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="300">
                 <PieChart>
@@ -319,18 +322,18 @@ export default function ApiUsageMonitor() {
                 No usage data for today
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Daily Cost Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
               <TrendingUp className="h-5 w-5" />
               Daily Cost Trend (7 Days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-6">
             <ResponsiveContainer width="100%" height="300">
               <AreaChart data={dailyTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -344,58 +347,56 @@ export default function ApiUsageMonitor() {
                 <Area type="monotone" dataKey="anthropic" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Anthropic" />
               </AreaChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Usage History Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
             <Activity className="h-5 w-5" />
             Recent API Calls (Last 50)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-3">API</th>
-                  <th className="text-left py-2 px-3">Endpoint</th>
-                  <th className="text-left py-2 px-3">Tokens</th>
-                  <th className="text-left py-2 px-3">Cost</th>
-                  <th className="text-left py-2 px-3">Business</th>
-                  <th className="text-left py-2 px-3">Timestamp</th>
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 px-3">API</th>
+                <th className="text-left py-2 px-3">Endpoint</th>
+                <th className="text-left py-2 px-3">Tokens</th>
+                <th className="text-left py-2 px-3">Cost</th>
+                <th className="text-left py-2 px-3">Business</th>
+                <th className="text-left py-2 px-3">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usageHistory.map((usage) => (
+                <tr key={usage.id} className="border-b hover:bg-gray-50">
+                  <td className="py-2 px-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getProviderBgClass(usage.api_provider)} ${getProviderTextClass(usage.api_provider)}`}>
+                      {usage.api_provider}
+                    </span>
+                  </td>
+                  <td className="py-2 px-3 text-gray-700">{usage.endpoint}</td>
+                  <td className="py-2 px-3 text-gray-700">{usage.tokens_used?.toLocaleString() || 0}</td>
+                  <td className="py-2 px-3 font-medium">${usage.cost?.toFixed(4) || '0.0000'}</td>
+                  <td className="py-2 px-3 text-gray-700">{usage.business_name}</td>
+                  <td className="py-2 px-3 text-gray-500">
+                    {new Date(usage.created_at).toLocaleString()}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {usageHistory.map((usage) => (
-                  <tr key={usage.id} className="border-b hover:bg-gray-50">
-                    <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getProviderBgClass(usage.api_provider)} ${getProviderTextClass(usage.api_provider)}`}>
-                        {usage.api_provider}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 text-gray-700">{usage.endpoint}</td>
-                    <td className="py-2 px-3 text-gray-700">{usage.tokens_used?.toLocaleString() || 0}</td>
-                    <td className="py-2 px-3 font-medium">${usage.cost?.toFixed(4) || '0.0000'}</td>
-                    <td className="py-2 px-3 text-gray-700">{usage.business_name}</td>
-                    <td className="py-2 px-3 text-gray-500">
-                      {new Date(usage.created_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {usageHistory.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No API usage data available
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </tbody>
+          </table>
+          {usageHistory.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No API usage data available
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
