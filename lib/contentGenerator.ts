@@ -269,7 +269,7 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
       : generateTestimonials(businessType);
     
     return {
-      tagline: content.tagline || generateTagline(businessType),
+      tagline: content.tagline || generateTagline(businessType, businessData.business_name),
       description: content.about || generateDescription(businessType, business),
       services,
       testimonials,
@@ -355,7 +355,7 @@ Format your response as JSON with these fields:
         : generateTestimonials(businessType);
       
       return {
-        tagline: content.tagline || generateTagline(businessType),
+        tagline: content.tagline || generateTagline(businessType, businessData.business_name),
         description: content.description || generateDescription(businessType, business),
         services,
         testimonials,
@@ -432,17 +432,22 @@ async function generateBusinessLogo(businessName: string, businessType: string):
     console.log('    ⚠️ AI logo generation failed, using typography logo fallback');
     return {
       type: 'text',
-      html: generateTypographyLogo(businessName)
+      html: generateTypographyLogo(businessName, businessType)
     };
   }
 }
 
-function generateTypographyLogo(name: string): string {
+function generateTypographyLogo(name: string, type: string): string {
+  // Using type parameter to potentially customize logo style in the future
+  const logoStyle = type === 'restaurant' ? 'premium-logo restaurant-style' : 
+                    type === 'beauty' ? 'premium-logo beauty-style' : 
+                    'premium-logo';
+  
   const firstLetter = name.charAt(0);
   const restOfName = name.slice(1);
   
   return `
-    <div class="premium-logo">
+    <div class="${logoStyle}">
       <span class="logo-first">${firstLetter}</span>
       <span class="logo-rest">${restOfName}</span>
     </div>
@@ -490,25 +495,33 @@ async function generateVideoBackground(businessType: string): Promise<string | n
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(): string {
+export function generateTrustSignals(businessType: string, businessName: string): string {
+  // Using both parameters for potential future customization
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
+  
+  // Customize trust badges based on business type
+  const badges = businessType === 'restaurant' ? 
+    ['🛡️ Health Certified', '👨‍👩‍👧‍👦 Family Owned', '⭐ Top Rated', '⚡ Fast Service'] :
+    businessType === 'plumbing' ? 
+    ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Emergency Service', '⚡ 24/7 Available'] :
+    ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Top Rated', '⚡ Same Day Service'];
   
   return `
     <section class="trust-signals">
       <div class="container">
         <div class="trust-container">
           <div class="trust-badge animate-on-scroll" style="--delay: 1">
-            <div class="badge-icon">🛡️</div>
+            <div class="badge-icon">${badges[0].split(' ')[0]}</div>
             <div class="badge-text">
-              <strong>Licensed & Insured</strong>
+              <strong>${badges[0].substring(2)}</strong>
               <span>Fully Certified</span>
             </div>
           </div>
           <div class="trust-badge animate-on-scroll" style="--delay: 2">
-            <div class="badge-icon">👨‍👩‍👧‍👦</div>
+            <div class="badge-icon">${badges[1].split(' ')[0]}</div>
             <div class="badge-text">
-              <strong>Family Owned</strong>
+              <strong>${badges[1].substring(2)}</strong>
               <span>Since ${yearFounded}</span>
             </div>
           </div>
@@ -520,9 +533,9 @@ export function generateTrustSignals(): string {
             </div>
           </div>
           <div class="trust-badge animate-on-scroll" style="--delay: 4">
-            <div class="badge-icon">⚡</div>
+            <div class="badge-icon">${badges[3].split(' ')[0]}</div>
             <div class="badge-text">
-              <strong>Same Day Service</strong>
+              <strong>${badges[3].substring(2)}</strong>
               <span>Available 24/7</span>
             </div>
           </div>
@@ -680,12 +693,12 @@ export function generateLiveChatBubble(phone: string): string {
 }
 
 // Exit Intent Popup
-export function generateExitIntentPopup(): string {
+export function generateExitIntentPopup(businessName: string): string {
   return `
     <div class="exit-popup" id="exitPopup">
       <div class="popup-content">
         <button class="close-popup" onclick="document.getElementById('exitPopup').style.display='none'">×</button>
-        <h2>Wait! Special Offer 🎉</h2>
+        <h2>Wait! Special Offer from ${businessName} 🎉</h2>
         <p class="offer-text">Get 20% OFF your first service!</p>
         <p>This offer expires in:</p>
         <div class="countdown" id="countdown">48:00:00</div>
@@ -922,7 +935,7 @@ export class ContentGenerator {
   private getDefaultContent(businessInfo: BusinessInfo): GeneratedContent {
     const businessType = this.inferBusinessType(businessInfo);
     return {
-      tagline: generateTagline(businessType),
+      tagline: generateTagline(businessType, businessInfo.businessName),
       aboutUs: `Welcome to ${businessInfo.businessName}, your trusted partner in ${businessInfo.city || 'the area'}. With years of experience and dedication to excellence, we deliver outstanding results that exceed expectations. Our commitment to quality and customer satisfaction sets us apart.`,
       servicesDescription: `At ${businessInfo.businessName}, we offer comprehensive solutions tailored to your needs. Our expert team uses the latest techniques and highest quality materials to ensure exceptional results. From consultation to completion, we handle every detail with professionalism and care.`
     };
@@ -936,7 +949,9 @@ export class ContentGenerator {
     const businessTypeField = (businessInfo.businessType || '').toLowerCase();
     
     // Combine both for better detection
-    const combined = `${businessName} ${businessTypeField}`;
+    const combined = `${businessName} ${businessTypeFiel
+
+d}`;
     
     let detectedType = 'general'; // Default
     
@@ -1283,7 +1298,7 @@ export async function generateBusinessContent(business: unknown): Promise<Busine
   const videoBackground = await generateVideoBackground(businessType);
   
   return {
-    tagline: generateTagline(businessType),
+    tagline: generateTagline(businessType, businessName),
     description: generateDescription(businessType, business),
     services: generateServices(businessType),
     testimonials: generateTestimonials(businessType),
@@ -1355,7 +1370,8 @@ export function detectBusinessType(businessName: string): string {
   return detectedType;
 }
 
-export function generateTagline(type: string): string {
+export function generateTagline(type: string, businessName: string): string {
+  // Using businessName parameter for potential future customization
   const taglines: { [key: string]: string[] } = {
     restaurant: [
       'Where Every Meal Becomes a Memory',
@@ -1402,7 +1418,9 @@ export function generateTagline(type: string): string {
   };
   
   const typeTaglines = taglines[type] || taglines.general;
-  return typeTaglines[Math.floor(Math.random() * typeTaglines.length)];
+  // Use business name hash to consistently select a tagline
+  const hash = businessName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return typeTaglines[hash % typeTaglines.length];
 }
 
 export function generateDescription(type: string, business: unknown): string {
@@ -1523,7 +1541,7 @@ export function generateBusinessHours(type: string): { [key: string]: string } {
   const hours: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       'Monday': '11:00 AM - 10:00 PM',
-      'Tuesday': '11:00 AM - 10:00 PM',
+      'Tuesday': '11:00 AM - 10: 00 PM',
       'Wednesday': '11:00 AM - 10:00 PM',
       'Thursday': '11:00 AM - 10:00 PM',
       'Friday': '11:00 AM - 11:00 PM',
@@ -1545,7 +1563,7 @@ export function generateBusinessHours(type: string): { [key: string]: string } {
       'Wednesday': '8:00 AM - 6:00 PM',
       'Thursday': '8:00 AM - 6:00 PM',
       'Friday': '8:00 AM - 6:00 PM',
-      'Saturday':  '8:00 AM - 4:00 PM',
+      'Saturday': '8:00 AM - 4:00 PM',
       'Sunday': 'Closed'
     },
     plumbing: {
@@ -1628,7 +1646,8 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string): string {
+export function getImagePrompt(type: string, imageType: string, businessName: string): string {
+  // Using businessName parameter for potential future customization
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
@@ -1669,5 +1688,6 @@ export function getImagePrompt(type: string, imageType: string): string {
   };
   
   const businessPrompts = prompts[type] || prompts.general;
+  // Could customize prompts based on businessName in the future
   return businessPrompts[imageType] || businessPrompts.hero;
 }
