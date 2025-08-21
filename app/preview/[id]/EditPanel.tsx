@@ -1,15 +1,40 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Save, Clock, MapPin, Phone, DollarSign } from 'lucide-react'
+import { useState } from 'react'
+import { X, Plus, Trash2, Save, Clock, MapPin } from 'lucide-react'
 
 interface EditPanelProps {
-  previewId: string
   businessName: string
   businessType?: string
-  initialData?: any
+  initialData?: EditPanelData
   onClose: () => void
-  onSave: (updates: any) => void
+  onSave: (updates: EditPanelUpdates) => void
+}
+
+interface EditPanelData {
+  menuItems?: MenuItem[]
+  services?: Service[]
+  staff?: Staff[]
+  dailySpecial?: string
+  cuisineType?: string
+  emergencyService?: boolean
+  serviceAreas?: string
+  appointmentLink?: string
+  products?: string
+}
+
+interface EditPanelUpdates {
+  category: string
+  timestamp: string
+  menuItems?: MenuItem[]
+  dailySpecial?: string
+  cuisineType?: string
+  services?: Service[]
+  emergencyService?: boolean
+  serviceAreas?: string
+  staff?: Staff[]
+  appointmentLink?: string
+  products?: string
 }
 
 interface MenuItem {
@@ -36,7 +61,6 @@ interface Staff {
 }
 
 export default function EditPanel({ 
-  previewId, 
   businessName, 
   businessType = 'general',
   initialData = {},
@@ -158,7 +182,7 @@ export default function EditPanel({
   const handleSave = async () => {
     setIsSaving(true)
     
-    const updates: any = {
+    const updates: EditPanelUpdates = {
       category,
       timestamp: new Date().toISOString()
     }
@@ -234,7 +258,7 @@ export default function EditPanel({
               {/* Daily Special */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Today's Special
+                  Today&apos;s Special
                 </label>
                 <textarea
                   value={dailySpecial}
