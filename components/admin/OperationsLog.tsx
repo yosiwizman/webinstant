@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 import { 
   CheckCircleIcon, 
   InformationCircleIcon, 
@@ -55,7 +55,10 @@ export default function OperationsLog() {
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
 
-  const supabase = createClientComponentClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   // Format time helper function
   const formatTime = (date: Date): string => {

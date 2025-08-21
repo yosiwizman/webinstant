@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { 
   Eye, 
   Mail, 
@@ -29,7 +29,7 @@ interface WebsitePreview {
   html_content: string
   template_used: string
   slug: string
-  created_at: string
+  create_at: string
   business: {
     id: string
     business_name: string
@@ -67,6 +67,11 @@ export default function WebsiteGallery() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showBulkActions, setShowBulkActions] = useState(false)
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     fetchPreviews()

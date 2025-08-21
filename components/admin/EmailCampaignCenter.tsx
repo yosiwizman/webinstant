@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@supabase/supabase-js'
 
 interface CampaignStats {
   emailsSentToday: number;
@@ -98,6 +98,11 @@ export default function EmailCampaignCenter() {
     total: 0,
     message: ""
   });
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   const fetchTemplates = useCallback(async () => {
     try {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
   LineChart,
@@ -61,6 +61,11 @@ export default function ApiUsageMonitor() {
   const [totalSpentToday, setTotalSpentToday] = useState(0)
   const [totalSpentMonth, setTotalSpentMonth] = useState(0)
   const [hasData, setHasData] = useState(false)
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     fetchApiUsageData()
