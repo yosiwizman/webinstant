@@ -11,6 +11,19 @@ export interface BusinessRow {
   email: string;
 }
 
+export interface BusinessToInsert {
+  business_name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  phone: string;
+  email: string;
+  has_website: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ImportStatistics {
   total: number;
   imported: number;
@@ -163,7 +176,7 @@ export class BusinessImporter {
   /**
    * Validate a business row
    */
-  private validateBusiness(business: BusinessRow, rowNumber: number): ValidationResult {
+  private validateBusiness(business: BusinessRow): ValidationResult {
     const errors: string[] = [];
 
     // Check required fields
@@ -280,7 +293,7 @@ export class BusinessImporter {
       await this.loadExistingBusinesses();
 
       // Process each business
-      const validBusinesses: any[] = [];
+      const validBusinesses: BusinessToInsert[] = [];
       const processedEmails = new Set<string>();
       const processedPhones = new Set<string>();
 
@@ -291,7 +304,7 @@ export class BusinessImporter {
         console.log(`Processing row ${rowNumber}:`, business);
 
         // Validate business
-        const validation = this.validateBusiness(business, rowNumber);
+        const validation = this.validateBusiness(business);
         if (!validation.isValid) {
           this.stats.errors++;
           this.stats.errorDetails.push({
@@ -338,7 +351,7 @@ export class BusinessImporter {
         }
 
         // Prepare business for insertion with correct column names
-        const businessToInsert = {
+        const businessToInsert: BusinessToInsert = {
           business_name: business.business_name.trim(),
           address: business.address.trim(),
           city: business.city.trim(),
