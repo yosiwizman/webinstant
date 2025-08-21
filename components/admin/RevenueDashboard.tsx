@@ -283,7 +283,7 @@ export default function RevenueDashboard() {
           // If no data, show 30 days of zeros
           for (let i = 29; i >= 0; i--) {
             const date = new Date();
-            date.set Date(date.getDate() - i);
+            date.setDate(date.getDate() - i);
             chartArray.push({
               date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
               revenue: 0

@@ -160,7 +160,7 @@ export default function SettingsPanel() {
       } else {
         alert(`❌ ${apiName.toUpperCase()} connection failed: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       setTestResults(prev => ({ ...prev, [apiName]: false }))
       alert(`❌ Failed to test ${apiName} connection`)
     } finally {
@@ -196,7 +196,7 @@ export default function SettingsPanel() {
 
   const updateAutomation = (field: string, value: boolean | number) => {
     if (field.includes('.')) {
-      const [parent, child] = field.split('.')
+      const [, child] = field.split('.')
       setSettings(prev => ({
         ...prev,
         automation: {

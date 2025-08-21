@@ -33,8 +33,8 @@ const toast = {
     console.log(message)
     return message
   },
-  dismiss: (toastId: string) => {
-    console.log(`Dismissing toast: ${toastId}`)
+  dismiss: (_toastId: string) => {
+    console.log(`Dismissing toast: ${_toastId}`)
   }
 }
 
@@ -272,7 +272,7 @@ export default function QuickActions() {
             <motion.div
               className="absolute bottom-16 right-0 flex flex-col gap-3 mb-2"
             >
-              {actions.map((action, index) => {
+              {actions.map((action) => {
                 const Icon = action.icon
                 const isLoading = loadingAction === action.id
                 
