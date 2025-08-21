@@ -349,7 +349,7 @@ export default function AdminPage() {
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                 {formatDate(currentTime)} • {formatTime(currentTime)}
               </p>
             </div>
@@ -387,7 +387,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm">Revenue Today</p>
-                  <p className="text-2xl font-bold">${quickStats.revenueToday.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-white">${quickStats.revenueToday.toFixed(2)}</p>
                 </div>
                 <svg className="w-8 h-8 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -399,7 +399,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100 text-sm">Emails Sent Today</p>
-                  <p className="text-2xl font-bold">{quickStats.emailsSentToday}</p>
+                  <p className="text-2xl font-bold text-white">{quickStats.emailsSentToday}</p>
                 </div>
                 <svg className="w-8 h-8 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -411,7 +411,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-purple-100 text-sm">New Customers</p>
-                  <p className="text-2xl font-bold">{quickStats.newCustomersToday}</p>
+                  <p className="text-2xl font-bold text-white">{quickStats.newCustomersToday}</p>
                 </div>
                 <svg className="w-8 h-8 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -423,7 +423,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-orange-100 text-sm">Active Websites</p>
-                  <p className="text-2xl font-bold">{quickStats.activeWebsites}</p>
+                  <p className="text-2xl font-bold text-white">{quickStats.activeWebsites}</p>
                 </div>
                 <svg className="w-8 h-8 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
@@ -446,7 +446,7 @@ export default function AdminPage() {
                   flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap
                   ${activeSection === section.id
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
                   }
                 `}
               >
@@ -477,37 +477,37 @@ export default function AdminPage() {
         <div className="px-6 py-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 Last refresh: {formatTime(lastRefresh)}
               </div>
               
               {/* System Status Indicators */}
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Database:</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Database:</span>
                   <div className="flex items-center">
                     <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.database)} animate-pulse`}></div>
-                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                    <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 capitalize">
                       {systemStatus.database}
                     </span>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Email:</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Email:</span>
                   <div className="flex items-center">
                     <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.email)} animate-pulse`}></div>
-                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                    <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 capitalize">
                       {systemStatus.email}
                     </span>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">API:</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">API:</span>
                   <div className="flex items-center">
                     <div className={`w-2 h-2 rounded-full ${getStatusColor(systemStatus.api)} animate-pulse`}></div>
-                    <span className="ml-1 text-xs text-gray-600 dark:text-gray-300 capitalize">
+                    <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 capitalize">
                       {systemStatus.api}
                     </span>
                   </div>
@@ -516,10 +516,10 @@ export default function AdminPage() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="text-xs text-gray-400 dark:text-gray-500">
+              <div className="text-xs text-gray-600 dark:text-gray-400">
                 Auto-refresh: 60s
               </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 Version 2.0.0
               </div>
             </div>
