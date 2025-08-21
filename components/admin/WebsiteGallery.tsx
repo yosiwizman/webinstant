@@ -25,20 +25,24 @@ import {
 interface WebsitePreview {
   id: string
   business_id: string
-  business_name: string
-  business_type: string
   preview_url: string
   html_content: string
   template_used: string
   slug: string
   created_at: string
-  email_sent: boolean
-  email_opened: boolean
-  link_clicked: boolean
-  is_customer: boolean
-  email_sent_at?: string
-  email_opened_at?: string
-  link_clicked_at?: string
+  business: {
+    id: string
+    business_name: string
+    industry_type: string
+    email: string
+    claimed_at: string | null
+  }
+  emails: Array<{
+    id: string
+    sent_at: string
+    opened_at: string | null
+    clicked_at: string | null
+  }>
 }
 
 interface Stats {
@@ -66,6 +70,7 @@ export default function WebsiteGallery() {
 
   useEffect(() => {
     fetchPreviews()
+    fetchStats()
   }, [])
 
   useEffect(() => {
@@ -78,26 +83,38 @@ export default function WebsiteGallery() {
 
   const fetchPreviews = async () => {
     try {
+      // Query website_previews joined with businesses and emails
       const { data, error } = await supabase
         .from('website_previews')
-        .select('*')
+        .select(`
+          *,
+          business:businesses!business_id (
+            id,
+            business_name,
+            industry_type,
+            email,
+            claimed_at
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      const enrichedData = (data || []).map(preview => ({
-        ...preview,
-        email_sent: Math.random() > 0.5,
-        email_opened: Math.random() > 0.7,
-        link_clicked: Math.random() > 0.8,
-        is_customer: Math.random() > 0.9,
-        email_sent_at: Math.random() > 0.5 ? new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-        email_opened_at: Math.random() > 0.7 ? new Date(Date.now() - Math.random() * 5 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-        link_clicked_at: Math.random() > 0.8 ? new Date(Date.now() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      // For each preview, fetch associated emails
+      const previewsWithEmails = await Promise.all((data || []).map(async (preview) => {
+        const { data: emailData } = await supabase
+          .from('emails')
+          .select('id, sent_at, opened_at, clicked_at')
+          .eq('business_id', preview.business_id)
+          .order('sent_at', { ascending: false })
+
+        return {
+          ...preview,
+          emails: emailData || []
+        }
       }))
 
-      setPreviews(enrichedData)
-      calculateStats(enrichedData)
+      setPreviews(previewsWithEmails)
     } catch (error) {
       console.error('Error fetching previews:', error)
     } finally {
@@ -105,22 +122,52 @@ export default function WebsiteGallery() {
     }
   }
 
-  const calculateStats = (data: WebsitePreview[]) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const stats = {
-      total: data.length,
-      generatedToday: data.filter(p => {
-        const createdAt = new Date(p.created_at)
-        createdAt.setHours(0, 0, 0, 0)
-        return createdAt.getTime() === today.getTime()
-      }).length,
-      pending: data.filter(p => !p.email_sent).length,
-      withEmailsSent: data.filter(p => p.email_sent).length
+  const fetchStats = async () => {
+    try {
+      // Total previews
+      const { count: totalCount } = await supabase
+        .from('website_previews')
+        .select('*', { count: 'exact', head: true })
+
+      // Generated today
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayISO = today.toISOString()
+      
+      const { count: todayCount } = await supabase
+        .from('website_previews')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', todayISO)
+
+      // Pending (businesses without previews)
+      const { data: allBusinesses } = await supabase
+        .from('businesses')
+        .select('id')
+      
+      const { data: businessesWithPreviews } = await supabase
+        .from('website_previews')
+        .select('business_id')
+      
+      const businessesWithPreviewsSet = new Set(businessesWithPreviews?.map(p => p.business_id) || [])
+      const pendingCount = (allBusinesses || []).filter(b => !businessesWithPreviewsSet.has(b.id)).length
+
+      // With emails sent
+      const { data: previewsWithEmails } = await supabase
+        .from('emails')
+        .select('business_id')
+        .not('business_id', 'is', null)
+      
+      const uniqueBusinessesWithEmails = new Set(previewsWithEmails?.map(e => e.business_id) || [])
+
+      setStats({
+        total: totalCount || 0,
+        generatedToday: todayCount || 0,
+        pending: pendingCount,
+        withEmailsSent: uniqueBusinessesWithEmails.size
+      })
+    } catch (error) {
+      console.error('Error fetching stats:', error)
     }
-    
-    setStats(stats)
   }
 
   const filterPreviews = () => {
@@ -129,25 +176,25 @@ export default function WebsiteGallery() {
     // Status filter
     switch (statusFilter) {
       case 'no-email':
-        filtered = filtered.filter(p => !p.email_sent)
+        filtered = filtered.filter(p => p.emails.length === 0)
         break
       case 'opened':
-        filtered = filtered.filter(p => p.email_opened)
+        filtered = filtered.filter(p => p.emails.some(e => e.opened_at !== null))
         break
       case 'customer':
-        filtered = filtered.filter(p => p.is_customer)
+        filtered = filtered.filter(p => p.business.claimed_at !== null)
         break
     }
 
     // Category filter
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter(p => p.business_type === categoryFilter)
+      filtered = filtered.filter(p => p.business.industry_type === categoryFilter)
     }
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(p => 
-        p.business_name.toLowerCase().includes(searchTerm.toLowerCase())
+        p.business.business_name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
@@ -173,8 +220,14 @@ export default function WebsiteGallery() {
   }
 
   const handleBulkSendEmails = async () => {
-    console.log('Sending emails to:', Array.from(selectedPreviews))
-    // Implement bulk email sending
+    for (const previewId of selectedPreviews) {
+      const preview = previews.find(p => p.id === previewId)
+      if (preview) {
+        await handleSendEmail(preview)
+      }
+    }
+    setSelectedPreviews(new Set())
+    await fetchPreviews()
   }
 
   const handleBulkDelete = async () => {
@@ -185,17 +238,40 @@ export default function WebsiteGallery() {
     }
     
     await fetchPreviews()
+    await fetchStats()
     setSelectedPreviews(new Set())
   }
 
   const handleSendEmail = async (preview: WebsitePreview) => {
-    console.log('Sending email for:', preview.business_name)
-    // Implement email sending
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessId: preview.business_id,
+          businessName: preview.business.business_name,
+          email: preview.business.email,
+          previewUrl: preview.preview_url
+        })
+      })
+
+      if (response.ok) {
+        console.log('Email sent successfully')
+        await fetchPreviews()
+        await fetchStats()
+      } else {
+        console.error('Failed to send email')
+      }
+    } catch (error) {
+      console.error('Error sending email:', error)
+    }
   }
 
   const handleCopyLink = (url: string) => {
     navigator.clipboard.writeText(url)
-    // Show toast notification
+    // You could add a toast notification here
   }
 
   const handleDelete = async (id: string) => {
@@ -203,6 +279,7 @@ export default function WebsiteGallery() {
     
     await supabase.from('website_previews').delete().eq('id', id)
     await fetchPreviews()
+    await fetchStats()
   }
 
   const getBusinessTypeColor = (type: string) => {
@@ -218,7 +295,7 @@ export default function WebsiteGallery() {
     return colors[type] || colors.default
   }
 
-  const categories = Array.from(new Set(previews.map(p => p.business_type)))
+  const categories = Array.from(new Set(previews.map(p => p.business.industry_type).filter(Boolean)))
 
   if (loading) {
     return (
@@ -271,7 +348,7 @@ export default function WebsiteGallery() {
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Emails Sent</p>
+              <p className="text-sm text-gray-600">With Emails</p>
               <p className="text-3xl font-bold text-gray-900">{stats.withEmailsSent}</p>
             </div>
             <div className="bg-purple-100 p-3 rounded-lg">
@@ -359,142 +436,151 @@ export default function WebsiteGallery() {
 
       {/* Preview Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredPreviews.map((preview) => (
-          <div
-            key={preview.id}
-            className={`bg-white rounded-xl shadow-sm border ${
-              selectedPreviews.has(preview.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-100'
-            } overflow-hidden hover:shadow-lg transition-all duration-200`}
-          >
-            {/* Selection Checkbox */}
-            <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedPreviews.has(preview.id)}
-                  onChange={() => handleSelectPreview(preview.id)}
-                  className="w-4 h-4 text-blue-600 rounde focus:ring-blue-500"
+        {filteredPreviews.map((preview) => {
+          const emailSent = preview.emails.length > 0
+          const emailOpened = preview.emails.some(e => e.opened_at !== null)
+          const linkClicked = preview.emails.some(e => e.clicked_at !== null)
+          const isCustomer = preview.business.claimed_at !== null
+
+          return (
+            <div
+              key={preview.id}
+              className={`bg-white rounded-xl shadow-sm border ${
+                selectedPreviews.has(preview.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-100'
+              } overflow-hidden hover:shadow-lg transition-all duration-200`}
+            >
+              {/* Selection Checkbox */}
+              <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedPreviews.has(preview.id)}
+                    onChange={() => handleSelectPreview(preview.id)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Select</span>
+                </label>
+                <button className="p-1 hover:bg-gray-100 rounded-lg">
+                  <MoreVertical className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Preview Thumbnail */}
+              <div className="relative h-48 bg-gray-100">
+                <iframe
+                  src={preview.preview_url}
+                  className="w-full h-full pointer-events-none"
+                  style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%', height: '200%' }}
                 />
-                <span className="text-sm font-medium text-gray-700">Select</span>
-              </label>
-              <button className="p-1 hover:bg-gray-100 rounded-lg">
-                <MoreVertical className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Preview Thumbnail */}
-            <div className="relative h-48 bg-gray-100">
-              <iframe
-                src={preview.preview_url}
-                className="w-full h-full pointer-events-none"
-                style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%', height: '200%' }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-            </div>
-
-            {/* Card Content */}
-            <div className="p-4">
-              {/* Business Name and Category */}
-              <div className="mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">{preview.business_name}</h3>
-                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getBusinessTypeColor(preview.business_type)}`}>
-                  {preview.business_type}
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
               </div>
 
-              {/* Status Badges */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                  <CheckCircle className="w-3 h-3" />
-                  Preview Ready
-                </span>
-                
-                {preview.email_sent && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                    <Mail className="w-3 h-3" />
-                    Email Sent
-                  </span>
-                )}
-                
-                {preview.email_opened && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
-                    <MailOpen className="w-3 h-3" />
-                    Opened
-                  </span>
-                )}
-                
-                {preview.link_clicked && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
-                    <MousePointer className="w-3 h-3" />
-                    Clicked
-                  </span>
-                )}
-                
-                {preview.is_customer && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
-                    <DollarSign className="w-3 h-3" />
-                    Customer
-                  </span>
-                )}
-              </div>
+              {/* Card Content */}
+              <div className="p-4">
+                {/* Business Name and Category */}
+                <div className="mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{preview.business.business_name}</h3>
+                  {preview.business.industry_type && (
+                    <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getBusinessTypeColor(preview.business.industry_type)}`}>
+                      {preview.business.industry_type}
+                    </span>
+                  )}
+                </div>
 
-              {/* Preview URL */}
-              <div className="mb-4">
-                <a
-                  href={preview.preview_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {preview.preview_url.replace('https://', '').substring(0, 30)}...
-                </a>
-              </div>
+                {/* Status Badges */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                    <CheckCircle className="w-3 h-3" />
+                    Preview Ready
+                  </span>
+                  
+                  {emailSent && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                      <Mail className="w-3 h-3" />
+                      Email Sent
+                    </span>
+                  )}
+                  
+                  {emailOpened && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                      <MailOpen className="w-3 h-3" />
+                      Opened
+                    </span>
+                  )}
+                  
+                  {linkClicked && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+                      <MousePointer className="w-3 h-3" />
+                      Clicked
+                    </span>
+                  )}
+                  
+                  {isCustomer && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                      <DollarSign className="w-3 h-3" />
+                      Customer
+                    </span>
+                  )}
+                </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={preview.preview_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                >
-                  <Eye className="w-4 h-4" />
-                  View
-                </a>
-                
-                <button
-                  onClick={() => handleSendEmail(preview)}
-                  disabled={preview.email_sent}
-                  className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium ${
-                    preview.email_sent 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  {preview.email_sent ? 'Sent' : 'Send'}
-                </button>
-                
-                <button
-                  onClick={() => handleCopyLink(preview.preview_url)}
-                  className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy
-                </button>
-                
-                <button
-                  onClick={() => handleDelete(preview.id)}
-                  className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
+                {/* Preview URL */}
+                <div className="mb-4">
+                  <a
+                    href={preview.preview_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {preview.preview_url.replace('http://localhost:3000/', '').substring(0, 30)}...
+                  </a>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={preview.preview_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View
+                  </a>
+                  
+                  <button
+                    onClick={() => handleSendEmail(preview)}
+                    disabled={emailSent}
+                    className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium ${
+                      emailSent 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    {emailSent ? 'Sent' : 'Send'}
+                  </button>
+                  
+                  <button
+                    onClick={() => handleCopyLink(preview.preview_url)}
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy
+                  </button>
+                  
+                  <button
+                    onClick={() => handleDelete(preview.id)}
+                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Empty State */}
