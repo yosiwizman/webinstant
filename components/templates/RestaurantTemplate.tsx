@@ -169,7 +169,7 @@ const RestaurantTemplate: React.FC<RestaurantTemplateProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-800 mb-4">Hours of Operation</h2>
-            <p className="text-gray-600 text-lg">We're here to serve you</p>
+            <p className="text-gray-600 text-lg">We&apos;re here to serve you</p>
           </div>
           <div className="max-w-2xl mx-auto bg-orange-50 rounded-2xl p-8">
             <div className="space-y-4">
