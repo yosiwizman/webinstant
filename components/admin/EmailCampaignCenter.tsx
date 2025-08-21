@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 interface CampaignStats {
@@ -54,21 +54,19 @@ interface EmailHistoryItem {
   preview_url?: string;
 }
 
-interface Business {
-  id: string;
-  business_name: string;
-  email: string;
-  website_url?: string;
-  last_email_sent?: string;
-  industry_type?: string;
-}
-
 interface EmailTemplate {
   id: string;
   name: string;
   subject: string;
   content: string;
   is_active: boolean;
+}
+
+interface EmailData {
+  id: string;
+  opened_at: string | null;
+  clicked_at: string | null;
+  converted_at: string | null;
 }
 
 export default function EmailCampaignCenter() {
@@ -101,13 +99,46 @@ export default function EmailCampaignCenter() {
     message: ""
   });
 
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setTemplates(data);
+        setSelectedTemplate(data[0].id);
+      } else {
+        // Create default templates if none exist
+        await createDefaultTemplates();
+        // Recursive call to fetch after creating
+        const { data: newData } = await supabase
+          .from("email_templates")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+        
+        if (newData && newData.length > 0) {
+          setTemplates(newData);
+          setSelectedTemplate(newData[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
     fetchEmailQueue();
     fetchEmailHistory();
     fetchTemplates();
     fetchABTests();
-  }, []);
+  }, [fetchTemplates]);
 
   const fetchStats = async () => {
     try {
@@ -148,29 +179,6 @@ export default function EmailCampaignCenter() {
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
-    }
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("email_templates")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setTemplates(data);
-        setSelectedTemplate(data[0].id);
-      } else {
-        // Create default templates if none exist
-        await createDefaultTemplates();
-        fetchTemplates();
-      }
-    } catch (error) {
-      console.error("Error fetching templates:", error);
     }
   };
 
@@ -246,7 +254,7 @@ The Team`,
 
       if (errorA || errorB) throw errorA || errorB;
 
-      const calculateMetrics = (emails: any[]) => {
+      const calculateMetrics = (emails: EmailData[]) => {
         const sent = emails?.length || 0;
         const opens = emails?.filter(e => e.opened_at).length || 0;
         const clicks = emails?.filter(e => e.clicked_at).length || 0;
