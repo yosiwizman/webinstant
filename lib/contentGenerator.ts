@@ -699,24 +699,64 @@ export function generateExitIntentPopup(businessName: string): string {
   `;
 }
 
-// AI Image Generation with Replicate
+// AI Image Generation with Together AI - FIXED to force AI usage
 export async function generateBusinessImages(businessType: string, businessName: string): Promise<BusinessImages> {
-  console.log('🚀 API CALL: Starting image generation for:', businessType);
-  console.log(`📸 Generating images for ${businessName}...`);
+  console.log('🚀 API CALL: Starting AI image generation for:', businessType);
+  console.log(`📸 GENERATING AI IMAGES for ${businessName}`);
+  
+  // FORCE use Together AI or fail
+  if (!process.env.TOGETHER_API_KEY) {
+    throw new Error('TOGETHER_API_KEY is required for AI image generation');
+  }
   
   try {
-    console.log('  → Using Replicate for image generation...');
+    console.log('  → Using Together AI for image generation...');
+    
+    // Generate with Together AI's image model
+    const generateWithTogether = async (prompt: string, type: string): Promise<string> => {
+      console.log(`    - Generating ${type} image...`);
+      console.log(`      Calling Together AI with: ${prompt.substring(0, 50)}...`);
+      
+      const response = await fetch('https://api.together.xyz/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.TOGETHER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'stabilityai/stable-diffusion-xl-base-1.0',
+          prompt: prompt + ", high quality, professional photography, 8k, ultra detailed, no text, no watermarks",
+          n: 1,
+          steps: 20,
+          width: 1024,
+          height: 768,
+          negative_prompt: "worst quality, low quality, text, watermark, logo, banner, extra digits, cropped, jpeg artifacts, signature, username, error, sketch, duplicate, ugly, monochrome, geometry, mutation, disgusting"
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(`    ✗ Together AI error for ${type}:`, error);
+        throw new Error(`Together AI failed for ${type}: ${error}`);
+      }
+      
+      const data = await response.json();
+      console.log(`    ✓ ${type} image generated with Together AI`);
+      return data.data[0].url;
+    };
+    
     const prompts = getImagePrompts(businessType, businessName);
     
+    // Generate all images with AI
     const images = await Promise.all([
-      generateImage(prompts.hero, 'hero'),
-      generateImage(prompts.service, 'service'),
-      generateImage(prompts.team, 'team')
+      generateWithTogether(prompts.hero, 'hero'),
+      generateWithTogether(prompts.service, 'service'),
+      generateWithTogether(prompts.team, 'team')
     ]);
 
-    console.log(`  ✓ Generated ${images.filter(img => img).length} images with Replicate`);
+    console.log(`  ✓ Generated ${images.length} AI images with Together AI`);
 
-    // Try to compress images with TinyPNG
+    // Try to compress images with TinyPNG if available
     if (tinify && process.env.TINYPNG_API_KEY) {
       console.log('  → Using TinyPNG to compress images...');
       let compressedCount = 0;
@@ -731,7 +771,7 @@ export async function generateBusinessImages(businessType: string, businessName:
           }
         }
       }
-      if (compressedCount > 0)  {
+      if (compressedCount > 0) {
         console.log(`  ✓ Compressed ${compressedCount} images with TinyPNG`);
       }
     }
@@ -743,39 +783,9 @@ export async function generateBusinessImages(businessType: string, businessName:
       gallery: images
     };
   } catch (error) {
-    console.error('  ✗ Image generation failed, using premium stock photos:', error);
-    return getPremiumStockImages(businessType);
-  }
-}
-
-async function generateImage(prompt: string, type: string): Promise<string> {
-  try {
-    console.log(`    - Generating ${type} image...`);
-    console.log('🚀 Calling Replicate API...');
-    const output = await replicate.run(
-      "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
-      {
-        input: {
-          prompt: prompt + ", high quality, professional photography, 8k, ultra detailed, no text, no watermarks",
-          width: 1024,
-          height: 768,
-          num_outputs: 1,
-          scheduler: "K_EULER",
-          guidance_scale: 0,
-          negative_prompt: "worst quality, low quality, text, watermark, logo, banner, extra digits, cropped, jpeg artifacts, signature, username, error, sketch, duplicate, ugly, monochrome, geometry, mutation, disgusting"
-        }
-      }
-    );
-    
-    if (Array.isArray(output) && output.length > 0) {
-      console.log(`    ✓ ${type} image generated`);
-      return output[0];
-    }
-    throw new Error('No image generated');
-  } catch (error) {
-    console.error(`    ✗ Failed to generate ${type} image:`, error);
-    // Return a high-quality placeholder
-    return `https://picsum.photos/1024/768?random=${Math.random()}`;
+    console.error('  ✗ AI image generation failed:', error);
+    // DO NOT fall back to stock photos - fail loudly
+    throw new Error(`AI image generation failed: ${(error as Error).message}`);
   }
 }
 
@@ -814,43 +824,6 @@ function getImagePrompts(businessType: string, businessName: string): { hero: st
   };
   
   return prompts[businessType] || prompts.general;
-}
-
-function getPremiumStockImages(businessType: string): BusinessImages {
-  const stockImages: { [key: string]: BusinessImages } = {
-    restaurant: {
-      hero: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=600&fit=crop'
-    },
-    plumbing: {
-      hero: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&h=600&fit=crop'
-    },
-    beauty: {
-      hero: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1562322140-8baeececf3df?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1595475884562-073c30d45670?w=800&h=600&fit=crop'
-    },
-    auto: {
-      hero: 'https://images.unsplash.com/photo-1625047509168-a7026f36de04?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1632823471565-1ecdf5c6da2c?w=800&h=600&fit=crop'
-    },
-    cleaning: {
-      hero: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1627905646269-7f034dcc5738?w=800&h=600&fit=crop'
-    },
-    general: {
-      hero: 'https://images.unsplash.com/photo-1556761175-4b46a572b786?w=1920&h=1080&fit=crop',
-      service: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop',
-      team: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=600&fit=crop'
-    }
-  };
-  
-  return stockImages[businessType] || stockImages.general;
 }
 
 export class ContentGenerator {
