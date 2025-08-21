@@ -20,7 +20,7 @@ async function initializeOptionalDependencies() {
     const anthropicModule = await import('@anthropic-ai/sdk');
     Anthropic = anthropicModule.default;
     console.log('✓ Anthropic SDK loaded');
-  } catch (e) {
+  } catch {
     console.log('✗ Anthropic SDK not available');
   }
 
@@ -28,7 +28,7 @@ async function initializeOptionalDependencies() {
     const serpModule = await import('serpapi');
     getJson = serpModule.getJson;
     console.log('✓ SerpAPI loaded');
-  } catch (e) {
+  } catch {
     console.log('✗ SerpAPI not available');
   }
 
@@ -36,10 +36,10 @@ async function initializeOptionalDependencies() {
     const tinifyModule = await import('tinify');
     tinify = tinifyModule.default;
     if (process.env.TINYPNG_API_KEY) {
-      (tinify as any).key = process.env.TINYPNG_API_KEY;
+      (tinify as { key: string }).key = process.env.TINYPNG_API_KEY;
       console.log('✓ TinyPNG configured');
     }
-  } catch (e) {
+  } catch {
     console.log('✗ TinyPNG not available');
   }
 }
@@ -133,7 +133,7 @@ export async function checkExistingWebsite(business: unknown): Promise<boolean> 
   
   try {
     console.log('  → Using SerpAPI...');
-    const results = await (getJson as any)({
+    const results = await (getJson as (params: Record<string, unknown>) => Promise<{ organic_results?: Array<{ link?: string }> }>)({
       api_key: process.env.SERPAPI_KEY,
       engine: "google",
       q: `${businessData.business_name} ${businessData.city || ''} official website`,
@@ -183,7 +183,13 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
   const businessData = business as { business_name: string; city?: string };
   
   try {
-    const anthropic = new (Anthropic as any)({
+    const anthropic = new (Anthropic as new (config: { apiKey: string }) => {
+      messages: {
+        create: (params: Record<string, unknown>) => Promise<{
+          content: Array<{ type: string; text: string }>
+        }>
+      }
+    })({
       apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
@@ -219,7 +225,7 @@ async function generateContentWithClaude(business: unknown): Promise<BusinessCon
       // Claude returns content as an array, get the text from the first item
       const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
       content = JSON.parse(responseText);
-    } catch (parseError) {
+    } catch {
       console.error('  ⚠️ Failed to parse Claude response, using fallback content');
       // Return fallback if parsing fails
       return generateBusinessContent(business);
@@ -285,7 +291,6 @@ async function generateContentWithTogether(business: unknown): Promise<BusinessC
   
   try {
     const businessType = detectBusinessType(businessData.business_name);
-    const keywords = getIndustryKeywords(businessType);
     
     const prompt = `Generate premium website content for ${businessData.business_name}, a high-end ${businessType} business in ${businessData.city || 'the area'}.
 
@@ -384,7 +389,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       restaurant: 'minimalist pizza slice icon, simple geometric logo, flat design, svg style',
       plumbing: 'water drop with wrench icon, minimalist plumbing logo, blue, simple svg',
       beauty: 'scissors and comb icon, elegant beauty logo, minimalist, pink, svg style',
-      auto: 'wrench and gear icon, automotive logo, minimalist, professional, svg',
+      auto: 'wrench and gear icon, automotive logo, minimalist, professional,  svg',
       cleaning: 'sparkle and broom icon, cleaning service logo, fresh, minimalist, svg'
     };
 
@@ -408,10 +413,10 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       if (tinify && process.env.TINYPNG_API_KEY) {
         try {
           console.log('    → Using TinyPNG to compress logo...');
-          const source = (tinify as any).fromUrl(output[0]);
-          const compressed = await source.toBuffer();
+          const source = (tinify as { fromUrl: (url: string) => { toBuffer: () => Promise<Buffer> } }).fromUrl(output[0]);
+          await source.toBuffer();
           console.log('    ✓ Logo compressed with TinyPNG');
-        } catch (e) {
+        } catch {
           console.log('    ⚠️ TinyPNG compression failed, using original');
         }
       }
@@ -422,7 +427,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
       };
     }
     throw new Error('No logo generated');
-  } catch (error) {
+  } catch {
     // Option B: Fallback to premium typography logo
     console.log('    ⚠️ AI logo generation failed, using typography logo fallback');
     return {
@@ -432,15 +437,7 @@ async function generateBusinessLogo(businessName: string, businessType: string):
   }
 }
 
-function generateTypographyLogo(name: string, type: string): string {
-  const fonts: { [key: string]: string } = {
-    restaurant: 'Playfair Display',
-    plumbing: 'Oswald',
-    beauty: 'Dancing Script',
-    auto: 'Russo One',
-    cleaning: 'Comfortaa'
-  };
-  
+function generateTypographyLogo(name: string, _type: string): string {
   const firstLetter = name.charAt(0);
   const restOfName = name.slice(1);
   
@@ -486,14 +483,14 @@ async function generateVideoBackground(businessType: string): Promise<string | n
     
     console.log('    ✓ Video background generated with Replicate');
     return (output as unknown as string) || null;
-  } catch (error) {
+  } catch {
     console.log('    ⚠️ Video generation failed, using static image');
     return null;
   }
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(businessType: string, businessName: string): string {
+export function generateTrustSignals(_businessType: string, _businessName: string): string {
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
   
@@ -683,7 +680,7 @@ export function generateLiveChatBubble(phone: string): string {
 }
 
 // Exit Intent Popup
-export function generateExitIntentPopup(businessName: string): string {
+export function generateExitIntentPopup(_businessName: string): string {
   return `
     <div class="exit-popup" id="exitPopup">
       <div class="popup-content">
@@ -763,10 +760,10 @@ export async function generateBusinessImages(businessType: string, businessName:
       for (let i = 0; i < images.length; i++) {
         if (images[i]) {
           try {
-            const source = (tinify as any).fromUrl(images[i]);
+            const source = (tinify as { fromUrl: (url: string) => { toBuffer: () => Promise<Buffer> } }).fromUrl(images[i]);
             await source.toBuffer();
             compressedCount++;
-          } catch (e) {
+          } catch {
             // Keep original if compression fails
           }
         }
@@ -855,7 +852,7 @@ export class ContentGenerator {
   private async initializeOptionalServices() {
     // Initialize Anthropic if available
     if (process.env.ANTHROPIC_API_KEY && Anthropic) {
-      this.anthropic = new (Anthropic as any)({
+      this.anthropic = new (Anthropic as new (config: { apiKey: string }) => unknown)({
         apiKey: process.env.ANTHROPIC_API_KEY,
       });
     }
@@ -1358,7 +1355,7 @@ export function detectBusinessType(businessName: string): string {
   return detectedType;
 }
 
-export function generateTagline(type: string, businessName: string): string {
+export function generateTagline(type: string, _businessName: string): string {
   const taglines: { [key: string]: string[] } = {
     restaurant: [
       'Where Every Meal Becomes a Memory',
@@ -1631,10 +1628,10 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string, businessName: string): string {
+export function getImagePrompt(type: string, imageType: string, _businessName: string): string {
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
-      hero: `luxurious fine dining restaurant interior, ${businessName}, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
+      hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
       service: 'gourmet chef plating exquisite dish, molecular gastronomy, truffle shavings, gold leaf garnish, artistic presentation, steam rising, macro food photography, michelin star presentation',
       team: 'professional chef team in pristine kitchen, white uniforms, stainless steel appliances, coordinated cooking, fine dining kitchen, teamwork, smiling faces',
       gallery: 'restaurant ambiance collage, cocktail bar, wine selection, dessert display, outdoor patio dining, vip private room'
@@ -1646,7 +1643,7 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
       gallery: 'plumbing services showcase, pipe repair, water heater installation, bathroom renovation, emergency response, drain cleaning'
     },
     beauty: {
-      hero: `glamorous luxury beauty salon interior, ${businessName}, pink velvet chairs, gold mirrors, crystal chandeliers, marble stations, fresh flowers, instagram worthy, high-end salon`,
+      hero: `glamorous luxury beauty salon interior, pink velvet chairs, gold mirrors, crystal chandeliers, marble stations, fresh flowers, instagram worthy, high-end salon`,
       service: 'professional hairstylist creating elegant updo, luxury hair treatment, balayage technique, hair transformation, salon lighting, premium products visible',
       team: 'team of expert stylists and beauticians, designer uniforms, warm smiles, diverse team, professional makeup artists, nail technicians',
       gallery: 'beauty transformations, before and after, nail art, makeup application, hair coloring, spa treatments'
