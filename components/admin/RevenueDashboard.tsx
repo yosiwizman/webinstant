@@ -70,7 +70,7 @@ export default function RevenueDashboard() {
       
       // Try to fetch transactions data with proper error handling
       try {
-        // Fetch today's revenue - simple query
+        // Fetch today's revenue
         const { data: todayData, error: todayError } = await supabase
           .from('transactions')
           .select('*')
@@ -82,7 +82,7 @@ export default function RevenueDashboard() {
           todayRevenue = todayData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch this week's revenue - simple query
+        // Fetch this week's revenue
         const { data: weekData, error: weekError } = await supabase
           .from('transactions')
           .select('*')
@@ -93,7 +93,7 @@ export default function RevenueDashboard() {
           weekRevenue = weekData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch this month's revenue - simple query
+        // Fetch this month's revenue
         const { data: monthData, error: monthError } = await supabase
           .from('transactions')
           .select('*')
@@ -104,7 +104,7 @@ export default function RevenueDashboard() {
           monthRevenue = monthData.reduce((sum, t) => sum + (t.amount || 0), 0);
         }
         
-        // Fetch total revenue - simple query
+        // Fetch total revenue
         const { data: totalData, error: totalError } = await supabase
           .from('transactions')
           .select('*')
@@ -132,7 +132,7 @@ export default function RevenueDashboard() {
       let linksClickedCount = 0;
       let customersCount = 0;
       
-      // Count businesses - simple query
+      // Count businesses
       try {
         const { count: bizCount, error: bizError } = await supabase
           .from('businesses')
@@ -145,7 +145,7 @@ export default function RevenueDashboard() {
         console.log('Error counting businesses:', err);
       }
       
-      // Count previews - simple query
+      // Count previews
       try {
         const { count: prevCount, error: prevError } = await supabase
           .from('website_previews')
@@ -159,7 +159,7 @@ export default function RevenueDashboard() {
         console.log('Error counting previews:', err);
       }
       
-      // Count emails - simple queries
+      // Count emails
       try {
         const { count: emailCount, error: emailError } = await supabase
           .from('emails')
@@ -192,7 +192,7 @@ export default function RevenueDashboard() {
         console.log('Emails table not available:', err);
       }
       
-      // Count customers - simple query
+      // Count customers
       try {
         const { count: claimedCount, error: claimedError } = await supabase
           .from('businesses')
@@ -245,7 +245,7 @@ export default function RevenueDashboard() {
         },
         { 
           stage: 'Links Clicked', 
-          value: linksClickedCount, 
+          value: links ClickedCount, 
           percentage: emailsOpenedCount > 0 ? (linksClickedCount / emailsOpenedCount) * 100 : 0 
         },
         { 
@@ -291,7 +291,7 @@ export default function RevenueDashboard() {
             });
           }
         } else {
-          // If no data or error, show 30 days of zeros
+          // If no data, show 30 days of zeros
           for (let i = 29; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
@@ -316,7 +316,7 @@ export default function RevenueDashboard() {
       
       setRevenueChart(chartArray);
       
-      // Fetch recent transactions - simple query
+      // Fetch recent transactions
       const recentTransactionsList: Transaction[] = [];
       
       try {
@@ -327,11 +327,11 @@ export default function RevenueDashboard() {
           .limit(10);
         
         if (!transError && recentTransactions && recentTransactions.length > 0) {
-          // Process transactions without complex joins
+          // Process transactions
           for (const trans of recentTransactions) {
             let customerName = trans.customer_name || 'Unknown';
             
-            // If we have a business_id, try to get the business name separately
+            // If we have a business_id, try to get the business name
             if (trans.business_id) {
               try {
                 const { data: business, error: bizError } = await supabase
@@ -506,35 +506,29 @@ export default function RevenueDashboard() {
       {/* Revenue Chart */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Revenue (Last 30 Days)</h2>
-        {revenueChart.some(item => item.revenue > 0) ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="revenue" 
-                stroke="url(#lineGradient)" 
-                strokeWidth={3}
-                dot={{ fill: '#8B5CF6', r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <defs>
-                <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="100%" stopColor="#8B5CF6" />
-                </linearGradient>
-              </defs>
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="text-center py-12 text-gray-500">
-            <p>No revenue data yet. Complete transactions will appear here.</p>
-          </div>
-        )}
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={revenueChart}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Legend />
+            <Line 
+              type="monotone" 
+              dataKey="revenue" 
+              stroke="url(#lineGradient)" 
+              strokeWidth={3}
+              dot={{ fill: '#8B5CF6', r: 4 }}
+              activeDot={{ r: 6 }}
+            />
+            <defs>
+              <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#3B82F6" />
+                <stop offset="100%" stopColor="#8B5CF6" />
+              </linearGradient>
+            </defs>
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Recent Transactions Table */}
