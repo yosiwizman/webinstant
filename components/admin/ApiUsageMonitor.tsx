@@ -310,6 +310,17 @@ export default function ApiUsageMonitor() {
 
             setDailyTrend(dailyData)
           }
+
+          // Cache the data with the calculated values
+          dataCache.set('api-usage', {
+            apiBalances: balances,
+            usageHistory: [],
+            dailyTrend: dailyData || [],
+            pieChartData: pieData,
+            totalSpentToday: todayTotal,
+            totalSpentMonth: monthTotal,
+            hasData: currentHasData
+          })
         }
       }
 
@@ -392,18 +403,16 @@ export default function ApiUsageMonitor() {
         }))
 
         setUsageHistory(processedHistory)
+        
+        // Update cache with history data
+        const currentCached = dataCache.get('api-usage')
+        if (currentCached) {
+          dataCache.set('api-usage', {
+            ...currentCached,
+            usageHistory: processedHistory
+          })
+        }
       }
-
-      // Cache the data
-      dataCache.set('api-usage', {
-        apiBalances,
-        usageHistory,
-        dailyTrend,
-        pieChartData,
-        totalSpentToday,
-        totalSpentMonth,
-        hasData: currentHasData
-      })
 
       setLoading(false)
     } catch (error) {
