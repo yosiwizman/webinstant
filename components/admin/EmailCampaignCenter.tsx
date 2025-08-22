@@ -98,12 +98,8 @@ export default function EmailCampaignCenter() {
     total: 0,
     message: ""
   });
-
-  // Check if we're in development/test mode
-  const isTestMode = process.env.NODE_ENV === 'development' || 
-                     process.env.NEXT_PUBLIC_TEST_MODE === 'true' ||
-                     typeof window !== 'undefined' && window.location.hostname === 'localhost';
-  const testEmail = 'yosiwizman5638@gmail.com';
+  const [testEmailAddress, setTestEmailAddress] = useState("yosiwizman5638@gmail.com");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -444,8 +440,71 @@ The Team`,
     fetchEmailQueue();
     fetchEmailHistory();
     fetchTemplates();
-    fetch ABTests();
+    fetchABTests();
   }, [fetchStats, fetchEmailQueue, fetchEmailHistory, fetchTemplates, fetchABTests]);
+
+  const handleSendTestEmail = async () => {
+    setSendingTestEmail(true);
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: testEmailAddress,
+          businessName: 'Test Business',
+          businessId: 'test-id-123',
+          subject: 'WebInstant Test Email',
+          content: `
+            <h1 style="color: #333;">Test Email from WebInstant</h1>
+            <p>If you're receiving this email, your Resend integration is working correctly!</p>
+            <p><strong>Test Details:</strong></p>
+            <ul>
+              <li>Sent at: ${new Date().toLocaleString()}</li>
+              <li>Email service: Resend</li>
+              <li>Environment: ${process.env.NODE_ENV || 'development'}</li>
+            </ul>
+            <p style="color: #666; font-size: 12px;">This is a test email from your WebInstant admin panel.</p>
+          `,
+          isTest: true
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ Test email sent successfully to ${testEmailAddress}! Check your inbox.`);
+        
+        // Log success to operations
+        await supabase.from("operations_log").insert({
+          operation_type: "test_email_sent",
+          status: "success",
+          details: {
+            to: testEmailAddress,
+            message_id: result.messageId
+          },
+          created_at: new Date().toISOString()
+        });
+      } else {
+        alert(`❌ Failed to send test email: ${result.error || 'Unknown error'}`);
+        
+        // Log error to operations
+        await supabase.from("operations_log").insert({
+          operation_type: "test_email_sent",
+          status: "error",
+          details: {
+            to: testEmailAddress,
+            error: result.error
+          },
+          created_at: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      alert(`❌ Error: ${(error as Error).message}`);
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
 
   const handleSendCampaign = async () => {
     setLoading(true);
@@ -453,7 +512,7 @@ The Team`,
       isActive: true,
       current: 0,
       total: emailCount,
-      message: isTestMode ? "Preparing test campaign..." : "Preparing campaign..."
+      message: "Preparing campaign..."
     });
 
     try {
@@ -497,9 +556,7 @@ The Team`,
         isActive: true,
         current: 0,
         total: businesses.length,
-        message: isTestMode 
-          ? `Test mode: Sending ${businesses.length} test emails to ${testEmail}...`
-          : `Sending to ${businesses.length} businesses...`
+        message: `Sending to ${businesses.length} businesses...`
       });
 
       // Get selected template
@@ -520,9 +577,7 @@ The Team`,
           isActive: true,
           current: i + 1,
           total: businesses.length,
-          message: isTestMode 
-            ? `Sending test email ${i + 1} of ${businesses.length} (for ${business.business_name})...`
-            : `Sending to ${business.business_name}...`
+          message: `Sending to ${business.business_name}...`
         });
 
         try {
@@ -550,31 +605,23 @@ The Team`,
             }
           }
 
-          // Prepare subject with test mode indicator
-          let emailSubject = template.subject.replace("{{business_name}}", business.business_name);
-          if (isTestMode) {
-            emailSubject = `[TEST for ${business.email}] ${emailSubject}`;
-          }
-
           // Send email via API
           const response = await fetch("/api/send-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              to: isTestMode ? testEmail : business.email,
+              to: business.email,
               businessName: business.business_name,
               businessId: business.id,
               templateId: template.id,
-              subject: emailSubject,
+              subject: template.subject.replace("{{business_name}}", business.business_name),
               content: template.content
                 .replace(/{{business_name}}/g, business.business_name)
                 .replace(/{{preview_url}}/g, previewUrl || "http://localhost:3000"),
               previewUrl: previewUrl,
               scheduleTime: scheduleTime || null,
               abTestId: abTests.testId,
-              abVariant: Math.random() > 0.5 ? "A" : "B",
-              isTestMode: isTestMode,
-              originalRecipient: business.email
+              abVariant: Math.random() > 0.5 ? "A" : "B"
             }),
           });
 
@@ -583,16 +630,13 @@ The Team`,
             
             // Log to operations_log
             await supabase.from("operations_log").insert({
-              operation_type: isTestMode ? "test_email_sent" : "email_sent",
+              operation_type: "email_sent",
               status: "success",
               details: {
                 business_id: business.id,
                 business_name: business.business_name,
                 template_id: template.id,
-                template_name: template.name,
-                test_mode: isTestMode,
-                actual_recipient: isTestMode ? testEmail : business.email,
-                intended_recipient: business.email
+                template_name: template.name
               },
               created_at: new Date().toISOString()
             });
@@ -602,13 +646,12 @@ The Team`,
             
             // Log error
             await supabase.from("operations_log").insert({
-              operation_type: isTestMode ? "test_email_sent" : "email_sent",
+              operation_type: "email_sent",
               status: "error",
               details: {
                 business_id: business.id,
                 business_name: business.business_name,
-                error: error,
-                test_mode: isTestMode
+                error: error
               },
               created_at: new Date().toISOString()
             });
@@ -629,11 +672,7 @@ The Team`,
         message: ""
       });
 
-      if (isTestMode) {
-        alert(`Test Campaign Sent! Check ${testEmail} for ${successCount} test emails. Failed: ${failCount}`);
-      } else {
-        alert(`Campaign complete! Sent: ${successCount}, Failed: ${failCount}`);
-      }
+      alert(`Campaign complete! Sent: ${successCount}, Failed: ${failCount}`);
       
       // Refresh data
       fetchStats();
@@ -697,51 +736,36 @@ The Team`,
 
       const templateData = template[0];
 
-      // Prepare subject with test mode indicator
-      let emailSubject = templateData.subject.replace("{{business_name}}", historyItem.business_name);
-      if (isTestMode) {
-        emailSubject = `[TEST RESEND for ${historyItem.email}] ${emailSubject}`;
-      }
-
       // Send email via API
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: isTestMode ? testEmail : historyItem.email,
+          to: historyItem.email,
           businessName: historyItem.business_name,
           businessId: historyItem.business_id,
           templateId: templateData.id,
-          subject: emailSubject,
+          subject: templateData.subject.replace("{{business_name}}", historyItem.business_name),
           content: templateData.content
             .replace(/{{business_name}}/g, historyItem.business_name)
             .replace(/{{preview_url}}/g, historyItem.preview_url || "http://localhost:3000"),
           previewUrl: historyItem.preview_url,
           isResend: true,
-          originalEmailId: historyItem.id,
-          isTestMode: isTestMode,
-          originalRecipient: historyItem.email
+          originalEmailId: historyItem.id
         }),
       });
 
       if (response.ok) {
-        if (isTestMode) {
-          alert(`Test email resent! Check ${testEmail} for the test email originally for ${historyItem.email}`);
-        } else {
-          alert("Email resent successfully!");
-        }
+        alert("Email resent successfully!");
         
         // Log resend
         await supabase.from("operations_log").insert({
-          operation_type: isTestMode ? "test_email_resent" : "email_resent",
+          operation_type: "email_resent",
           status: "success",
           details: {
             business_id: historyItem.business_id,
             business_name: historyItem.business_name,
-            original_email_id: historyItem.id,
-            test_mode: isTestMode,
-            actual_recipient: isTestMode ? testEmail : historyItem.email,
-            intended_recipient: historyItem.email
+            original_email_id: historyItem.id
           },
           created_at: new Date().toISOString()
         });
@@ -787,6 +811,50 @@ The Team`,
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Test Email Section */}
+      <div className="bg-green-50 border border-green-200 rounded-lg shadow p-6">
+        <h2 className="text-xl font-bold mb-4 text-green-800">🧪 Email Service Test</h2>
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-2 text-green-700">
+              Test Email Address
+            </label>
+            <input
+              type="email"
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              className="w-full border border-green-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              placeholder="Enter email address"
+            />
+            <p className="text-xs text-green-600 mt-1">
+              Send a test email to verify Resend is configured correctly
+            </p>
+          </div>
+          <button
+            onClick={handleSendTestEmail}
+            disabled={sendingTestEmail || !testEmailAddress}
+            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {sendingTestEmail ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Sending...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Send Test Email
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Campaign Stats */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-4">Campaign Statistics</h2>
@@ -925,16 +993,6 @@ The Team`,
       {/* Quick Send Campaign */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold mb-4">Quick Send Campaign</h2>
-        
-        {/* Test Mode Banner */}
-        {isTestMode && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded mb-4">
-            <div className="font-semibold">🧪 TEST MODE ACTIVE</div>
-            <div className="text-sm mt-1">All emails will be sent to {testEmail} for testing</div>
-            <div className="text-sm">Each email subject will include [TEST for original@email.com]</div>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -969,11 +1027,6 @@ The Team`,
               min="1"
               max="100"
             />
-            {isTestMode && (
-              <p className="text-xs text-yellow-600 mt-1">
-                Test mode: {emailCount} emails will be sent to your test inbox
-              </p>
-            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -1032,11 +1085,7 @@ The Team`,
           {loading || sendingProgress.isActive
             ? "Sending..."
             : scheduleTime
-            ? isTestMode 
-              ? `Schedule Test Campaign (${emailCount} test emails)`
-              : "Schedule Campaign"
-            : isTestMode
-            ? `Send Test Campaign Now (${emailCount} test emails)`
+            ? "Schedule Campaign"
             : "Send Campaign Now"}
         </button>
       </div>
@@ -1155,7 +1204,7 @@ The Team`,
                         disabled={loading}
                         className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50"
                       >
-                        {isTestMode ? "Test Resend" : "Resend"}
+                        Resend
                       </button>
                     </td>
                   </tr>
