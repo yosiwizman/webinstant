@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from '@supabase/supabase-js'
 
 interface CampaignStats {
@@ -69,6 +69,12 @@ interface EmailData {
   converted_at: string | null;
 }
 
+// Create Supabase client outside component to avoid multiple instances
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 export default function EmailCampaignCenter() {
   const [stats, setStats] = useState<CampaignStats>({
     emailsSentToday: 0,
@@ -100,11 +106,6 @@ export default function EmailCampaignCenter() {
   });
   const [testEmailAddress, setTestEmailAddress] = useState("yosiwizman5638@gmail.com");
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const createDefaultTemplates = useCallback(async () => {
     const defaultTemplates = [
@@ -147,7 +148,7 @@ The Team`,
     for (const template of defaultTemplates) {
       await supabase.from("email_templates").insert(template);
     }
-  }, [supabase]);
+  }, []);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -184,7 +185,7 @@ The Team`,
     } catch (error) {
       console.error("Error fetching templates:", error);
     }
-  }, [createDefaultTemplates, supabase]);
+  }, [createDefaultTemplates]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -232,7 +233,7 @@ The Team`,
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
-  }, [supabase]);
+  }, []);
 
   const fetchABTests = useCallback(async () => {
     try {
@@ -318,7 +319,7 @@ The Team`,
     } catch (error) {
       console.error("Error fetching A/B tests:", error);
     }
-  }, [supabase]);
+  }, []);
 
   const fetchEmailQueue = useCallback(async () => {
     try {
@@ -380,7 +381,7 @@ The Team`,
     } catch (error) {
       console.error("Error fetching email queue:", error);
     }
-  }, [supabase]);
+  }, []);
 
   const fetchEmailHistory = useCallback(async () => {
     try {
@@ -452,7 +453,7 @@ The Team`,
     } catch (error) {
       console.error("Error fetching email history:", error);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     // Initial fetch
@@ -470,7 +471,7 @@ The Team`,
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchStats, fetchEmailQueue, fetchEmailHistory, fetchTemplates, fetchABTests]);
 
   const handleSendTestEmail = async () => {
     setSendingTestEmail(true);
@@ -848,15 +849,18 @@ The Team`,
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">🧪 Email Service Test</h2>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="test-email-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Test Email Address
             </label>
             <input
               type="email"
+              id="test-email-address"
+              name="test-email-address"
               value={testEmailAddress}
               onChange={(e) => setTestEmailAddress(e.target.value)}
               className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               placeholder="Enter email address"
+              autoComplete="email"
             />
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
               Send a test email to verify Resend is configured correctly
@@ -1027,10 +1031,12 @@ The Team`,
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Send Campaign</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="template-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Template
             </label>
             <select
+              id="template-select"
+              name="template-select"
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
               className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
@@ -1048,11 +1054,13 @@ The Team`,
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="email-count" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Number of Emails
             </label>
             <input
               type="number"
+              id="email-count"
+              name="email-count"
               value={emailCount}
               onChange={(e) => setEmailCount(parseInt(e.target.value) || 1)}
               className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
@@ -1061,10 +1069,12 @@ The Team`,
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="target-segment" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Target Segment
             </label>
             <select
+              id="target-segment"
+              name="target-segment"
               value={targetSegment}
               onChange={(e) => setTargetSegment(e.target.value)}
               className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
@@ -1076,11 +1086,13 @@ The Team`,
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="schedule-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Schedule (Optional)
             </label>
             <input
               type="datetime-local"
+              id="schedule-time"
+              name="schedule-time"
               value={scheduleTime}
               onChange={(e) => setScheduleTime(e.target.value)}
               className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
@@ -1256,11 +1268,13 @@ The Team`,
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="template-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Template Name
                 </label>
                 <input
                   type="text"
+                  id="template-name"
+                  name="template-name"
                   className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
                   value={editingTemplate.name}
                   onChange={(e) => setEditingTemplate({
@@ -1270,11 +1284,13 @@ The Team`,
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="template-subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Subject Line
                 </label>
                 <input
                   type="text"
+                  id="template-subject"
+                  name="template-subject"
                   className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2"
                   value={editingTemplate.subject}
                   onChange={(e) => setEditingTemplate({
@@ -1287,10 +1303,12 @@ The Team`,
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="template-content" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email Content
                 </label>
                 <textarea
+                  id="template-content"
+                  name="template-content"
                   className="w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 h-64 font-mono text-sm"
                   value={editingTemplate.content}
                   onChange={(e) => setEditingTemplate({
