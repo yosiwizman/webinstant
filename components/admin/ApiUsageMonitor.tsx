@@ -16,6 +16,7 @@ import {
   AreaChart,
   Area
 } from 'recharts'
+import { adminStyles, DataCache, formatters } from '@/lib/admin-utils'
 
 interface ApiUsageData {
   id: string
@@ -68,8 +69,8 @@ interface ProviderStats {
   displayName: string
 }
 
-// Cache for API data to prevent re-fetching
-let dataCache: {
+// Initialize cache
+const dataCache = new DataCache<{
   apiBalances: ApiBalance[]
   usageHistory: ApiUsageData[]
   dailyTrend: DailyUsage[]
@@ -77,10 +78,7 @@ let dataCache: {
   totalSpentToday: number
   totalSpentMonth: number
   hasData: boolean
-  timestamp: number
-} | null = null
-
-const CACHE_DURATION = 60000 // 1 minute cache
+}>(5) // 5 minute cache
 
 export default function ApiUsageMonitor() {
   const [apiBalances, setApiBalances] = useState<ApiBalance[]>([])
@@ -92,7 +90,7 @@ export default function ApiUsageMonitor() {
   const [totalSpentMonth, setTotalSpentMonth] = useState(0)
   const [hasData, setHasData] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fetchingRef = useRef(false)
+  const hasFetched = useRef(false)
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -101,32 +99,28 @@ export default function ApiUsageMonitor() {
 
   // Real API balances from environment or placeholders
   const getRealApiBalances = (): Record<ProviderKey, number> => ({
-    'together_ai': 100.00,  // Placeholder - would get from Together AI API
-    'openai': 100.00,       // Placeholder
-    'anthropic': 98.89,     // Placeholder with some usage
-    'replicate': 98.85      // Placeholder with some usage
+    'together_ai': 100.00,
+    'openai': 100.00,
+    'anthropic': 98.89,
+    'replicate': 98.85
   })
 
   const fetchApiUsageData = useCallback(async () => {
-    // Prevent duplicate fetches
-    if (fetchingRef.current) return
-    fetchingRef.current = true
+    // Check cache first
+    const cached = dataCache.get('api-usage')
+    if (cached) {
+      setApiBalances(cached.apiBalances)
+      setUsageHistory(cached.usageHistory)
+      setDailyTrend(cached.dailyTrend)
+      setPieChartData(cached.pieChartData)
+      setTotalSpentToday(cached.totalSpentToday)
+      setTotalSpentMonth(cached.totalSpentMonth)
+      setHasData(cached.hasData)
+      setLoading(false)
+      return
+    }
 
     try {
-      // Check cache first
-      if (dataCache && Date.now() - dataCache.timestamp < CACHE_DURATION) {
-        setApiBalances(dataCache.apiBalances)
-        setUsageHistory(dataCache.usageHistory)
-        setDailyTrend(dataCache.dailyTrend)
-        setPieChartData(dataCache.pieChartData)
-        setTotalSpentToday(dataCache.totalSpentToday)
-        setTotalSpentMonth(dataCache.totalSpentMonth)
-        setHasData(dataCache.hasData)
-        setLoading(false)
-        fetchingRef.current = false
-        return
-      }
-
       setError(null)
       
       // Get today's date and start of month
@@ -213,7 +207,7 @@ export default function ApiUsageMonitor() {
 
           // Calculate totals
           let todayTotal = 0
-          let monthTotal = 0
+          let month Total = 0
 
           Object.values(providerStats).forEach(stats => {
             todayTotal += stats.today
@@ -400,17 +394,16 @@ export default function ApiUsageMonitor() {
         setUsageHistory(processedHistory)
       }
 
-      // Update cache
-      dataCache = {
-        apiBalances: apiBalances.length > 0 ? apiBalances : dataCache?.apiBalances || [],
-        usageHistory: usageHistory.length > 0 ? usageHistory : dataCache?.usageHistory || [],
-        dailyTrend: dailyTrend.length > 0 ? dailyTrend : dataCache?.dailyTrend || [],
-        pieChartData: pieChartData.length > 0 ? pieChartData : dataCache?.pieChartData || [],
+      // Cache the data
+      dataCache.set('api-usage', {
+        apiBalances,
+        usageHistory,
+        dailyTrend,
+        pieChartData,
         totalSpentToday,
         totalSpentMonth,
-        hasData: currentHasData,
-        timestamp: Date.now()
-      }
+        hasData: currentHasData
+      })
 
       setLoading(false)
     } catch (error) {
@@ -476,22 +469,22 @@ export default function ApiUsageMonitor() {
       setTotalSpentToday(0)
       setTotalSpentMonth(0)
       setLoading(false)
-    } finally {
-      fetchingRef.current = false
     }
   }, [supabase])
 
   useEffect(() => {
-    fetchApiUsageData()
-    // No auto-refresh to prevent flickering
+    if (!hasFetched.current) {
+      hasFetched.current = true
+      fetchApiUsageData()
+    }
   }, [fetchApiUsageData])
 
   const getProviderBgClass = (provider: string) => {
     const classes: Record<string, string> = {
-      'together_ai': 'bg-purple-100 dark:bg-purple-900/20',
-      'openai': 'bg-green-100 dark:bg-green-900/20',
-      'replicate': 'bg-blue-100 dark:bg-blue-900/20',
-      'anthropic': 'bg-amber-100 dark:bg-amber-900/20'
+      'together_ai': 'bg-purple-100 dark:bg-purple-900/30',
+      'openai': 'bg-green-100 dark:bg-green-900/30',
+      'replicate': 'bg-blue-100 dark:bg-blue-900/30',
+      'anthropic': 'bg-amber-100 dark:bg-amber-900/30'
     }
     return classes[provider?.toLowerCase()] || 'bg-gray-100 dark:bg-gray-800'
   }
@@ -529,14 +522,14 @@ export default function ApiUsageMonitor() {
 
   if (error) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12">
+      <div className={adminStyles.card}>
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-400" />
           <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">Error Loading API Usage</h3>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{error}</p>
           <button
             onClick={fetchApiUsageData}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className={`mt-4 ${adminStyles.buttonPrimary}`}
           >
             Try Again
           </button>
@@ -548,7 +541,7 @@ export default function ApiUsageMonitor() {
   if (!hasData) {
     const initialBalances = getRealApiBalances()
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12">
+      <div className={adminStyles.card + " p-12"}>
         <div className="text-center">
           <Activity className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
           <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No API Usage Recorded Yet</h3>
@@ -557,11 +550,11 @@ export default function ApiUsageMonitor() {
           </p>
           <div className="mt-6 grid grid-cols-2 gap-4 max-w-md mx-auto">
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Today&apos;s Cost</p>
+              <p className={adminStyles.label}>Today&apos;s Cost</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">$0.00</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Month&apos;s Cost</p>
+              <p className={adminStyles.label}>Month&apos;s Cost</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">$0.00</p>
             </div>
           </div>
@@ -569,19 +562,19 @@ export default function ApiUsageMonitor() {
           {/* Show current balances even with no usage */}
           <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Together AI</p>
+              <p className={adminStyles.label}>Together AI</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['together_ai'].toFixed(2)}</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">OpenAI</p>
+              <p className={adminStyles.label}>OpenAI</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['openai'].toFixed(2)}</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Anthropic</p>
+              <p className={adminStyles.label}>Anthropic</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['anthropic'].toFixed(2)}</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Replicate</p>
+              <p className={adminStyles.label}>Replicate</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['replicate'].toFixed(2)}</p>
             </div>
           </div>
@@ -596,7 +589,7 @@ export default function ApiUsageMonitor() {
       {(hasLowBalance || hasHighDailySpend) && (
         <div className="space-y-3">
           {hasLowBalance && (
-            <div className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+            <div className={adminStyles.alertError}>
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mr-3 flex-shrink-0 mt-0.5" />
                 <div>
@@ -609,7 +602,7 @@ export default function ApiUsageMonitor() {
             </div>
           )}
           {hasHighDailySpend && (
-            <div className="border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+            <div className={adminStyles.alertWarning}>
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-3 flex-shrink-0 mt-0.5" />
                 <div>
@@ -626,16 +619,16 @@ export default function ApiUsageMonitor() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Today&apos;s Total Cost</h3>
+        <div className={adminStyles.card}>
+          <h3 className={adminStyles.label + " mb-2"}>Today&apos;s Total Cost</h3>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">${totalSpentToday.toFixed(4)}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Month&apos;s Total Cost</h3>
+        <div className={adminStyles.card}>
+          <h3 className={adminStyles.label + " mb-2"}>Month&apos;s Total Cost</h3>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">${totalSpentMonth.toFixed(4)}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Total API Calls Today</h3>
+        <div className={adminStyles.card}>
+          <h3 className={adminStyles.label + " mb-2"}>Total API Calls Today</h3>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
             {apiBalances.reduce((sum, api) => sum + api.callsToday, 0)}
           </p>
@@ -645,40 +638,38 @@ export default function ApiUsageMonitor() {
       {/* API Balance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {apiBalances.map((api) => (
-          <div key={api.provider} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 relative overflow-hidden">
-            <div className="p-6">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                {api.provider}
-              </h3>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">${api.balance.toFixed(2)}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">Balance</span>
-              </div>
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Used Today</span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">${api.usedToday.toFixed(4)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Used This Month</span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">${api.usedThisMonth.toFixed(4)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Calls Today</span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">{api.callsToday}</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                  <div
-                    className="h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${Math.min((api.totalUsed / api.initialBalance) * 100, 100)}%`,
-                      backgroundColor: api.color
-                    }}
-                  />
-                </div>
-              </div>
-              <div className={`absolute top-0 right-0 w-24 h-24 ${api.bgColor} opacity-10 dark:opacity-20 rounded-full -mr-8 -mt-8`}></div>
+          <div key={api.provider} className={adminStyles.card + " relative overflow-hidden"}>
+            <h3 className={adminStyles.label + " mb-2"}>
+              {api.provider}
+            </h3>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">${api.balance.toFixed(2)}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Balance</span>
             </div>
+            <div className="mt-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className={adminStyles.label}>Used Today</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">${api.usedToday.toFixed(4)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className={adminStyles.label}>Used This Month</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">${api.usedThisMonth.toFixed(4)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className={adminStyles.label}>Calls Today</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">{api.callsToday}</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                <div
+                  className="h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.min((api.totalUsed / api.initialBalance) * 100, 100)}%`,
+                    backgroundColor: api.color
+                  }}
+                />
+              </div>
+            </div>
+            <div className={`absolute top-0 right-0 w-24 h-24 ${api.bgColor} opacity-10 dark:opacity-20 rounded-full -mr-8 -mt-8`}></div>
           </div>
         ))}
       </div>
@@ -686,77 +677,73 @@ export default function ApiUsageMonitor() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Cost Breakdown Pie Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className={adminStyles.card}>
+          <div className="border-b border-gray-200 dark:border-gray-700 -mx-6 -mt-6 px-6 py-4 mb-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <DollarSign className="h-5 w-5" />
               Today&apos;s Cost Breakdown by API
             </h3>
           </div>
-          <div className="p-6">
-            {pieChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="300">
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => `$${value.toFixed(4)}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
-                No API usage recorded today
-              </div>
-            )}
-          </div>
+          {pieChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="300">
+              <PieChart>
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => `$${value.toFixed(4)}`} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+              No API usage recorded today
+            </div>
+          )}
         </div>
 
         {/* Daily Cost Trend */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className={adminStyles.card}>
+          <div className="border-b border-gray-200 dark:border-gray-700 -mx-6 -mt-6 px-6 py-4 mb-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <TrendingUp className="h-5 w-5" />
               Daily Cost Trend (7 Days)
             </h3>
           </div>
-          <div className="p-6">
-            {dailyTrend.some(day => day.total > 0) ? (
-              <ResponsiveContainer width="100%" height="300">
-                <AreaChart data={dailyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis tickFormatter={(value) => `$${value}`} />
-                  <Tooltip formatter={(value: number) => `$${value.toFixed(4)}`} />
-                  <Legend />
-                  <Area type="monotone" dataKey="together_ai" stackId="1" stroke="#8B5CF6" fill="#8B5CF6" name="Together AI" />
-                  <Area type="monotone" dataKey="openai" stackId="1" stroke="#10B981" fill="#10B981" name="OpenAI" />
-                  <Area type="monotone" dataKey="replicate" stackId="1" stroke="#3B82F6" fill="#3B82F6" name="Replicate" />
-                  <Area type="monotone" dataKey="anthropic" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Anthropic" />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
-                No usage data for the past 7 days
-              </div>
-            )}
-          </div>
+          {dailyTrend.some(day => day.total > 0) ? (
+            <ResponsiveContainer width="100%" height="300">
+              <AreaChart data={dailyTrend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis tickFormatter={(value) => `$${value}`} />
+                <Tooltip formatter={(value: number) => `$${value.toFixed(4)}`} />
+                <Legend />
+                <Area type="monotone" dataKey="together_ai" stackId="1" stroke="#8B5CF6" fill="#8B5CF6" name="Together AI" />
+                <Area type="monotone" dataKey="openai" stackId="1" stroke="#10B981" fill="#10B981" name="OpenAI" />
+                <Area type="monotone" dataKey="replicate" stackId="1" stroke="#3B82F6" fill="#3B82F6" name="Replicate" />
+                <Area type="monotone" dataKey="anthropic" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Anthropic" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+              No usage data for the past 7 days
+            </div>
+          )}
         </div>
       </div>
 
       {/* Usage History Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className={adminStyles.card}>
+        <div className="border-b border-gray-200 dark:border-gray-700 -mx-6 -mt-6 px-6 py-4 mb-6">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
             <Activity className="h-5 w-5" />
             Recent API Calls (Last 50)
@@ -766,28 +753,28 @@ export default function ApiUsageMonitor() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b dark:border-gray-700">
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">API</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Endpoint</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Tokens</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Cost</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Business</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Timestamp</th>
+                <th className={adminStyles.tableHeader}>API</th>
+                <th className={adminStyles.tableHeader}>Endpoint</th>
+                <th className={adminStyles.tableHeader}>Tokens</th>
+                <th className={adminStyles.tableHeader}>Cost</th>
+                <th className={adminStyles.tableHeader}>Business</th>
+                <th className={adminStyles.tableHeader}>Timestamp</th>
               </tr>
             </thead>
             <tbody>
               {usageHistory.map((usage) => (
-                <tr key={usage.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <tr key={usage.id} className={adminStyles.tableRow}>
                   <td className="py-3 px-4">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getProviderBgClass(usage.api_name)} ${getProviderTextClass(usage.api_name)}`}>
                       {getProviderDisplayName(usage.api_name)}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{usage.endpoint || 'N/A'}</td>
-                  <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{usage.tokens_used?.toLocaleString() || 0}</td>
+                  <td className={adminStyles.tableCell}>{usage.endpoint || 'N/A'}</td>
+                  <td className={adminStyles.tableCell}>{usage.tokens_used?.toLocaleString() || 0}</td>
                   <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">${usage.cost?.toFixed(6) || '0.000000'}</td>
-                  <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{usage.business_name || 'N/A'}</td>
+                  <td className={adminStyles.tableCell}>{usage.business_name || 'N/A'}</td>
                   <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
-                    {new Date(usage.created_at).toLocaleString()}
+                    {formatters.dateTime(usage.created_at)}
                   </td>
                 </tr>
               ))}
