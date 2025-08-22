@@ -213,7 +213,7 @@ export default function ApiUsageMonitor() {
             .filter(([, stats]) => stats.today > 0)
             .map(([, stats]) => ({
               name: stats.displayName,
-              value: parseFloat(stats.today.toFixe d(4)),
+              value: parseFloat(stats.today.toFixed(4)),
               color: stats.color
             }))
 
