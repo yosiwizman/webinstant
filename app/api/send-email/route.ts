@@ -9,8 +9,12 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Check if we're in development mode
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 export async function POST(request: NextRequest) {
   console.log('=== Starting email send process ===');
+  console.log('Environment:', isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION');
   
   try {
     const body = await request.json();
@@ -41,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ Found business: ${business.business_name}`);
-    console.log(`📧 Preparing to send email to: ${business.email}`);
+    console.log(`📧 Original email address: ${business.email}`);
 
     // 2. Get preview URL
     const { data: preview, error: previewError } = await supabase
@@ -62,7 +66,26 @@ export async function POST(request: NextRequest) {
 
     console.log('🔗 Preview URL:', preview.preview_url);
 
-    // 3. Actually send email via Resend
+    // 3. Prepare email details with development mode override
+    const originalEmail = business.email;
+    const recipient = isDevelopment ? 'yosiwizman5638@gmail.com' : originalEmail;
+    const originalSubject = `${business.business_name}, your website is ready! 🎉`;
+    const subject = isDevelopment 
+      ? `[TEST for ${originalEmail}] ${originalSubject}`
+      : originalSubject;
+
+    console.log('Email attempt:', {
+      originalRecipient: originalEmail,
+      actualRecipient: recipient,
+      subject: subject,
+      isDevelopment: isDevelopment
+    });
+
+    if (isDevelopment) {
+      console.log('⚠️ DEVELOPMENT MODE: Redirecting email to test address');
+    }
+
+    // 4. Actually send email via Resend
     console.log('📤 Sending email via Resend...');
     
     const emailHtml = `
@@ -79,10 +102,18 @@ export async function POST(request: NextRequest) {
             .preview-box { background: #f7f7f7; padding: 20px; border-radius: 8px; margin: 20px 0; }
             .price { font-size: 24px; color: #667eea; font-weight: bold; }
             .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+            .dev-notice { background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
           </style>
         </head>
         <body>
           <div class="container">
+            ${isDevelopment ? `
+            <div class="dev-notice">
+              <strong>⚠️ DEVELOPMENT MODE</strong><br>
+              This email was intended for: ${originalEmail}<br>
+              Business: ${business.business_name}
+            </div>
+            ` : ''}
             <div class="header">
               <h1>🎉 Your Professional Website is Ready!</h1>
             </div>
@@ -134,67 +165,154 @@ export async function POST(request: NextRequest) {
       </html>
     `;
 
-    const emailResult = await resend.emails.send({
-      from: 'WebInstant <noreply@webinstant.io>',
-      to: business.email,
-      subject: `${business.business_name}, your website is ready! 🎉`,
-      html: emailHtml
-    });
+    const textContent = `
+${isDevelopment ? `⚠️ DEVELOPMENT MODE - Intended for: ${originalEmail}\n\n` : ''}
+${business.business_name}, your website is ready!
 
-    console.log('✅ Email sent successfully via Resend:', emailResult);
+Great news! We've created a stunning, professional website for your business that's ready to help you attract more customers.
 
-    // 4. Log to database - using email_logs table
-    const logEntry = {
-      business_id: businessId,
-      email_type: template,
-      recipient_email: business.email,
-      status: 'sent',
-      email_sent_at: new Date().toISOString(),
-      subject: `${business.business_name}, your website is ready! 🎉`,
-      message_id: emailResult.data?.id || null,
-      preview_url: preview.preview_url
-    };
+View your website: ${preview.preview_url}
 
-    console.log('📝 Logging email to database...');
-    const { error: logError } = await supabase
-      .from('email_logs')
-      .insert([logEntry]);
+Your Website Features:
+• Professional design tailored to your business
+• Mobile-responsive layout
+• Contact information prominently displayed
+• SEO-optimized for local searches
+• Fast loading speed
 
-    if (logError) {
-      console.error('⚠️ Failed to log email (non-critical):', logError);
-    } else {
-      console.log('✅ Email logged to database');
-    }
+Claim your website now for only $150/year
+That's less than $13/month for a professional online presence!
 
-    // 5. Log to operations_log
-    const { error: opsLogError } = await supabase
-      .from('operations_log')
-      .insert({
-        operation_type: 'email_sent',
-        status: 'success',
-        message: `Email sent to ${business.business_name} (${business.email})`,
-        details: {
-          business_id: businessId,
-          email: business.email,
-          resend_id: emailResult.data?.id,
-          template: template
-        }
+Why claim your website today?
+• Instant activation - Your website goes live immediately
+• Custom domain - Get your own professional web address
+• Free updates - Keep your information current
+• Support included - We're here to help you succeed
+
+Don't miss out on potential customers searching for your business online!
+
+Claim Your Website Now: ${preview.preview_url}
+
+© 2024 WebInstant. All rights reserved.
+Questions? Reply to this email and we'll be happy to help!
+    `.trim();
+
+    try {
+      const emailResult = await resend.emails.send({
+        from: 'WebInstant <onboarding@resend.dev>',
+        to: [recipient],
+        subject: subject,
+        html: emailHtml,
+        text: textContent
       });
 
-    if (opsLogError) {
-      console.error('⚠️ Failed to log operation (non-critical):', opsLogError);
-    }
+      console.log('✅ Email sent successfully via Resend:', emailResult);
 
-    console.log('🎉 Email process completed successfully');
-    
-    return NextResponse.json({ 
-      success: true, 
-      emailId: emailResult.data?.id,
-      message: 'Email sent successfully',
-      recipient: business.email,
-      businessName: business.business_name,
-      previewUrl: preview.preview_url
-    });
+      // 5. Log to database - using email_logs table
+      const logEntry = {
+        business_id: businessId,
+        email_type: template,
+        recipient_email: originalEmail, // Always log the original email
+        status: 'sent',
+        email_sent_at: new Date().toISOString(),
+        subject: originalSubject, // Log the original subject
+        message_id: emailResult.data?.id || null,
+        preview_url: preview.preview_url,
+        metadata: isDevelopment ? { 
+          development_mode: true, 
+          actual_recipient: recipient 
+        } : null
+      };
+
+      console.log('📝 Logging email to database...');
+      const { error: logError } = await supabase
+        .from('email_logs')
+        .insert([logEntry]);
+
+      if (logError) {
+        console.error('⚠️ Failed to log email (non-critical):', logError);
+      } else {
+        console.log('✅ Email logged to database');
+      }
+
+      // 6. Log to operations_log
+      const { error: opsLogError } = await supabase
+        .from('operations_log')
+        .insert({
+          operation_type: 'email_sent',
+          status: 'success',
+          message: `Email sent to ${business.business_name} (${isDevelopment ? `TEST: ${recipient}` : originalEmail})`,
+          details: {
+            business_id: businessId,
+            original_email: originalEmail,
+            actual_recipient: recipient,
+            resend_id: emailResult.data?.id,
+            template: template,
+            is_development: isDevelopment
+          }
+        });
+
+      if (opsLogError) {
+        console.error('⚠️ Failed to log operation (non-critical):', opsLogError);
+      }
+
+      console.log('🎉 Email process completed successfully');
+      
+      return NextResponse.json({ 
+        success: true, 
+        emailId: emailResult.data?.id,
+        message: 'Email sent successfully',
+        recipient: recipient,
+        originalRecipient: originalEmail,
+        businessName: business.business_name,
+        previewUrl: preview.preview_url,
+        note: isDevelopment ? 'Development mode: Email sent to test address yosiwizman5638@gmail.com' : undefined
+      });
+
+    } catch (resendError) {
+      console.error('Resend error:', resendError);
+      
+      // Log failure to database
+      const logEntry = {
+        business_id: businessId,
+        email_type: template,
+        recipient_email: originalEmail,
+        status: 'failed',
+        email_sent_at: new Date().toISOString(),
+        subject: originalSubject,
+        error_message: resendError instanceof Error ? resendError.message : 'Unknown error',
+        preview_url: preview.preview_url,
+        metadata: isDevelopment ? { 
+          development_mode: true, 
+          attempted_recipient: recipient 
+        } : null
+      };
+
+      await supabase
+        .from('email_logs')
+        .insert([logEntry]);
+
+      await supabase
+        .from('operations_log')
+        .insert({
+          operation_type: 'email_sent',
+          status: 'error',
+          message: `Failed to send email: ${resendError instanceof Error ? resendError.message : 'Unknown error'}`,
+          details: { 
+            error: resendError instanceof Error ? resendError.message : resendError,
+            business_id: businessId,
+            original_email: originalEmail,
+            attempted_recipient: recipient,
+            is_development: isDevelopment
+          }
+        });
+
+      return NextResponse.json({ 
+        success: false, 
+        error: resendError instanceof Error ? resendError.message : 'Failed to send email',
+        note: isDevelopment ? 'In dev mode, emails only send to yosiwizman5638@gmail.com' : ''
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('❌ Error in send-email:', error);
@@ -207,7 +325,10 @@ export async function POST(request: NextRequest) {
           operation_type: 'email_sent',
           status: 'error',
           message: `Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          details: { error: error instanceof Error ? error.message : error }
+          details: { 
+            error: error instanceof Error ? error.message : error,
+            is_development: isDevelopment
+          }
         });
     } catch (logError) {
       console.error('Failed to log error:', logError);
@@ -216,7 +337,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to send email' 
+        error: error instanceof Error ? error.message : 'Failed to send email',
+        note: isDevelopment ? 'In dev mode, emails only send to yosiwizman5638@gmail.com' : ''
       },
       { status: 500 }
     );
@@ -236,6 +358,7 @@ export async function GET() {
       return NextResponse.json({
         message: 'Email sending endpoint',
         status: 'ready',
+        environment: isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION',
         stats: { error: error.message }
       });
     }
@@ -257,19 +380,23 @@ export async function GET() {
     return NextResponse.json({
       message: 'Email sending endpoint',
       status: 'ready',
+      environment: isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION',
       method: 'POST',
       requiredFields: ['businessId'],
       optionalFields: ['template'],
       stats: summary,
       info: {
         resendConfigured: !!process.env.RESEND_API_KEY,
-        fromEmail: 'noreply@webinstant.io'
+        fromEmail: isDevelopment ? 'onboarding@resend.dev' : 'noreply@webinstant.io',
+        testRecipient: isDevelopment ? 'yosiwizman5638@gmail.com' : null,
+        note: isDevelopment ? 'All emails will be sent to test recipient in development mode' : null
       }
     });
   } catch {
     return NextResponse.json({
       message: 'Email sending endpoint',
       status: 'ready',
+      environment: isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION',
       error: 'Failed to get stats'
     });
   }
