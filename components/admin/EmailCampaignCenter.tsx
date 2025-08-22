@@ -447,7 +447,7 @@ The Team`,
     const interval = setInterval(() => {
       fetchStats();
       fetchEmailQueue();
-      fetchA BTests();
+      fetchABTests();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -1165,7 +1165,7 @@ The Team`,
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left py-2 text-gray-700 dark:text-gray-300">Business</th>
-                  <th className="text-left py-2 text-gray-700 dark: text-gray-300">Template</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Template</th>
                   <th className="text-left py-2 text-gray-700 dark:text-gray-300">Sent</th>
                   <th className="text-left py-2 text-gray-700 dark:text-gray-300">Status</th>
                   <th className="text-left py-2 text-gray-700 dark:text-gray-300">Action</th>
