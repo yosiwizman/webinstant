@@ -18,6 +18,12 @@ import {
 } from 'recharts'
 import { adminStyles, DataCache, formatters } from '@/lib/admin-utils'
 
+// Create supabase client once, outside the component
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 interface ApiUsageData {
   id: string
   api_name: string
@@ -92,11 +98,6 @@ export default function ApiUsageMonitor() {
   const [error, setError] = useState<string | null>(null)
   const hasFetched = useRef(false)
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
   // Real API balances from environment or placeholders
   const getRealApiBalances = (): Record<ProviderKey, number> => ({
     'together_ai': 100.00,
@@ -138,6 +139,7 @@ export default function ApiUsageMonitor() {
         .order('created_at', { ascending: false })
 
       let currentHasData = false
+      let dailyData: DailyUsage[] = [] // Initialize dailyData here
 
       if (monthlyError) {
         console.error('Error fetching monthly usage:', monthlyError)
@@ -269,7 +271,7 @@ export default function ApiUsageMonitor() {
             setDailyTrend([])
           } else if (weeklyUsage) {
             // Group by day and provider
-            const dailyData = last7Days.map(date => {
+            dailyData = last7Days.map(date => {
               const nextDay = new Date(date)
               nextDay.setDate(nextDay.getDate() + 1)
 
@@ -315,7 +317,7 @@ export default function ApiUsageMonitor() {
           dataCache.set('api-usage', {
             apiBalances: balances,
             usageHistory: [],
-            dailyTrend: dailyData || [],
+            dailyTrend: dailyData,
             pieChartData: pieData,
             totalSpentToday: todayTotal,
             totalSpentMonth: monthTotal,
@@ -479,7 +481,7 @@ export default function ApiUsageMonitor() {
       setTotalSpentMonth(0)
       setLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     if (!hasFetched.current) {
