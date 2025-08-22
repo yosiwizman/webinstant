@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, ReactElement } from 'react'
 import { supabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
+import ThemeToggle from '@/components/admin/ThemeToggle'
 
 // Dynamic imports for better code splitting
 const RevenueDashboard = dynamic(() => import('@/components/admin/RevenueDashboard'), {
@@ -317,8 +318,12 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Main container with full width */}
-      <div className="w-full max-w-7xl mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8">
+        {/* Theme Toggle - positioned in top right */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+
         {/* Error Alert */}
         {error && (
           <div className="mb-6 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 p-4 rounded-lg">
@@ -345,13 +350,15 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Admin Dashboard title at the top center with date/time below */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Admin Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {formatDate(currentTime)} • {formatTime(currentTime)}
-          </p>
-          <div className="mt-4">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Admin Dashboard</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {formatDate(currentTime)} • {formatTime(currentTime)}
+              </p>
+            </div>
             <button
               onClick={handleRefreshAll}
               disabled={isRefreshing}
@@ -381,7 +388,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Four colored stat cards (Revenue, Emails, Customers, Websites) */}
+        {/* Quick Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
             <div className="flex items-center justify-between">
@@ -440,7 +447,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Navigation tabs (Revenue, Pipeline, Campaigns, Websites, API Usage, Operations) */}
+        {/* Navigation Tabs */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-6">
           <nav className="flex space-x-1 p-1" aria-label="Tabs">
             {sections.map((section) => (
@@ -462,7 +469,7 @@ export default function AdminPage() {
           </nav>
         </div>
 
-        {/* Content area below tabs */}
+        {/* Main Content Area */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
           <div className="transition-all duration-300 ease-in-out">
             {activeSection === 'revenue' && <RevenueDashboard key={`revenue-${refreshKey}`} />}
