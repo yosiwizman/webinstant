@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js'
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { getSupabaseClient } from '@/lib/supabase-client';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, Calendar, CreditCard } from 'lucide-react';
 
@@ -43,10 +43,8 @@ export default function RevenueDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  // Use memoized supabase client
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -375,7 +373,13 @@ export default function RevenueDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Only fetch once on mount, no auto-refresh to prevent loops
+    
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
   const formatCurrency = (amount: number) => {
@@ -413,7 +417,9 @@ export default function RevenueDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600">
+          <span className="sr-only">Loading...</span>
+        </div>
       </div>
     );
   }
