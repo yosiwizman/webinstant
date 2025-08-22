@@ -157,7 +157,11 @@ The Team`,
         .eq("is_active", true)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching templates:", error);
+        // If table doesn't exist, we'll just use empty templates
+        return;
+      }
 
       if (data && data.length > 0) {
         setTemplates(data);
@@ -197,14 +201,20 @@ The Team`,
         .gte("sent_at", today.toISOString())
         .lt("sent_at", tomorrow.toISOString());
 
-      if (sentError) throw sentError;
+      if (sentError) {
+        console.error("Error fetching sent emails:", sentError);
+        return;
+      }
 
       // Query all emails for rates
       const { data: allEmails, error: allError } = await supabase
         .from("emails")
         .select("*");
 
-      if (allError) throw allError;
+      if (allError) {
+        console.error("Error fetching all emails:", allError);
+        return;
+      }
 
       // Filter for sent emails
       const sentEmails = allEmails?.filter(e => e.sent_at) || [];
@@ -252,7 +262,10 @@ The Team`,
         .eq("ab_test_id", activeTest.id)
         .eq("ab_variant", "B");
 
-      if (errorA || errorB) throw errorA || errorB;
+      if (errorA || errorB) {
+        console.error("Error fetching A/B test variants:", errorA || errorB);
+        return;
+      }
 
       const calculateMetrics = (emails: any[]) => {
         const sent = emails?.length || 0;
@@ -316,7 +329,10 @@ The Team`,
         .order("scheduled_for", { ascending: true })
         .limit(20);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching email queue:", error);
+        return;
+      }
 
       if (data) {
         // Fetch related data separately
@@ -375,7 +391,10 @@ The Team`,
         .order("sent_at", { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching email history:", error);
+        return;
+      }
 
       if (data) {
         // Fetch related data separately
@@ -456,13 +475,16 @@ The Team`,
   const handleSendTestEmail = async () => {
     setSendingTestEmail(true);
     try {
+      // Generate a valid UUID for test business ID
+      const testBusinessId = crypto.randomUUID();
+      
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: testEmailAddress,
           businessName: 'Test Business',
-          businessId: 'test-id-123',
+          businessId: testBusinessId,
           subject: 'WebInstant Test Email',
           content: `
             <h1 style="color: #333;">Test Email from WebInstant</h1>
