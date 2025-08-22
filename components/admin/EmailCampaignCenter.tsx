@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase';
 
 interface CampaignStats {
   emailsSentToday: number;
@@ -68,12 +68,6 @@ interface EmailData {
   clicked_at: string | null;
   converted_at: string | null;
 }
-
-// Create Supabase client outside component to avoid multiple instances
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function EmailCampaignCenter() {
   const [stats, setStats] = useState<CampaignStats>({
