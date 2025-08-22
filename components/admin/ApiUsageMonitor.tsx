@@ -207,7 +207,7 @@ export default function ApiUsageMonitor() {
 
           // Calculate totals
           let todayTotal = 0
-          let month Total = 0
+          let monthTotal = 0
 
           Object.values(providerStats).forEach(stats => {
             todayTotal += stats.today
@@ -730,7 +730,7 @@ export default function ApiUsageMonitor() {
                 <Area type="monotone" dataKey="together_ai" stackId="1" stroke="#8B5CF6" fill="#8B5CF6" name="Together AI" />
                 <Area type="monotone" dataKey="openai" stackId="1" stroke="#10B981" fill="#10B981" name="OpenAI" />
                 <Area type="monotone" dataKey="replicate" stackId="1" stroke="#3B82F6" fill="#3B82F6" name="Replicate" />
-                <Area type="monotone" dataKey="anthropic" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Anthropic" />
+                <Area type="monotone" data Key="anthropic" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Anthropic" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
