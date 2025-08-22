@@ -191,28 +191,28 @@ The Team`,
       // Query emails sent today
       const { data: sentToday, error: sentError } = await supabase
         .from("emails")
-        .select("*")
+        .select("id")
         .gte("sent_at", today.toISOString())
-        .lt("sent_at", tomorrow.toISOString());
+        .lt("sent_at", tomorrow.toISOString())
+        .not("sent_at", "is", null);
 
       if (sentError) throw sentError;
 
       // Query all emails for rates
       const { data: allEmails, error: allError } = await supabase
         .from("emails")
-        .select("*");
+        .select("id, opened_at, clicked_at, converted_at")
+        .not("sent_at", "is", null);
 
       if (allError) throw allError;
 
-      // Filter for sent emails
-      const sentEmails = allEmails?.filter(e => e.sent_at) || [];
-      const total = sentEmails.length;
-      const opened = sentEmails.filter((e) => e.opened_at).length;
-      const clicked = sentEmails.filter((e) => e.clicked_at).length;
-      const converted = sentEmails.filter((e) => e.converted_at).length;
+      const total = allEmails?.length || 0;
+      const opened = allEmails?.filter((e) => e.opened_at).length || 0;
+      const clicked = allEmails?.filter((e) => e.clicked_at).length || 0;
+      const converted = allEmails?.filter((e) => e.converted_at).length || 0;
 
       setStats({
-        emailsSentToday: sentToday?.filter(e => e.sent_at).length || 0,
+        emailsSentToday: sentToday?.length || 0,
         openRate: total > 0 ? Math.round((opened / total) * 100) : 0,
         clickRate: total > 0 ? Math.round((clicked / total) * 100) : 0,
         conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
@@ -225,34 +225,33 @@ The Team`,
   const fetchABTests = useCallback(async () => {
     try {
       // Get active A/B test
-      const { data: activeTests, error: testError } = await supabase
+      const { data: activeTest, error: testError } = await supabase
         .from("ab_tests")
         .select("*")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .single();
 
-      if (testError || !activeTests || activeTests.length === 0) {
+      if (testError || !activeTest) {
         console.log("No active A/B test found");
         return;
       }
 
-      const activeTest = activeTests[0];
-
       // Get metrics for each variant
       const { data: variantA, error: errorA } = await supabase
         .from("emails")
-        .select("*")
+        .select("id, opened_at, clicked_at, converted_at")
         .eq("ab_test_id", activeTest.id)
         .eq("ab_variant", "A");
 
       const { data: variantB, error: errorB } = await supabase
         .from("emails")
-        .select("*")
+        .select("id, opened_at, clicked_at, converted_at")
         .eq("ab_test_id", activeTest.id)
         .eq("ab_variant", "B");
 
       if (errorA || errorB) throw errorA || errorB;
 
-      const calculateMetrics = (emails: any[]) => {
+      const calculateMetrics = (emails: EmailData[]) => {
         const sent = emails?.length || 0;
         const opens = emails?.filter(e => e.opened_at).length || 0;
         const clicks = emails?.filter(e => e.clicked_at).length || 0;
@@ -309,7 +308,16 @@ The Team`,
     try {
       const { data, error } = await supabase
         .from("email_queue")
-        .select("*")
+        .select(`
+          *,
+          businesses (
+            business_name,
+            email
+          ),
+          email_templates (
+            name
+          )
+        `)
         .in("status", ["pending", "sending"])
         .order("scheduled_for", { ascending: true })
         .limit(20);
@@ -317,46 +325,18 @@ The Team`,
       if (error) throw error;
 
       if (data) {
-        // Fetch related data separately
-        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
-        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
-
-        let businesses: any[] = [];
-        let templates: any[] = [];
-
-        if (businessIds.length > 0) {
-          const { data: bizData } = await supabase
-            .from("businesses")
-            .select("id, business_name, email")
-            .in("id", businessIds);
-          businesses = bizData || [];
-        }
-
-        if (templateIds.length > 0) {
-          const { data: tempData } = await supabase
-            .from("email_templates")
-            .select("id, name")
-            .in("id", templateIds);
-          templates = tempData || [];
-        }
-
         setEmailQueue(
-          data.map((item) => {
-            const business = businesses.find(b => b.id === item.business_id);
-            const template = templates.find(t => t.id === item.template_id);
-            
-            return {
-              id: item.id,
-              business_id: item.business_id,
-              business_name: business?.business_name || "Unknown",
-              email: business?.email || item.email || "No email",
-              template_id: item.template_id,
-              template_name: template?.name || "Default Template",
-              scheduled_for: item.scheduled_for,
-              status: item.status,
-              created_at: item.created_at,
-            };
-          })
+          data.map((item) => ({
+            id: item.id,
+            business_id: item.business_id,
+            business_name: item.businesses?.business_name || "Unknown",
+            email: item.businesses?.email || item.email || "No email",
+            template_id: item.template_id,
+            template_name: item.email_templates?.name || "Default Template",
+            scheduled_for: item.scheduled_for,
+            status: item.status,
+            created_at: item.created_at,
+          }))
         );
       }
     } catch (error) {
@@ -368,7 +348,19 @@ The Team`,
     try {
       const { data, error } = await supabase
         .from("emails")
-        .select("*")
+        .select(`
+          *,
+          businesses (
+            business_name,
+            email
+          ),
+          email_templates (
+            name
+          ),
+          website_previews (
+            preview_url
+          )
+        `)
         .not("sent_at", "is", null)
         .order("sent_at", { ascending: false })
         .limit(50);
@@ -376,56 +368,20 @@ The Team`,
       if (error) throw error;
 
       if (data) {
-        // Fetch related data separately
-        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
-        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
-
-        let businesses: any[] = [];
-        let templates: any[] = [];
-        let previews: any[] = [];
-
-        if (businessIds.length > 0) {
-          const { data: bizData } = await supabase
-            .from("businesses")
-            .select("id, business_name, email")
-            .in("id", businessIds);
-          businesses = bizData || [];
-
-          const { data: previewData } = await supabase
-            .from("website_previews")
-            .select("business_id, preview_url")
-            .in("business_id", businessIds);
-          previews = previewData || [];
-        }
-
-        if (templateIds.length > 0) {
-          const { data: tempData } = await supabase
-            .from("email_templates")
-            .select("id, name")
-            .in("id", templateIds);
-          templates = tempData || [];
-        }
-
         setEmailHistory(
-          data.map((item) => {
-            const business = businesses.find(b => b.id === item.business_id);
-            const template = templates.find(t => t.id === item.template_id);
-            const preview = previews.find(p => p.business_id === item.business_id);
-            
-            return {
-              id: item.id,
-              business_id: item.business_id,
-              business_name: business?.business_name || "Unknown",
-              email: business?.email || item.email || "No email",
-              template_id: item.template_id,
-              template_name: template?.name || "Default Template",
-              sent_at: item.sent_at,
-              opened_at: item.opened_at,
-              clicked_at: item.clicked_at,
-              converted_at: item.converted_at,
-              preview_url: preview?.preview_url,
-            };
-          })
+          data.map((item) => ({
+            id: item.id,
+            business_id: item.business_id,
+            business_name: item.businesses?.business_name || "Unknown",
+            email: item.businesses?.email || item.email || "No email",
+            template_id: item.template_id,
+            template_name: item.email_templates?.name || "Default Template",
+            sent_at: item.sent_at,
+            opened_at: item.opened_at,
+            clicked_at: item.clicked_at,
+            converted_at: item.converted_at,
+            preview_url: item.website_previews?.[0]?.preview_url,
+          }))
         );
       }
     } catch (error) {
@@ -517,15 +473,15 @@ The Team`,
 
         try {
           // Check if we need to generate a preview first
-          let previewUrl = null;
+          let pre viewUrl = null;
           const { data: existingPreview } = await supabase
             .from("website_previews")
             .select("preview_url")
             .eq("business_id", business.id)
-            .limit(1);
+            .single();
 
-          if (existingPreview && existingPreview.length > 0) {
-            previewUrl = existingPreview[0].preview_url;
+          if (existingPreview) {
+            previewUrl = existingPreview.preview_url;
           } else {
             // Generate preview first
             const previewResponse = await fetch("/api/generate-preview", {
@@ -662,14 +618,13 @@ The Team`,
       const { data: template, error: templateError } = await supabase
         .from("email_templates")
         .select("*")
-        .eq("id", historyItem.template_id);
+        .eq("id", historyItem.template_id)
+        .single();
 
-      if (templateError || !template || template.length === 0) {
+      if (templateError || !template) {
         alert("Template not found");
         return;
       }
-
-      const templateData = template[0];
 
       // Send email via API
       const response = await fetch("/api/send-email", {
@@ -679,9 +634,9 @@ The Team`,
           to: historyItem.email,
           businessName: historyItem.business_name,
           businessId: historyItem.business_id,
-          templateId: templateData.id,
-          subject: templateData.subject.replace("{{business_name}}", historyItem.business_name),
-          content: templateData.content
+          templateId: template.id,
+          subject: template.subject.replace("{{business_name}}", historyItem.business_name),
+          content: template.content
             .replace(/{{business_name}}/g, historyItem.business_name)
             .replace(/{{preview_url}}/g, historyItem.preview_url || "http://localhost:3000"),
           previewUrl: historyItem.preview_url,
@@ -747,30 +702,30 @@ The Team`,
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Campaign Stats */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Campaign Statistics</h2>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Statistics</h2>
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-blue-50 p-4 rounded">
-            <div className="text-sm text-gray-600">Emails Sent Today</div>
-            <div className="text-2xl font-bold text-blue-600">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Emails Sent Today</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {stats.emailsSentToday}
             </div>
           </div>
-          <div className="bg-green-50 p-4 rounded">
-            <div className="text-sm text-gray-600">Open Rate</div>
-            <div className="text-2xl font-bold text-green-600">
+          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Open Rate</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {stats.openRate}%
             </div>
           </div>
-          <div className="bg-purple-50 p-4 rounded">
-            <div className="text-sm text-gray-600">Click Rate</div>
-            <div className="text-2xl font-bold text-purple-600">
+          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Click Rate</div>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {stats.clickRate}%
             </div>
           </div>
-          <div className="bg-orange-50 p-4 rounded">
-            <div className="text-sm text-gray-600">Conversion Rate</div>
-            <div className="text-2xl font-bold text-orange-600">
+          <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Conversion Rate</div>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {stats.conversionRate}%
             </div>
           </div>
@@ -779,13 +734,13 @@ The Team`,
 
       {/* A/B Test Section */}
       {abTests.templateA && abTests.templateB && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">A/B Test Results</h2>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">A/B Test Results</h2>
           <div className="grid grid-cols-2 gap-6">
             {/* Template A */}
             <div
               className={`border-2 rounded-lg p-4 ${
-                abTests.winner === "A" ? "border-green-500" : "border-gray-200"
+                abTests.winner === "A" ? "border-green-500 dark:border-green-400" : "border-gray-200 dark:border-gray-600"
               }`}
             >
               {abTests.winner === "A" && (
@@ -793,37 +748,37 @@ The Team`,
                   🏆 Winner
                 </div>
               )}
-              <h3 className="font-bold text-lg mb-2">{abTests.templateA.name}</h3>
-              <div className="bg-gray-50 p-3 rounded mb-3">
-                <div className="text-sm font-semibold mb-1">
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">{abTests.templateA.name}</h3>
+              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-3">
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   Subject: {abTests.templateA.subject}
                 </div>
-                <div className="text-sm text-gray-600 line-clamp-2">
+                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                   {abTests.templateA.content}
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Sent:</span>
-                  <span className="font-semibold">
+                  <span className="text-gray-600 dark:text-gray-400">Sent:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
                     {abTests.templateA.metrics.sent}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Open Rate:</span>
-                  <span className="font-semibold text-green-600">
+                  <span className="text-gray-600 dark:text-gray-400">Open Rate:</span>
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     {abTests.templateA.metrics.openRate}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Click Rate:</span>
-                  <span className="font-semibold text-purple-600">
+                  <span className="text-gray-600 dark:text-gray-400">Click Rate:</span>
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">
                     {abTests.templateA.metrics.clickRate}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Conversion Rate:</span>
-                  <span className="font-semibold text-orange-600">
+                  <span className="text-gray-600 dark:text-gray-400">Conversion Rate:</span>
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">
                     {abTests.templateA.metrics.conversionRate}%
                   </span>
                 </div>
@@ -833,7 +788,7 @@ The Team`,
             {/* Template B */}
             <div
               className={`border-2 rounded-lg p-4 ${
-                abTests.winner === "B" ? "border-green-500" : "border-gray-200"
+                abTests.winner === "B" ? "border-green-500 dark:border-green-400" : "border-gray-200 dark:border-gray-600"
               }`}
             >
               {abTests.winner === "B" && (
@@ -841,37 +796,37 @@ The Team`,
                   🏆 Winner
                 </div>
               )}
-              <h3 className="font-bold text-lg mb-2">{abTests.templateB.name}</h3>
-              <div className="bg-gray-50 p-3 rounded mb-3">
-                <div className="text-sm font-semibold mb-1">
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">{abTests.templateB.name}</h3>
+              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-3">
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   Subject: {abTests.templateB.subject}
                 </div>
-                <div className="text-sm text-gray-600 line-clamp-2">
+                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                   {abTests.templateB.content}
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Sent:</span>
-                  <span className="font-semibold">
+                  <span className="text-gray-600 dark:text-gray-400">Sent:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
                     {abTests.templateB.metrics.sent}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Open Rate:</span>
-                  <span className="font-semibold text-green-600">
+                  <span className="text-gray-600 dark:text-gray-400">Open Rate:</span>
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     {abTests.templateB.metrics.openRate}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Click Rate:</span>
-                  <span className="font-semibold text-purple-600">
+                  <span className="text-gray-600 dark:text-gray-400">Click Rate:</span>
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">
                     {abTests.templateB.metrics.clickRate}%
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Conversion Rate:</span>
-                  <span className="font-semibold text-orange-600">
+                  <span className="text-gray-600 dark:text-gray-400">Conversion Rate:</span>
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">
                     {abTests.templateB.metrics.conversionRate}%
                   </span>
                 </div>
@@ -882,21 +837,21 @@ The Team`,
       )}
 
       {/* Quick Send Campaign */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Quick Send Campaign</h2>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Quick Send Campaign</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Template
             </label>
             <select
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={templates.length === 0}
             >
               {templates.length === 0 ? (
-                <option value="">No templates available</option>
+                <option value="" className="text-gray-600 dark:text-gray-400">No templates available</option>
               ) : (
                 templates.map((template) => (
                   <option key={template.id} value={template.id}>
@@ -907,26 +862,26 @@ The Team`,
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Number of Emails
             </label>
             <input
               type="number"
               value={emailCount}
               onChange={(e) => setEmailCount(parseInt(e.target.value) || 1)}
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
               min="1"
               max="100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Target Segment
             </label>
             <select
               value={targetSegment}
               onChange={(e) => setTargetSegment(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="no-website">No Website</option>
               <option value="high-priority">High Priority</option>
@@ -935,14 +890,14 @@ The Team`,
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Schedule (Optional)
             </label>
             <input
               type="datetime-local"
               value={scheduleTime}
               onChange={(e) => setScheduleTime(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
               min={new Date().toISOString().slice(0, 16)}
             />
           </div>
@@ -950,16 +905,16 @@ The Team`,
         
         {/* Sending Progress */}
         {sendingProgress.isActive && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <div className="flex justify-between mb-2">
-              <span className="text-sm font-medium">{sendingProgress.message}</span>
-              <span className="text-sm font-medium">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{sendingProgress.message}</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {sendingProgress.current} / {sendingProgress.total}
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{
                   width: `${(sendingProgress.current / sendingProgress.total) * 100}%`
                 }}
@@ -971,7 +926,7 @@ The Team`,
         <button
           onClick={handleSendCampaign}
           disabled={loading || sendingProgress.isActive || templates.length === 0}
-          className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading || sendingProgress.isActive
             ? "Sending..."
@@ -982,37 +937,37 @@ The Team`,
       </div>
 
       {/* Email Queue */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Email Queue</h2>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Email Queue</h2>
         {emailQueue.length === 0 ? (
-          <p className="text-gray-500">No pending emails in queue</p>
+          <p className="text-gray-600 dark:text-gray-400">No pending emails in queue</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">Business</th>
-                  <th className="text-left py-2">Email</th>
-                  <th className="text-left py-2">Template</th>
-                  <th className="text-left py-2">Scheduled For</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Action</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Business</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Email</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Template</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Scheduled For</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Status</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {emailQueue.map((item) => (
-                  <tr key={item.id} className="border-b">
-                    <td className="py-2">{item.business_name}</td>
-                    <td className="py-2 text-sm">{item.email}</td>
-                    <td className="py-2">{item.template_name}</td>
-                    <td className="py-2 text-sm">
+                  <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
+                    <td className="py-2 text-gray-900 dark:text-white">{item.business_name}</td>
+                    <td className="py-2 text-sm text-gray-600 dark:text-gray-400">{item.email}</td>
+                    <td className="py-2 text-gray-700 dark:text-gray-300">{item.template_name}</td>
+                    <td className="py-2 text-sm text-gray-600 dark:text-gray-400">
                       {new Date(item.scheduled_for).toLocaleString()}
                     </td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs ${
-                        item.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        item.status === 'sending' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
+                        item.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400' :
+                        item.status === 'sending' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                       }`}>
                         {item.status}
                       </span>
@@ -1021,7 +976,7 @@ The Team`,
                       {item.status === 'pending' && (
                         <button
                           onClick={() => handleCancelEmail(item.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
+                          className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
                         >
                           Cancel
                         </button>
@@ -1036,54 +991,54 @@ The Team`,
       </div>
 
       {/* Email History */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Email History</h2>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Email History</h2>
         {emailHistory.length === 0 ? (
-          <p className="text-gray-500">No emails sent yet</p>
+          <p className="text-gray-600 dark:text-gray-400">No emails sent yet</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">Business</th>
-                  <th className="text-left py-2">Template</th>
-                  <th className="text-left py-2">Sent</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Action</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Business</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Template</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Sent</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Status</th>
+                  <th className="text-left py-2 text-gray-700 dark:text-gray-300">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {emailHistory.map((item) => (
-                  <tr key={item.id} className="border-b">
+                  <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
                     <td className="py-2">
                       <div>
-                        <div className="font-medium">{item.business_name}</div>
-                        <div className="text-xs text-gray-500">{item.email}</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{item.business_name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{item.email}</div>
                       </div>
                     </td>
-                    <td className="py-2">{item.template_name}</td>
-                    <td className="py-2 text-sm">
+                    <td className="py-2 text-gray-700 dark:text-gray-300">{item.template_name}</td>
+                    <td className="py-2 text-sm text-gray-600 dark:text-gray-400">
                       {new Date(item.sent_at).toLocaleString()}
                     </td>
                     <td className="py-2">
                       <div className="flex gap-1">
                         {item.opened_at && (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                          <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 px-2 py-1 rounded text-xs">
                             Opened
                           </span>
                         )}
                         {item.clicked_at && (
-                          <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                          <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 px-2 py-1 rounded text-xs">
                             Clicked
                           </span>
                         )}
                         {item.converted_at && (
-                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">
+                          <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 px-2 py-1 rounded text-xs">
                             Converted
                           </span>
                         )}
                         {!item.opened_at && !item.clicked_at && (
-                          <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">
+                          <span className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 px-2 py-1 rounded text-xs">
                             Sent
                           </span>
                         )}
@@ -1093,7 +1048,7 @@ The Team`,
                       <button
                         onClick={() => handleResendEmail(item)}
                         disabled={loading}
-                        className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm disabled:opacity-50"
                       >
                         Resend
                       </button>
@@ -1109,18 +1064,18 @@ The Team`,
       {/* Template Editor Modal */}
       {showTemplateEditor && editingTemplate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
               Edit Template: {editingTemplate.name}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Template Name
                 </label>
                 <input
                   type="text"
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                   value={editingTemplate.name}
                   onChange={(e) => setEditingTemplate({
                     ...editingTemplate,
@@ -1129,35 +1084,35 @@ The Team`,
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Subject Line
                 </label>
                 <input
                   type="text"
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                   value={editingTemplate.subject}
                   onChange={(e) => setEditingTemplate({
                     ...editingTemplate,
                     subject: e.target.value
                   })}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Use {"{{business_name}}"} to insert the business name
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email Content
                 </label>
                 <textarea
-                  className="w-full border rounded-lg px-3 py-2 h-64 font-mono text-sm"
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 h-64 font-mono text-sm focus:ring-blue-500 focus:border-blue-500"
                   value={editingTemplate.content}
                   onChange={(e) => setEditingTemplate({
                     ...editingTemplate,
                     content: e.target.value
                   })}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Variables: {"{{business_name}}"}, {"{{preview_url}}"}
                 </p>
               </div>
@@ -1167,7 +1122,7 @@ The Team`,
                     setShowTemplateEditor(false);
                     setEditingTemplate(null);
                   }}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
