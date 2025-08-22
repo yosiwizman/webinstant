@@ -191,28 +191,28 @@ The Team`,
       // Query emails sent today
       const { data: sentToday, error: sentError } = await supabase
         .from("emails")
-        .select("id")
+        .select("*")
         .gte("sent_at", today.toISOString())
-        .lt("sent_at", tomorrow.toISOString())
-        .not("sent_at", "is", null);
+        .lt("sent_at", tomorrow.toISOString());
 
       if (sentError) throw sentError;
 
       // Query all emails for rates
       const { data: allEmails, error: allError } = await supabase
         .from("emails")
-        .select("id, opened_at, clicked_at, converted_at")
-        .not("sent_at", "is", null);
+        .select("*");
 
       if (allError) throw allError;
 
-      const total = allEmails?.length || 0;
-      const opened = allEmails?.filter((e) => e.opened_at).length || 0;
-      const clicked = allEmails?.filter((e) => e.clicked_at).length || 0;
-      const converted = allEmails?.filter((e) => e.converted_at).length || 0;
+      // Filter for sent emails
+      const sentEmails = allEmails?.filter(e => e.sent_at) || [];
+      const total = sentEmails.length;
+      const opened = sentEmails.filter((e) => e.opened_at).length;
+      const clicked = sentEmails.filter((e) => e.clicked_at).length;
+      const converted = sentEmails.filter((e) => e.converted_at).length;
 
       setStats({
-        emailsSentToday: sentToday?.length || 0,
+        emailsSentToday: sentToday?.filter(e => e.sent_at).length || 0,
         openRate: total > 0 ? Math.round((opened / total) * 100) : 0,
         clickRate: total > 0 ? Math.round((clicked / total) * 100) : 0,
         conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
@@ -225,33 +225,34 @@ The Team`,
   const fetchABTests = useCallback(async () => {
     try {
       // Get active A/B test
-      const { data: activeTest, error: testError } = await supabase
+      const { data: activeTests, error: testError } = await supabase
         .from("ab_tests")
         .select("*")
-        .eq("is_active", true)
-        .single();
+        .eq("is_active", true);
 
-      if (testError || !activeTest) {
+      if (testError || !activeTests || activeTests.length === 0) {
         console.log("No active A/B test found");
         return;
       }
 
+      const activeTest = activeTests[0];
+
       // Get metrics for each variant
       const { data: variantA, error: errorA } = await supabase
         .from("emails")
-        .select("id, opened_at, clicked_at, converted_at")
+        .select("*")
         .eq("ab_test_id", activeTest.id)
         .eq("ab_variant", "A");
 
       const { data: variantB, error: errorB } = await supabase
         .from("emails")
-        .select("id, opened_at, clicked_at, converted_at")
+        .select("*")
         .eq("ab_test_id", activeTest.id)
         .eq("ab_variant", "B");
 
       if (errorA || errorB) throw errorA || errorB;
 
-      const calculateMetrics = (emails: EmailData[]) => {
+      const calculateMetrics = (emails: any[]) => {
         const sent = emails?.length || 0;
         const opens = emails?.filter(e => e.opened_at).length || 0;
         const clicks = emails?.filter(e => e.clicked_at).length || 0;
@@ -308,16 +309,7 @@ The Team`,
     try {
       const { data, error } = await supabase
         .from("email_queue")
-        .select(`
-          *,
-          businesses (
-            business_name,
-            email
-          ),
-          email_templates (
-            name
-          )
-        `)
+        .select("*")
         .in("status", ["pending", "sending"])
         .order("scheduled_for", { ascending: true })
         .limit(20);
@@ -325,18 +317,46 @@ The Team`,
       if (error) throw error;
 
       if (data) {
+        // Fetch related data separately
+        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
+        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
+
+        let businesses: any[] = [];
+        let templates: any[] = [];
+
+        if (businessIds.length > 0) {
+          const { data: bizData } = await supabase
+            .from("businesses")
+            .select("id, business_name, email")
+            .in("id", businessIds);
+          businesses = bizData || [];
+        }
+
+        if (templateIds.length > 0) {
+          const { data: tempData } = await supabase
+            .from("email_templates")
+            .select("id, name")
+            .in("id", templateIds);
+          templates = tempData || [];
+        }
+
         setEmailQueue(
-          data.map((item) => ({
-            id: item.id,
-            business_id: item.business_id,
-            business_name: item.businesses?.business_name || "Unknown",
-            email: item.businesses?.email || item.email || "No email",
-            template_id: item.template_id,
-            template_name: item.email_templates?.name || "Default Template",
-            scheduled_for: item.scheduled_for,
-            status: item.status,
-            created_at: item.created_at,
-          }))
+          data.map((item) => {
+            const business = businesses.find(b => b.id === item.business_id);
+            const template = templates.find(t => t.id === item.template_id);
+            
+            return {
+              id: item.id,
+              business_id: item.business_id,
+              business_name: business?.business_name || "Unknown",
+              email: business?.email || item.email || "No email",
+              template_id: item.template_id,
+              template_name: template?.name || "Default Template",
+              scheduled_for: item.scheduled_for,
+              status: item.status,
+              created_at: item.created_at,
+            };
+          })
         );
       }
     } catch (error) {
@@ -348,19 +368,7 @@ The Team`,
     try {
       const { data, error } = await supabase
         .from("emails")
-        .select(`
-          *,
-          businesses (
-            business_name,
-            email
-          ),
-          email_templates (
-            name
-          ),
-          website_previews (
-            preview_url
-          )
-        `)
+        .select("*")
         .not("sent_at", "is", null)
         .order("sent_at", { ascending: false })
         .limit(50);
@@ -368,20 +376,56 @@ The Team`,
       if (error) throw error;
 
       if (data) {
+        // Fetch related data separately
+        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
+        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
+
+        let businesses: any[] = [];
+        let templates: any[] = [];
+        let previews: any[] = [];
+
+        if (businessIds.length > 0) {
+          const { data: bizData } = await supabase
+            .from("businesses")
+            .select("id, business_name, email")
+            .in("id", businessIds);
+          businesses = bizData || [];
+
+          const { data: previewData } = await supabase
+            .from("website_previews")
+            .select("business_id, preview_url")
+            .in("business_id", businessIds);
+          previews = previewData || [];
+        }
+
+        if (templateIds.length > 0) {
+          const { data: tempData } = await supabase
+            .from("email_templates")
+            .select("id, name")
+            .in("id", templateIds);
+          templates = tempData || [];
+        }
+
         setEmailHistory(
-          data.map((item) => ({
-            id: item.id,
-            business_id: item.business_id,
-            business_name: item.businesses?.business_name || "Unknown",
-            email: item.businesses?.email || item.email || "No email",
-            template_id: item.template_id,
-            template_name: item.email_templates?.name || "Default Template",
-            sent_at: item.sent_at,
-            opened_at: item.opened_at,
-            clicked_at: item.clicked_at,
-            converted_at: item.converted_at,
-            preview_url: item.website_previews?.[0]?.preview_url,
-          }))
+          data.map((item) => {
+            const business = businesses.find(b => b.id === item.business_id);
+            const template = templates.find(t => t.id === item.template_id);
+            const preview = previews.find(p => p.business_id === item.business_id);
+            
+            return {
+              id: item.id,
+              business_id: item.business_id,
+              business_name: business?.business_name || "Unknown",
+              email: business?.email || item.email || "No email",
+              template_id: item.template_id,
+              template_name: template?.name || "Default Template",
+              sent_at: item.sent_at,
+              opened_at: item.opened_at,
+              clicked_at: item.clicked_at,
+              converted_at: item.converted_at,
+              preview_url: preview?.preview_url,
+            };
+          })
         );
       }
     } catch (error) {
@@ -478,10 +522,10 @@ The Team`,
             .from("website_previews")
             .select("preview_url")
             .eq("business_id", business.id)
-            .single();
+            .limit(1);
 
-          if (existingPreview) {
-            previewUrl = existingPreview.preview_url;
+          if (existingPreview && existingPreview.length > 0) {
+            previewUrl = existingPreview[0].preview_url;
           } else {
             // Generate preview first
             const previewResponse = await fetch("/api/generate-preview", {
@@ -497,7 +541,7 @@ The Team`,
           }
 
           // Send email via API
-          const response = await fetch("/api/sen-email", {
+          const response = await fetch("/api/send-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -618,13 +662,14 @@ The Team`,
       const { data: template, error: templateError } = await supabase
         .from("email_templates")
         .select("*")
-        .eq("id", historyItem.template_id)
-        .single();
+        .eq("id", historyItem.template_id);
 
-      if (templateError || !template) {
+      if (templateError || !template || template.length === 0) {
         alert("Template not found");
         return;
       }
+
+      const templateData = template[0];
 
       // Send email via API
       const response = await fetch("/api/send-email", {
@@ -634,9 +679,9 @@ The Team`,
           to: historyItem.email,
           businessName: historyItem.business_name,
           businessId: historyItem.business_id,
-          templateId: template.id,
-          subject: template.subject.replace("{{business_name}}", historyItem.business_name),
-          content: template.content
+          templateId: templateData.id,
+          subject: templateData.subject.replace("{{business_name}}", historyItem.business_name),
+          content: templateData.content
             .replace(/{{business_name}}/g, historyItem.business_name)
             .replace(/{{preview_url}}/g, historyItem.preview_url || "http://localhost:3000"),
           previewUrl: historyItem.preview_url,
