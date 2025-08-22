@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Eye,
@@ -69,13 +69,24 @@ export default function WebsiteGallery() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showBulkActions, setShowBulkActions] = useState(false);
+  
+  // Use refs to prevent unnecessary re-fetches
+  const hasFetchedData = useRef(false);
+  const cachedPreviews = useRef<WebsitePreview[]>([]);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const fetchPreviews = useCallback(async () => {
+  const fetchPreviews = useCallback(async (forceRefresh = false) => {
+    // Use cached data if available and not forcing refresh
+    if (!forceRefresh && cachedPreviews.current.length > 0) {
+      setPreviews(cachedPreviews.current);
+      setLoading(false);
+      return;
+    }
+
     try {
       // Query website_previews joined with businesses and emails
       const { data, error } = await supabase
@@ -112,6 +123,7 @@ export default function WebsiteGallery() {
         })
       );
 
+      cachedPreviews.current = previewsWithEmails;
       setPreviews(previewsWithEmails);
     } catch (error) {
       console.error("Error fetching previews:", error);
@@ -212,9 +224,13 @@ export default function WebsiteGallery() {
   }, [previews, statusFilter, categoryFilter, searchTerm]);
 
   useEffect(() => {
-    fetchPreviews();
-    fetchStats();
-  }, [fetchPreviews, fetchStats]);
+    // Only fetch once on mount
+    if (!hasFetchedData.current) {
+      hasFetchedData.current = true;
+      fetchPreviews();
+      fetchStats();
+    }
+  }, []);
 
   useEffect(() => {
     filterPreviews();
@@ -259,7 +275,7 @@ export default function WebsiteGallery() {
 
       if (response.ok) {
         console.log("Email sent successfully");
-        await fetchPreviews();
+        await fetchPreviews(true); // Force refresh
         await fetchStats();
       } else {
         console.error("Failed to send email");
@@ -277,7 +293,7 @@ export default function WebsiteGallery() {
       }
     }
     setSelectedPreviews(new Set());
-    await fetchPreviews();
+    await fetchPreviews(true); // Force refresh
   };
 
   const handleBulkDelete = async () => {
@@ -287,7 +303,7 @@ export default function WebsiteGallery() {
       await supabase.from("website_previews").delete().eq("id", id);
     }
 
-    await fetchPreviews();
+    await fetchPreviews(true); // Force refresh
     await fetchStats();
     setSelectedPreviews(new Set());
   };
@@ -301,19 +317,19 @@ export default function WebsiteGallery() {
     if (!confirm("Delete this preview?")) return;
 
     await supabase.from("website_previews").delete().eq("id", id);
-    await fetchPreviews();
+    await fetchPreviews(true); // Force refresh
     await fetchStats();
   };
 
   const getBusinessTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      restaurant: "bg-orange-100 text-orange-800",
-      beauty: "bg-pink-100 text-pink-800",
-      medical: "bg-blue-100 text-blue-800",
-      retail: "bg-purple-100 text-purple-800",
-      service: "bg-green-100 text-green-800",
-      fitness: "bg-red-100 text-red-800",
-      default: "bg-gray-100 text-gray-800",
+      restaurant: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+      beauty: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
+      medical: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      retail: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+      service: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+      fitness: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      default: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
     };
     return colors[type] || colors.default;
   };
@@ -324,80 +340,80 @@ export default function WebsiteGallery() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       {/* Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Previews</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Previews</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
             </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <Building className="w-6 h-6 text-blue-600" />
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
+              <Building className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Generated Today</p>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Generated Today</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.generatedToday}
               </p>
             </div>
-            <div className="bg-green-100 p-3 rounded-lg">
-              <Calendar className="w-6 h-6 text-green-600" />
+            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
+              <Calendar className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Pending</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.pending}
               </p>
             </div>
-            <div className="bg-yellow-100 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-yellow-600" />
+            <div className="bg-yellow-100 dark:bg-yellow-900/30 p-3 rounded-lg">
+              <Users className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">With Emails</p>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-sm text-gray-600 dark:text-gray-400">With Emails</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.withEmailsSent}
               </p>
             </div>
-            <div className="bg-purple-100 p-3 rounded-lg">
-              <Mail className="w-6 h-6 text-purple-600" />
+            <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg">
+              <Mail className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mb-6 border border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-500" />
+            <Filter className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
               <option value="no-email">No Email Sent</option>
@@ -407,11 +423,11 @@ export default function WebsiteGallery() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Building className="w-5 h-5 text-gray-500" />
+            <Building className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Categories</option>
               {categories.map((cat) => (
@@ -430,7 +446,7 @@ export default function WebsiteGallery() {
                 placeholder="Search by business name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500"
               />
             </div>
           </div>
@@ -438,7 +454,7 @@ export default function WebsiteGallery() {
           {filteredPreviews.length > 0 && (
             <button
               onClick={handleSelectAll}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               {selectedPreviews.size === filteredPreviews.length
                 ? "Deselect All"
@@ -449,20 +465,20 @@ export default function WebsiteGallery() {
 
         {/* Bulk Actions */}
         {showBulkActions && (
-          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center gap-3">
-            <span className="text-sm text-gray-600">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center gap-3">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               {selectedPreviews.size} selected
             </span>
             <button
               onClick={handleBulkSendEmails}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-md"
             >
               <Mail className="w-4 h-4" />
               Send Emails
             </button>
             <button
               onClick={handleBulkDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -482,35 +498,35 @@ export default function WebsiteGallery() {
           return (
             <div
               key={preview.id}
-              className={`bg-white rounded-xl shadow-sm border ${
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 ${
                 selectedPreviews.has(preview.id)
-                  ? "border-blue-500 ring-2 ring-blue-200"
-                  : "border-gray-100"
-              } overflow-hidden hover:shadow-lg transition-all duration-200`}
+                  ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800"
+                  : "border-gray-200 dark:border-gray-700"
+              } overflow-hidden hover:shadow-xl transition-all duration-200`}
             >
               {/* Selection Checkbox */}
-              <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900/50">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedPreviews.has(preview.id)}
                     onChange={() => handleSelectPreview(preview.id)}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                   />
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Select
                   </span>
                 </label>
-                <button className="p-1 hover:bg-gray-100 rounded-lg">
-                  <MoreVertical className="w-4 h-4 text-gray-500" />
+                <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                  <MoreVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                 </button>
               </div>
 
               {/* Preview Thumbnail */}
-              <div className="relative h-48 bg-gray-100">
+              <div className="relative h-48 bg-gray-100 dark:bg-gray-900 overflow-hidden">
                 <iframe
                   src={preview.preview_url}
-                  className="w-full h-full pointer-events-none"
+                  className="w-full h-full pointer-events-none rounded-lg"
                   style={{
                     transform: "scale(0.5)",
                     transformOrigin: "top left",
@@ -518,14 +534,14 @@ export default function WebsiteGallery() {
                     height: "200%",
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
               </div>
 
               {/* Card Content */}
               <div className="p-4">
                 {/* Business Name and Category */}
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                     {preview.business.business_name}
                   </h3>
                   {preview.business.industry_type && (
@@ -541,34 +557,34 @@ export default function WebsiteGallery() {
 
                 {/* Status Badges */}
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white text-xs font-medium rounded-full shadow-sm">
                     <CheckCircle className="w-3 h-3" />
                     Preview Ready
                   </span>
 
                   {emailSent && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-full shadow-sm">
                       <Mail className="w-3 h-3" />
                       Email Sent
                     </span>
                   )}
 
                   {emailOpened && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500 text-white text-xs font-medium rounded-full shadow-sm">
                       <MailOpen className="w-3 h-3" />
                       Opened
                     </span>
                   )}
 
                   {linkClicked && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-500 text-white text-xs font-medium rounded-full shadow-sm">
                       <MousePointer className="w-3 h-3" />
                       Clicked
                     </span>
                   )}
 
                   {isCustomer && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-medium rounded-full shadow-sm">
                       <DollarSign className="w-3 h-3" />
                       Customer
                     </span>
@@ -581,7 +597,7 @@ export default function WebsiteGallery() {
                     href={preview.preview_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline flex items-center gap-1 font-medium"
                   >
                     <ExternalLink className="w-3 h-3" />
                     {preview.preview_url
@@ -597,7 +613,7 @@ export default function WebsiteGallery() {
                     href={preview.preview_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                    className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium shadow-sm"
                   >
                     <Eye className="w-4 h-4" />
                     View
@@ -606,9 +622,9 @@ export default function WebsiteGallery() {
                   <button
                     onClick={() => handleSendEmail(preview)}
                     disabled={emailSent}
-                    className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium ${
+                    className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium shadow-sm ${
                       emailSent
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
                         : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
@@ -618,7 +634,7 @@ export default function WebsiteGallery() {
 
                   <button
                     onClick={() => handleCopyLink(preview.preview_url)}
-                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                    className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium shadow-sm"
                   >
                     <Copy className="w-4 h-4" />
                     Copy
@@ -626,7 +642,7 @@ export default function WebsiteGallery() {
 
                   <button
                     onClick={() => handleDelete(preview.id)}
-                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm font-medium shadow-sm"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete
@@ -641,11 +657,11 @@ export default function WebsiteGallery() {
       {/* Empty State */}
       {filteredPreviews.length === 0 && (
         <div className="text-center py-12">
-          <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <Building className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
             No previews found
           </h3>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Try adjusting your filters or search term
           </p>
         </div>
