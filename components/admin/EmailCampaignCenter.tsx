@@ -106,6 +106,7 @@ export default function EmailCampaignCenter() {
   });
   const [testEmailAddress, setTestEmailAddress] = useState("yosiwizman5638@gmail.com");
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [showABTests, setShowABTests] = useState(false);
 
   const createDefaultTemplates = useCallback(async () => {
     const defaultTemplates = [
@@ -159,8 +160,7 @@ The Team`,
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching templates:", error);
-        // If table doesn't exist, we'll just use empty templates
+        console.log("Email templates table not found, will be created on first use");
         return;
       }
 
@@ -183,7 +183,7 @@ The Team`,
         }
       }
     } catch (error) {
-      console.error("Error fetching templates:", error);
+      console.log("Error fetching templates:", error);
     }
   }, [createDefaultTemplates]);
 
@@ -203,7 +203,7 @@ The Team`,
         .lt("sent_at", tomorrow.toISOString());
 
       if (sentError) {
-        console.error("Error fetching sent emails:", sentError);
+        console.log("Emails table not found, will be created on first use");
         return;
       }
 
@@ -213,7 +213,7 @@ The Team`,
         .select("*");
 
       if (allError) {
-        console.error("Error fetching all emails:", allError);
+        console.log("Error fetching all emails:", allError);
         return;
       }
 
@@ -231,11 +231,14 @@ The Team`,
         conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
       });
     } catch (error) {
-      console.error("Error fetching stats:", error);
+      console.log("Error fetching stats:", error);
     }
   }, []);
 
   const fetchABTests = useCallback(async () => {
+    // Skip A/B tests for now if not enabled
+    if (!showABTests) return;
+    
     try {
       // Get active A/B test
       const { data: activeTests, error: testError } = await supabase
@@ -244,7 +247,7 @@ The Team`,
         .eq("is_active", true);
 
       if (testError || !activeTests || activeTests.length === 0) {
-        console.log("No active A/B test found");
+        console.log("No active A/B tests");
         return;
       }
 
@@ -264,7 +267,7 @@ The Team`,
         .eq("ab_variant", "B");
 
       if (errorA || errorB) {
-        console.error("Error fetching A/B test variants:", errorA || errorB);
+        console.log("Error fetching A/B test variants");
         return;
       }
 
@@ -317,9 +320,9 @@ The Team`,
         testId: activeTest.id
       });
     } catch (error) {
-      console.error("Error fetching A/B tests:", error);
+      console.log("Error fetching A/B tests:", error);
     }
-  }, []);
+  }, [showABTests]);
 
   const fetchEmailQueue = useCallback(async () => {
     try {
@@ -331,7 +334,7 @@ The Team`,
         .limit(20);
 
       if (error) {
-        console.error("Error fetching email queue:", error);
+        console.log("Email queue table not found, will be created on first use");
         return;
       }
 
@@ -379,7 +382,7 @@ The Team`,
         );
       }
     } catch (error) {
-      console.error("Error fetching email queue:", error);
+      console.log("Error fetching email queue:", error);
     }
   }, []);
 
@@ -393,7 +396,7 @@ The Team`,
         .limit(50);
 
       if (error) {
-        console.error("Error fetching email history:", error);
+        console.log("Email history not available yet");
         return;
       }
 
@@ -451,7 +454,7 @@ The Team`,
         );
       }
     } catch (error) {
-      console.error("Error fetching email history:", error);
+      console.log("Error fetching email history:", error);
     }
   }, []);
 
@@ -461,17 +464,21 @@ The Team`,
     fetchEmailQueue();
     fetchEmailHistory();
     fetchTemplates();
-    fetchABTests();
+    if (showABTests) {
+      fetchABTests();
+    }
     
     // Set up auto-refresh only for stats and queue (not history to prevent flickering)
     const interval = setInterval(() => {
       fetchStats();
       fetchEmailQueue();
-      fetchABTests();
+      if (showABTests) {
+        fetchABTests();
+      }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [fetchStats, fetchEmailQueue, fetchEmailHistory, fetchTemplates, fetchABTests]);
+  }, [fetchStats, fetchEmailQueue, fetchEmailHistory, fetchTemplates, fetchABTests, showABTests]);
 
   const handleSendTestEmail = async () => {
     setSendingTestEmail(true);
@@ -578,7 +585,11 @@ The Team`,
 
       const { data: businesses, error: bizError } = await query;
 
-      if (bizError) throw bizError;
+      if (bizError) {
+        console.log("Businesses table not found");
+        alert("No businesses found. Please add businesses first.");
+        return;
+      }
 
       if (!businesses || businesses.length === 0) {
         alert("No businesses found for the selected segment");
@@ -691,7 +702,7 @@ The Team`,
           }
         } catch (error) {
           failCount++;
-          console.error(`Error sending to ${business.business_name}:`, error);
+          console.log(`Error sending to ${business.business_name}:`, error);
         }
 
         // Small delay to avoid rate limiting
@@ -712,7 +723,7 @@ The Team`,
       fetchEmailQueue();
       fetchEmailHistory();
     } catch (error) {
-      console.error("Error sending campaign:", error);
+      console.log("Error sending campaign:", error);
       alert("Error sending campaign: " + (error as Error).message);
     } finally {
       setLoading(false);
@@ -748,7 +759,7 @@ The Team`,
       fetchEmailQueue();
       alert("Email cancelled successfully");
     } catch (error) {
-      console.error("Error cancelling email:", error);
+      console.log("Error cancelling email:", error);
       alert("Failed to cancel email");
     }
   };
@@ -809,7 +820,7 @@ The Team`,
         alert("Failed to resend email: " + error);
       }
     } catch (error) {
-      console.error("Error resending email:", error);
+      console.log("Error resending email:", error);
       alert("Error resending email");
     } finally {
       setLoading(false);
@@ -837,7 +848,7 @@ The Team`,
       setEditingTemplate(null);
       fetchTemplates();
     } catch (error) {
-      console.error("Error saving template:", error);
+      console.log("Error saving template:", error);
       alert("Failed to save template");
     }
   };
@@ -922,8 +933,27 @@ The Team`,
         </div>
       </div>
 
+      {/* A/B Test Toggle */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">A/B Testing</h3>
+          <button
+            onClick={() => setShowABTests(!showABTests)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showABTests ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showABTests ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* A/B Test Section */}
-      {abTests.templateA && abTests.templateB && (
+      {showABTests && abTests.templateA && abTests.templateB && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">A/B Test Results</h2>
           <div className="grid grid-cols-2 gap-6">
