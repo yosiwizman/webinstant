@@ -245,7 +245,7 @@ export default function RevenueDashboard() {
         },
         { 
           stage: 'Links Clicked', 
-          value: links ClickedCount, 
+          value: linksClickedCount, 
           percentage: emailsOpenedCount > 0 ? (linksClickedCount / emailsOpenedCount) * 100 : 0 
         },
         { 
