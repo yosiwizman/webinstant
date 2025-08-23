@@ -94,12 +94,13 @@ export default function ApiUsageMonitor() {
 
   // Get API balances from environment variables or use defaults
   const getRealApiBalances = (): Record<ProviderKey, number> => {
-    // Set to 0 since we're tracking usage, not managing API keys yet
+    // These are the ACTUAL balances from my API provider accounts
+    // Update these values with your real balances
     return {
-      'together_ai': 0,
-      'openai': 0,
-      'anthropic': 0,
-      'replicate': 0
+      'together_ai': 0,      // Update with your Together AI balance
+      'openai': 9.40,        // OpenAI balance from your dashboard
+      'anthropic': 286.44,   // Anthropic balance from your dashboard  
+      'replicate': 0         // Update with your Replicate balance
     }
   }
 
@@ -142,7 +143,12 @@ export default function ApiUsageMonitor() {
       if (totalCount === 0) {
         setHasData(false)
         const initialBalances = getRealApiBalances()
-        const defaultBalances = createDefaultBalances(initialBalances)
+        const defaultBalances = createDefaultBalances(initialBalances, {
+          'together_ai': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#8B5CF6', bgColor: 'bg-purple-500', displayName: 'Together AI' },
+          'openai': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#10B981', bgColor: 'bg-green-500', displayName: 'OpenAI' },
+          'replicate': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#3B82F6', bgColor: 'bg-blue-500', displayName: 'Replicate' },
+          'anthropic': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#F59E0B', bgColor: 'bg-amber-500', displayName: 'Anthropic' }
+        })
         setApiBalances(defaultBalances)
         setUsageHistory([])
         setDailyTrend([])
@@ -244,7 +250,13 @@ export default function ApiUsageMonitor() {
       
       // Set default state on error
       const initialBalances = getRealApiBalances()
-      setApiBalances(createDefaultBalances(initialBalances))
+      const defaultStats = {
+        'together_ai': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#8B5CF6', bgColor: 'bg-purple-500', displayName: 'Together AI' },
+        'openai': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#10B981', bgColor: 'bg-green-500', displayName: 'OpenAI' },
+        'replicate': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#3B82F6', bgColor: 'bg-blue-500', displayName: 'Replicate' },
+        'anthropic': { today: 0, month: 0, callsToday: 0, callsMonth: 0, color: '#F59E0B', bgColor: 'bg-amber-500', displayName: 'Anthropic' }
+      }
+      setApiBalances(createDefaultBalances(initialBalances, defaultStats))
       setUsageHistory([])
       setDailyTrend([])
       setPieChartData([])
@@ -325,7 +337,7 @@ export default function ApiUsageMonitor() {
       provider: stats.displayName,
       initialBalance: initialBalances[key],
       totalUsed: stats.month,
-      balance: initialBalances[key] - stats.month,
+      balance: initialBalances[key] - stats.month, // Current Balance = Initial - Total Used
       usedToday: stats.today,
       usedThisMonth: stats.month,
       callsToday: stats.callsToday,
@@ -436,57 +448,22 @@ export default function ApiUsageMonitor() {
   }
 
   // Helper function to create default balances
-  const createDefaultBalances = (initialBalances: Record<ProviderKey, number>): ApiBalance[] => {
-    return [
-      {
-        provider: 'Together AI',
-        initialBalance: initialBalances['together_ai'],
-        totalUsed: 0,
-        balance: 0, // Will show actual usage from database
-        usedToday: 0,
-        usedThisMonth: 0,
-        callsToday: 0,
-        callsThisMonth: 0,
-        color: '#8B5CF6',
-        bgColor: 'bg-purple-500'
-      },
-      {
-        provider: 'OpenAI',
-        initialBalance: initialBalances['openai'],
-        totalUsed: 0,
-        balance: 0, // Will show actual usage from database
-        usedToday: 0,
-        usedThisMonth: 0,
-        callsToday: 0,
-        callsThisMonth: 0,
-        color: '#10B981',
-        bgColor: 'bg-green-500'
-      },
-      {
-        provider: 'Replicate',
-        initialBalance: initialBalances['replicate'],
-        totalUsed: 0,
-        balance: 0, // Will show actual usage from database
-        usedToday: 0,
-        usedThisMonth: 0,
-        callsToday: 0,
-        callsThisMonth: 0,
-        color: '#3B82F6',
-        bgColor: 'bg-blue-500'
-      },
-      {
-        provider: 'Anthropic',
-        initialBalance: initialBalances['anthropic'],
-        totalUsed: 0,
-        balance: 0, // Will show actual usage from database
-        usedToday: 0,
-        usedThisMonth: 0,
-        callsToday: 0,
-        callsThisMonth: 0,
-        color: '#F59E0B',
-        bgColor: 'bg-amber-500'
-      }
-    ]
+  const createDefaultBalances = (
+    initialBalances: Record<ProviderKey, number>,
+    providerStats: Record<ProviderKey, ProviderStats>
+  ): ApiBalance[] => {
+    return (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
+      provider: stats.displayName,
+      initialBalance: initialBalances[key],
+      totalUsed: stats.month,
+      balance: initialBalances[key] - stats.month, // Current Balance = Initial - Total Used
+      usedToday: stats.today,
+      usedThisMonth: stats.month,
+      callsToday: stats.callsToday,
+      callsThisMonth: stats.callsMonth,
+      color: stats.color,
+      bgColor: stats.bgColor
+    }))
   }
 
   useEffect(() => {
@@ -581,18 +558,22 @@ export default function ApiUsageMonitor() {
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <p className={adminStyles.label}>Together AI</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['together_ai'].toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Available Balance</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <p className={adminStyles.label}>OpenAI</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['openai'].toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Available Balance</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <p className={adminStyles.label}>Anthropic</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['anthropic'].toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Available Balance</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <p className={adminStyles.label}>Replicate</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">${initialBalances['replicate'].toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Available Balance</p>
             </div>
           </div>
         </div>
@@ -661,9 +642,13 @@ export default function ApiUsageMonitor() {
             </h3>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-bold text-gray-900 dark:text-white">${api.balance.toFixed(2)}</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Balance</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Current</span>
             </div>
             <div className="mt-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className={adminStyles.label}>Initial Balance</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">${api.initialBalance.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between text-sm">
                 <span className={adminStyles.label}>Used Today</span>
                 <span className="font-medium text-gray-700 dark:text-gray-300">${api.usedToday.toFixed(4)}</span>
@@ -680,7 +665,7 @@ export default function ApiUsageMonitor() {
                 <div
                   className="h-2 rounded-full transition-all duration-300"
                   style={{
-                    width: `${Math.min((api.totalUsed / api.initialBalance) * 100, 100)}%`,
+                    width: api.initialBalance > 0 ? `${Math.min((api.totalUsed / api.initialBalance) * 100, 100)}%` : '0%',
                     backgroundColor: api.color
                   }}
                 />
