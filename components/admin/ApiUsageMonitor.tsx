@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
   PieChart,
@@ -17,12 +17,6 @@ import {
   Area
 } from 'recharts'
 import { adminStyles, DataCache, formatters } from '@/lib/admin-utils'
-
-// Create supabase client once, outside the component
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 interface ApiUsageData {
   id: string
