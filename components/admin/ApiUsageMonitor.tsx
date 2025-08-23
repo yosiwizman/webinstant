@@ -94,13 +94,12 @@ export default function ApiUsageMonitor() {
 
   // Get API balances from environment variables or use defaults
   const getRealApiBalances = (): Record<ProviderKey, number> => {
-    // These would come from your actual API provider dashboards
-    // For now using placeholder values that can be updated
+    // Set to 0 since we're tracking usage, not managing API keys yet
     return {
-      'together_ai': parseFloat(process.env.NEXT_PUBLIC_TOGETHER_AI_BALANCE || '100.00'),
-      'openai': parseFloat(process.env.NEXT_PUBLIC_OPENAI_BALANCE || '100.00'),
-      'anthropic': parseFloat(process.env.NEXT_PUBLIC_ANTHROPIC_BALANCE || '98.89'),
-      'replicate': parseFloat(process.env.NEXT_PUBLIC_REPLICATE_BALANCE || '98.85')
+      'together_ai': 0,
+      'openai': 0,
+      'anthropic': 0,
+      'replicate': 0
     }
   }
 
@@ -443,7 +442,7 @@ export default function ApiUsageMonitor() {
         provider: 'Together AI',
         initialBalance: initialBalances['together_ai'],
         totalUsed: 0,
-        balance: initialBalances['together_ai'],
+        balance: 0, // Will show actual usage from database
         usedToday: 0,
         usedThisMonth: 0,
         callsToday: 0,
@@ -455,7 +454,7 @@ export default function ApiUsageMonitor() {
         provider: 'OpenAI',
         initialBalance: initialBalances['openai'],
         totalUsed: 0,
-        balance: initialBalances['openai'],
+        balance: 0, // Will show actual usage from database
         usedToday: 0,
         usedThisMonth: 0,
         callsToday: 0,
@@ -467,7 +466,7 @@ export default function ApiUsageMonitor() {
         provider: 'Replicate',
         initialBalance: initialBalances['replicate'],
         totalUsed: 0,
-        balance: initialBalances['replicate'],
+        balance: 0, // Will show actual usage from database
         usedToday: 0,
         usedThisMonth: 0,
         callsToday: 0,
@@ -479,7 +478,7 @@ export default function ApiUsageMonitor() {
         provider: 'Anthropic',
         initialBalance: initialBalances['anthropic'],
         totalUsed: 0,
-        balance: initialBalances['anthropic'],
+        balance: 0, // Will show actual usage from database
         usedToday: 0,
         usedThisMonth: 0,
         callsToday: 0,
@@ -737,7 +736,7 @@ export default function ApiUsageMonitor() {
               Daily Cost Trend (7 Days)
             </h3>
           </div>
-          {dailyTrend.some(day => day.total > 0) ? (
+          {dailyTrend.some(day => day.total > 0) ?  (
             <ResponsiveContainer width="100%" height="300">
               <AreaChart data={dailyTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
