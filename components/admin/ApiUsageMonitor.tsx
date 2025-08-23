@@ -92,13 +92,17 @@ export default function ApiUsageMonitor() {
   const [error, setError] = useState<string | null>(null)
   const hasFetched = useRef(false)
 
-  // Real API balances from environment or placeholders
-  const getRealApiBalances = (): Record<ProviderKey, number> => ({
-    'together_ai': 100.00,
-    'openai': 100.00,
-    'anthropic': 98.89,
-    'replicate': 98.85
-  })
+  // Get API balances from environment variables or use defaults
+  const getRealApiBalances = (): Record<ProviderKey, number> => {
+    // These would come from your actual API provider dashboards
+    // For now using placeholder values that can be updated
+    return {
+      'together_ai': parseFloat(process.env.NEXT_PUBLIC_TOGETHER_AI_BALANCE || '100.00'),
+      'openai': parseFloat(process.env.NEXT_PUBLIC_OPENAI_BALANCE || '100.00'),
+      'anthropic': parseFloat(process.env.NEXT_PUBLIC_ANTHROPIC_BALANCE || '98.89'),
+      'replicate': parseFloat(process.env.NEXT_PUBLIC_REPLICATE_BALANCE || '98.85')
+    }
+  }
 
   const fetchApiUsageData = useCallback(async () => {
     // Check cache first
@@ -125,263 +129,90 @@ export default function ApiUsageMonitor() {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
       const startOfMonthISO = startOfMonth.toISOString()
 
-      // Fetch all usage data for the month
-      const { data: monthlyUsage, error: monthlyError } = await supabase
+      // First check if we have any data in the api_usage table
+      const { count: totalCount, error: countError } = await supabase
         .from('api_usage')
-        .select('*')
-        .gte('created_at', startOfMonthISO)
-        .order('created_at', { ascending: false })
+        .select('*', { count: 'exact', head: true })
 
-      let currentHasData = false
-      let dailyData: DailyUsage[] = [] // Initialize dailyData here
-
-      if (monthlyError) {
-        console.error('Error fetching monthly usage:', monthlyError)
-        currentHasData = false
-      } else {
-        currentHasData = monthlyUsage && monthlyUsage.length > 0
-        setHasData(currentHasData)
-
-        if (currentHasData) {
-          // Calculate usage by provider for today and month
-          const providerStats: Record<ProviderKey, ProviderStats> = {
-            'together_ai': {
-              today: 0,
-              month: 0,
-              callsToday: 0,
-              callsMonth: 0,
-              color: '#8B5CF6',
-              bgColor: 'bg-purple-500',
-              displayName: 'Together AI'
-            },
-            'openai': {
-              today: 0,
-              month: 0,
-              callsToday: 0,
-              callsMonth: 0,
-              color: '#10B981',
-              bgColor: 'bg-green-500',
-              displayName: 'OpenAI'
-            },
-            'replicate': {
-              today: 0,
-              month: 0,
-              callsToday: 0,
-              callsMonth: 0,
-              color: '#3B82F6',
-              bgColor: 'bg-blue-500',
-              displayName: 'Replicate'
-            },
-            'anthropic': {
-              today: 0,
-              month: 0,
-              callsToday: 0,
-              callsMonth: 0,
-              color: '#F59E0B',
-              bgColor: 'bg-amber-500',
-              displayName: 'Anthropic'
-            }
-          }
-
-          // Process monthly usage
-          monthlyUsage.forEach(item => {
-            const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
-            const cost = item.cost || 0
-            const itemDate = new Date(item.created_at)
-
-            if (provider && provider in providerStats) {
-              providerStats[provider].month += cost
-              providerStats[provider].callsMonth += 1
-
-              // Check if it's today's usage
-              if (itemDate >= today) {
-                providerStats[provider].today += cost
-                providerStats[provider].callsToday += 1
-              }
-            }
-          })
-
-          // Calculate totals
-          let todayTotal = 0
-          let monthTotal = 0
-
-          Object.values(providerStats).forEach(stats => {
-            todayTotal += stats.today
-            monthTotal += stats.month
-          })
-
-          setTotalSpentToday(todayTotal)
-          setTotalSpentMonth(monthTotal)
-
-          // Get real API balances
-          const initialBalances = getRealApiBalances()
-
-          // Update API balances with real data
-          const balances = (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
-            provider: stats.displayName,
-            initialBalance: initialBalances[key],
-            totalUsed: stats.month,
-            balance: initialBalances[key] - stats.month,
-            usedToday: stats.today,
-            usedThisMonth: stats.month,
-            callsToday: stats.callsToday,
-            callsThisMonth: stats.callsMonth,
-            color: stats.color,
-            bgColor: stats.bgColor
-          }))
-
-          setApiBalances(balances)
-
-          // Calculate pie chart data for today's usage
-          const pieData = (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
-            .filter(([, stats]) => stats.today > 0)
-            .map(([, stats]) => ({
-              name: stats.displayName,
-              value: parseFloat(stats.today.toFixed(4)),
-              color: stats.color
-            }))
-
-          setPieChartData(pieData)
-
-          // Calculate daily trend (last 7 days)
-          const last7Days = []
-          for (let i = 6; i >= 0; i--) {
-            const date = new Date()
-            date.setDate(date.getDate() - i)
-            date.setHours(0, 0, 0, 0)
-            last7Days.push(date)
-          }
-
-          // Fetch usage for last 7 days
-          const sevenDaysAgo = last7Days[0].toISOString()
-          const { data: weeklyUsage, error: weeklyError } = await supabase
-            .from('api_usage')
-            .select('*')
-            .gte('created_at', sevenDaysAgo)
-            .order('created_at', { ascending: true })
-
-          if (weeklyError) {
-            console.error('Error fetching weekly usage:', weeklyError)
-            setDailyTrend([])
-          } else if (weeklyUsage) {
-            // Group by day and provider
-            dailyData = last7Days.map(date => {
-              const nextDay = new Date(date)
-              nextDay.setDate(nextDay.getDate() + 1)
-
-              const dayUsage = weeklyUsage?.filter(item => {
-                const itemDate = new Date(item.created_at)
-                return itemDate >= date && itemDate < nextDay
-              }) || []
-
-              const dayTotals: DailyUsage = {
-                date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-                together_ai: 0,
-                openai: 0,
-                replicate: 0,
-                anthropic: 0,
-                total: 0
-              }
-
-              dayUsage.forEach(item => {
-                const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
-                const cost = item.cost || 0
-
-                if (provider && provider in dayTotals) {
-                  dayTotals[provider] += cost
-                }
-                dayTotals.total += cost
-              })
-
-              // Round to 4 decimal places
-              Object.keys(dayTotals).forEach(key => {
-                if (key !== 'date') {
-                  const numKey = key as keyof Omit<DailyUsage, 'date'>
-                  dayTotals[numKey] = parseFloat(dayTotals[numKey].toFixed(4))
-                }
-              })
-
-              return dayTotals
-            })
-
-            setDailyTrend(dailyData)
-          }
-
-          // Cache the data with the calculated values
-          dataCache.set('api-usage', {
-            apiBalances: balances,
-            usageHistory: [],
-            dailyTrend: dailyData,
-            pieChartData: pieData,
-            totalSpentToday: todayTotal,
-            totalSpentMonth: monthTotal,
-            hasData: currentHasData
-          })
-        }
+      if (countError) {
+        console.error('Error checking api_usage table:', countError)
+        throw countError
       }
 
-      // Set default state with real balances if no data
-      if (!currentHasData) {
+      // If no data exists yet
+      if (totalCount === 0) {
+        setHasData(false)
         const initialBalances = getRealApiBalances()
-        const defaultBalances = [
-          {
-            provider: 'Together AI',
-            initialBalance: initialBalances['together_ai'],
-            totalUsed: 0,
-            balance: initialBalances['together_ai'],
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#8B5CF6',
-            bgColor: 'bg-purple-500'
-          },
-          {
-            provider: 'OpenAI',
-            initialBalance: initialBalances['openai'],
-            totalUsed: 0,
-            balance: initialBalances['openai'],
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#10B981',
-            bgColor: 'bg-green-500'
-          },
-          {
-            provider: 'Replicate',
-            initialBalance: initialBalances['replicate'],
-            totalUsed: 0,
-            balance: initialBalances['replicate'],
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#3B82F6',
-            bgColor: 'bg-blue-500'
-          },
-          {
-            provider: 'Anthropic',
-            initialBalance: initialBalances['anthropic'],
-            totalUsed: 0,
-            balance: initialBalances['anthropic'],
-            usedToday: 0,
-            usedThisMonth: 0,
-            callsToday: 0,
-            callsThisMonth: 0,
-            color: '#F59E0B',
-            bgColor: 'bg-amber-500'
-          }
-        ]
+        const defaultBalances = createDefaultBalances(initialBalances)
         setApiBalances(defaultBalances)
         setUsageHistory([])
         setDailyTrend([])
         setPieChartData([])
         setTotalSpentToday(0)
         setTotalSpentMonth(0)
+        setLoading(false)
+        return
       }
 
-      // Fetch usage history
+      // Fetch all usage data for the month from real api_usage table
+      const { data: monthlyUsage, error: monthlyError } = await supabase
+        .from('api_usage')
+        .select('*')
+        .gte('created_at', startOfMonthISO)
+        .order('created_at', { ascending: false })
+
+      if (monthlyError) {
+        console.error('Error fetching monthly usage:', monthlyError)
+        throw monthlyError
+      }
+
+      const currentHasData = monthlyUsage && monthlyUsage.length > 0
+      setHasData(currentHasData)
+
+      if (currentHasData) {
+        // Process real data from api_usage table
+        const providerStats = processProviderStats(monthlyUsage, today)
+        
+        // Calculate totals from real data
+        let todayTotal = 0
+        let monthTotal = 0
+
+        Object.values(providerStats).forEach(stats => {
+          todayTotal += stats.today
+          monthTotal += stats.month
+        })
+
+        setTotalSpentToday(todayTotal)
+        setTotalSpentMonth(monthTotal)
+
+        // Get real API balances
+        const initialBalances = getRealApiBalances()
+
+        // Create balance objects from real data
+        const balances = createBalancesFromStats(providerStats, initialBalances)
+        setApiBalances(balances)
+
+        // Create pie chart data from real usage
+        const pieData = createPieChartData(providerStats)
+        setPieChartData(pieData)
+
+        // Fetch and process daily trend data
+        const dailyData = await fetchDailyTrend()
+        setDailyTrend(dailyData)
+
+        // Cache the processed data
+        dataCache.set('api-usage', {
+          apiBalances: balances,
+          usageHistory: [],
+          dailyTrend: dailyData,
+          pieChartData: pieData,
+          totalSpentToday: todayTotal,
+          totalSpentMonth: monthTotal,
+          hasData: currentHasData
+        })
+      }
+
+      // Fetch usage history from real api_usage table
       const { data: historyData, error: historyError } = await supabase
         .from('api_usage')
         .select('*')
@@ -392,12 +223,8 @@ export default function ApiUsageMonitor() {
         console.error('Error fetching usage history:', historyError)
         setUsageHistory([])
       } else if (historyData) {
-        // Process usage history
-        const processedHistory = historyData.map(item => ({
-          ...item,
-          business_name: 'Business ' + (item.business_id ? item.business_id.substring(0, 8) : 'Unknown')
-        }))
-
+        // Process real usage history
+        const processedHistory = await processUsageHistory(historyData)
         setUsageHistory(processedHistory)
         
         // Update cache with history data
@@ -416,58 +243,9 @@ export default function ApiUsageMonitor() {
       setError('Unable to load API usage data')
       setHasData(false)
       
-      // Set default state with real balances on error
+      // Set default state on error
       const initialBalances = getRealApiBalances()
-      setApiBalances([
-        {
-          provider: 'Together AI',
-          initialBalance: initialBalances['together_ai'],
-          totalUsed: 0,
-          balance: initialBalances['together_ai'],
-          usedToday: 0,
-          usedThisMonth: 0,
-          callsToday: 0,
-          callsThisMonth: 0,
-          color: '#8B5CF6',
-          bgColor: 'bg-purple-500'
-        },
-        {
-          provider: 'OpenAI',
-          initialBalance: initialBalances['openai'],
-          totalUsed: 0,
-          balance: initialBalances['openai'],
-          usedToday: 0,
-          usedThisMonth: 0,
-          callsToday: 0,
-          callsThisMonth: 0,
-          color: '#10B981',
-          bgColor: 'bg-green-500'
-        },
-        {
-          provider: 'Replicate',
-          initialBalance: initialBalances['replicate'],
-          totalUsed: 0,
-          balance: initialBalances['replicate'],
-          usedToday: 0,
-          usedThisMonth: 0,
-          callsToday: 0,
-          callsThisMonth: 0,
-          color: '#3B82F6',
-          bgColor: 'bg-blue-500'
-        },
-        {
-          provider: 'Anthropic',
-          initialBalance: initialBalances['anthropic'],
-          totalUsed: 0,
-          balance: initialBalances['anthropic'],
-          usedToday: 0,
-          usedThisMonth: 0,
-          callsToday: 0,
-          callsThisMonth: 0,
-          color: '#F59E0B',
-          bgColor: 'bg-amber-500'
-        }
-      ])
+      setApiBalances(createDefaultBalances(initialBalances))
       setUsageHistory([])
       setDailyTrend([])
       setPieChartData([])
@@ -476,6 +254,241 @@ export default function ApiUsageMonitor() {
       setLoading(false)
     }
   }, [])
+
+  // Helper function to process provider stats from real data
+  const processProviderStats = (monthlyUsage: any[], today: Date): Record<ProviderKey, ProviderStats> => {
+    const providerStats: Record<ProviderKey, ProviderStats> = {
+      'together_ai': {
+        today: 0,
+        month: 0,
+        callsToday: 0,
+        callsMonth: 0,
+        color: '#8B5CF6',
+        bgColor: 'bg-purple-500',
+        displayName: 'Together AI'
+      },
+      'openai': {
+        today: 0,
+        month: 0,
+        callsToday: 0,
+        callsMonth: 0,
+        color: '#10B981',
+        bgColor: 'bg-green-500',
+        displayName: 'OpenAI'
+      },
+      'replicate': {
+        today: 0,
+        month: 0,
+        callsToday: 0,
+        callsMonth: 0,
+        color: '#3B82F6',
+        bgColor: 'bg-blue-500',
+        displayName: 'Replicate'
+      },
+      'anthropic': {
+        today: 0,
+        month: 0,
+        callsToday: 0,
+        callsMonth: 0,
+        color: '#F59E0B',
+        bgColor: 'bg-amber-500',
+        displayName: 'Anthropic'
+      }
+    }
+
+    // Process real usage data
+    monthlyUsage.forEach(item => {
+      const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
+      const cost = item.cost || 0
+      const itemDate = new Date(item.created_at)
+
+      if (provider && provider in providerStats) {
+        providerStats[provider].month += cost
+        providerStats[provider].callsMonth += 1
+
+        // Check if it's today's usage
+        if (itemDate >= today) {
+          providerStats[provider].today += cost
+          providerStats[provider].callsToday += 1
+        }
+      }
+    })
+
+    return providerStats
+  }
+
+  // Helper function to create balances from stats
+  const createBalancesFromStats = (
+    providerStats: Record<ProviderKey, ProviderStats>,
+    initialBalances: Record<ProviderKey, number>
+  ): ApiBalance[] => {
+    return (Object.entries(providerStats) as [ProviderKey, ProviderStats][]).map(([key, stats]) => ({
+      provider: stats.displayName,
+      initialBalance: initialBalances[key],
+      totalUsed: stats.month,
+      balance: initialBalances[key] - stats.month,
+      usedToday: stats.today,
+      usedThisMonth: stats.month,
+      callsToday: stats.callsToday,
+      callsThisMonth: stats.callsMonth,
+      color: stats.color,
+      bgColor: stats.bgColor
+    }))
+  }
+
+  // Helper function to create pie chart data
+  const createPieChartData = (providerStats: Record<ProviderKey, ProviderStats>): PieChartData[] => {
+    return (Object.entries(providerStats) as [ProviderKey, ProviderStats][])
+      .filter(([, stats]) => stats.today > 0)
+      .map(([, stats]) => ({
+        name: stats.displayName,
+        value: parseFloat(stats.today.toFixed(4)),
+        color: stats.color
+      }))
+  }
+
+  // Helper function to fetch daily trend
+  const fetchDailyTrend = async (): Promise<DailyUsage[]> => {
+    const last7Days = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      date.setHours(0, 0, 0, 0)
+      last7Days.push(date)
+    }
+
+    const sevenDaysAgo = last7Days[0].toISOString()
+    const { data: weeklyUsage, error: weeklyError } = await supabase
+      .from('api_usage')
+      .select('*')
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: true })
+
+    if (weeklyError || !weeklyUsage) {
+      console.error('Error fetching weekly usage:', weeklyError)
+      return []
+    }
+
+    // Group by day and provider
+    return last7Days.map(date => {
+      const nextDay = new Date(date)
+      nextDay.setDate(nextDay.getDate() + 1)
+
+      const dayUsage = weeklyUsage.filter(item => {
+        const itemDate = new Date(item.created_at)
+        return itemDate >= date && itemDate < nextDay
+      })
+
+      const dayTotals: DailyUsage = {
+        date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        together_ai: 0,
+        openai: 0,
+        replicate: 0,
+        anthropic: 0,
+        total: 0
+      }
+
+      dayUsage.forEach(item => {
+        const provider = item.api_name?.toLowerCase() as ProviderKey | undefined
+        const cost = item.cost || 0
+
+        if (provider && provider in dayTotals) {
+          dayTotals[provider] += cost
+        }
+        dayTotals.total += cost
+      })
+
+      // Round to 4 decimal places
+      Object.keys(dayTotals).forEach(key => {
+        if (key !== 'date') {
+          const numKey = key as keyof Omit<DailyUsage, 'date'>
+          dayTotals[numKey] = parseFloat(dayTotals[numKey].toFixed(4))
+        }
+      })
+
+      return dayTotals
+    })
+  }
+
+  // Helper function to process usage history
+  const processUsageHistory = async (historyData: any[]): Promise<ApiUsageData[]> => {
+    // Get business names if available
+    const businessIds = [...new Set(historyData.map(item => item.business_id).filter(Boolean))]
+    
+    let businessMap: Record<string, string> = {}
+    if (businessIds.length > 0) {
+      const { data: businesses } = await supabase
+        .from('businesses')
+        .select('id, business_name')
+        .in('id',businessIds)
+      
+      if (businesses) {
+        businessMap = businesses.reduce((acc, b) => {
+          acc[b.id] = b.business_name
+          return acc
+        }, {} as Record<string, string>)
+      }
+    }
+
+    return historyData.map(item => ({
+      ...item,
+      business_name: businessMap[item.business_id] || 'Business ' + (item.business_id ? item.business_id.substring(0, 8) : 'Unknown')
+    }))
+  }
+
+  // Helper function to create default balances
+  const createDefaultBalances = (initialBalances: Record<ProviderKey, number>): ApiBalance[] => {
+    return [
+      {
+        provider: 'Together AI',
+        initialBalance: initialBalances['together_ai'],
+        totalUsed: 0,
+        balance: initialBalances['together_ai'],
+        usedToday: 0,
+        usedThisMonth: 0,
+        callsToday: 0,
+        callsThisMonth: 0,
+        color: '#8B5CF6',
+        bgColor: 'bg-purple-500'
+      },
+      {
+        provider: 'OpenAI',
+        initialBalance: initialBalances['openai'],
+        totalUsed: 0,
+        balance: initialBalances['openai'],
+        usedToday: 0,
+        usedThisMonth: 0,
+        callsToday: 0,
+        callsThisMonth: 0,
+        color: '#10B981',
+        bgColor: 'bg-green-500'
+      },
+      {
+        provider: 'Replicate',
+        initialBalance: initialBalances['replicate'],
+        totalUsed: 0,
+        balance: initialBalances['replicate'],
+        usedToday: 0,
+        usedThisMonth: 0,
+        callsToday: 0,
+        callsThisMonth: 0,
+        color: '#3B82F6',
+        bgColor: 'bg-blue-500'
+      },
+      {
+        provider: 'Anthropic',
+        initialBalance: initialBalances['anthropic'],
+        totalUsed: 0,
+        balance: initialBalances['anthropic'],
+        usedToday: 0,
+        usedThisMonth: 0,
+        callsToday: 0,
+        callsThisMonth: 0,
+        color: '#F59E0B',
+        bgColor: 'bg-amber-500'
+      }
+    ]
+  }
 
   useEffect(() => {
     if (!hasFetched.current) {
