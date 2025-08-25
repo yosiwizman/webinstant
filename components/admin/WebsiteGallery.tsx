@@ -230,7 +230,7 @@ export default function WebsiteGallery() {
       fetchPreviews();
       fetchStats();
     }
-  }, []);
+  }, [fetchPreviews, fetchStats]);
 
   useEffect(() => {
     filterPreviews();
