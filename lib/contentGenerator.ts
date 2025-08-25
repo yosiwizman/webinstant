@@ -552,9 +552,6 @@ export function generateTrustSignals(businessType: string, businessName: string)
     ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Emergency Service', '⚡ 24/7 Available'] :
     ['🛡️ Licensed & Insured', '👨‍👩‍👧‍👦 Family Owned', '⭐ Top Rated', '⚡ Same Day Service'];
   
-  // Could use businessName to customize badges further
-  const customBadge = businessName.length > 15 ? '🏆 Established Business' : '🌟 Local Favorite';
-  
   return `
     <section class="trust-signals">
       <div class="container">
@@ -1664,7 +1661,7 @@ export function getThemeForType(type: string): BusinessTheme {
       isDark: false
     },
     plumbing: {
-      primary: 'linear-gradient(135deg, #003D7A, #0066CC)',
+      primary: 'linear-gradient(135deg,  #003D7A, #0066CC)',
       accent: '#00AA44',
       background: 'linear-gradient(-45deg, #003D7A, #0066CC, #0099FF, #00AA44)',
       text: '#333333',
@@ -1711,8 +1708,7 @@ export function createSlug(businessName: string): string {
     .substring(0, 50);
 }
 
-export function getImagePrompt(type: string, imageType: string, businessName: string): string {
-  // Using businessName to customize prompts
+export function getImagePrompt(type: string, imageType: string): string {
   const prompts: { [key: string]: { [key: string]: string } } = {
     restaurant: {
       hero: `luxurious fine dining restaurant interior, warm ambient lighting, elegant table settings, crystal chandeliers, mahogany furniture, wine cellar visible, professional food photography, michelin star quality, golden hour lighting`,
@@ -1753,6 +1749,5 @@ export function getImagePrompt(type: string, imageType: string, businessName: st
   };
   
   const businessPrompts = prompts[type] || prompts.general;
-  // Could customize prompts based on businessName in the future
   return businessPrompts[imageType] || businessPrompts.hero;
 }
