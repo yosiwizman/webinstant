@@ -917,7 +917,7 @@ export class ContentGenerator {
   private async initializeOptionalServices() {
     //  Initialize Anthropic if available
     if (process.env.ANTHROPIC_API_KEY && Anthropic) {
-      this.anthropic = new (Anthropic as new (config: { apiKey: string }) => unknown)({
+      this.anthropic = new (Anthropic as new (config: { apiKey: string }) =>  unknown)({
         apiKey: process.env.ANTHROPIC_API_KEY,
       });
     }
@@ -1251,11 +1251,9 @@ export function getCategoryTheme(type: string): CategoryTheme {
     beauty: {
       colors: {
         primary: '#FF1493',   // Deep pink (as specified)
-        secondary: '#DDA0DD', // Plum
+        secondary: '#DDA0DD', //  Plum
         accent: '#FFB6C1',    // Light pink
-        hero: '
-
--gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)', // Pink gradient
+        hero: 'linear-gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)', // Pink gradient
         text: '#4A0E2E',      // Dark purple
         light: '#FFF0F5',     // Lavender blush
         dark: '#8B008B'       // Dark magenta
