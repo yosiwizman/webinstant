@@ -540,8 +540,7 @@ async function generateVideoBackground(businessType: string, businessId?: string
 }
 
 // Trust Signals Generation
-export function generateTrustSignals(businessType: string, businessName: string): string {
-  // Using businessName to potentially customize trust signals in the future
+export function generateTrustSignals(businessType: string): string {
   const yearFounded = 2015 + Math.floor(Math.random() * 5); // Random year 2015-2019
   const customerCount = 300 + Math.floor(Math.random() * 700); // 300-1000 customers
   
@@ -1254,7 +1253,9 @@ export function getCategoryTheme(type: string): CategoryTheme {
         primary: '#FF1493',   // Deep pink (as specified)
         secondary: '#DDA0DD', // Plum
         accent: '#FFB6C1',    // Light pink
-        hero: 'linear-gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)', // Pink gradient
+        hero: '
+
+-gradient(135deg, #FF69B4 0%, #FF1493 50%, #C71585 100%)', // Pink gradient
         text: '#4A0E2E',      // Dark purple
         light: '#FFF0F5',     // Lavender blush
         dark: '#8B008B'       // Dark magenta
