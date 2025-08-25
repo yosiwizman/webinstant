@@ -350,7 +350,7 @@ The Team`,
         const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
 
         let businesses: Business[] = [];
-        let templates: EmailTemplate[] = [];
+        let templates: Array<{ id: string; name: string }> = [];
 
         if (businessIds.length > 0) {
           const { data: bizData } = await supabase
@@ -412,7 +412,7 @@ The Team`,
         const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
 
         let businesses: Business[] = [];
-        let templates: EmailTemplate[] = [];
+        let templates: Array<{ id: string; name: string }> = [];
         let previews: Array<{ business_id: string; preview_url: string }> = [];
 
         if (businessIds.length > 0) {
