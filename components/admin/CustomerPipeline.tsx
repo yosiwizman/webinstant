@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, Activity, Star, AlertCircle } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
-import { adminStyles, DataCache, formatters } from '@/lib/admin-utils'
+import { adminStyles, DataCache } from '@/lib/admin-utils'
 
 interface Lead {
   id: string
