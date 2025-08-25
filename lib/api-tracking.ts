@@ -11,7 +11,7 @@ interface ApiUsageData {
   calls: number
   tokens: number
   cost: number
-  metadata?: any
+  metadata?: Record<string, unknown>
 }
 
 export async function trackApiUsage(data: ApiUsageData) {
@@ -102,7 +102,15 @@ export async function getAggregatedUsageByService(startDate: Date, endDate: Date
     
     if (!data) return null
     
-    const aggregated = data.reduce((acc: Record<string, any>, item) => {
+    interface ServiceAggregation {
+      service: string
+      totalCalls: number
+      totalTokens: number
+      totalCost: number
+      endpoints: Set<string>
+    }
+    
+    const aggregated = data.reduce((acc: Record<string, ServiceAggregation>, item) => {
       if (!acc[item.service]) {
         acc[item.service] = {
           service: item.service,
@@ -122,11 +130,22 @@ export async function getAggregatedUsageByService(startDate: Date, endDate: Date
     }, {})
     
     // Convert Sets to arrays for the final output
+    const result: Record<string, {
+      service: string
+      totalCalls: number
+      totalTokens: number
+      totalCost: number
+      endpoints: string[]
+    }> = {}
+    
     Object.keys(aggregated).forEach(service => {
-      aggregated[service].endpoints = Array.from(aggregated[service].endpoints)
+      result[service] = {
+        ...aggregated[service],
+        endpoints: Array.from(aggregated[service].endpoints)
+      }
     })
     
-    return aggregated
+    return result
   } catch (err) {
     console.error('Error aggregating usage by service:', err)
     return null
