@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from '@/lib/supabase';
 
 interface CampaignStats {
@@ -62,11 +62,23 @@ interface EmailTemplate {
   is_active: boolean;
 }
 
-interface EmailData {
+interface Business {
   id: string;
-  opened_at: string | null;
-  clicked_at: string | null;
-  converted_at: string | null;
+  business_name: string;
+  email?: string;
+}
+
+interface EmailRecord {
+  sent_at?: string | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
+  converted_at?: string | null;
+}
+
+interface ABTestVariantData {
+  opened_at?: string | null;
+  clicked_at?: string | null;
+  converted_at?: string | null;
 }
 
 export default function EmailCampaignCenter() {
@@ -212,14 +224,14 @@ The Team`,
       }
 
       // Filter for sent emails
-      const sentEmails = allEmails?.filter(e => e.sent_at) || [];
+      const sentEmails = (allEmails as EmailRecord[])?.filter(e => e.sent_at) || [];
       const total = sentEmails.length;
       const opened = sentEmails.filter((e) => e.opened_at).length;
       const clicked = sentEmails.filter((e) => e.clicked_at).length;
       const converted = sentEmails.filter((e) => e.converted_at).length;
 
       setStats({
-        emailsSentToday: sentToday?.filter(e => e.sent_at).length || 0,
+        emailsSentToday: (sentToday as EmailRecord[])?.filter(e => e.sent_at).length || 0,
         openRate: total > 0 ? Math.round((opened / total) * 100) : 0,
         clickRate: total > 0 ? Math.round((clicked / total) * 100) : 0,
         conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
@@ -265,7 +277,7 @@ The Team`,
         return;
       }
 
-      const calculateMetrics = (emails: any[]) => {
+      const calculateMetrics = (emails: ABTestVariantData[]) => {
         const sent = emails?.length || 0;
         const opens = emails?.filter(e => e.opened_at).length || 0;
         const clicks = emails?.filter(e => e.clicked_at).length || 0;
@@ -282,8 +294,8 @@ The Team`,
         };
       };
 
-      const metricsA = calculateMetrics(variantA || []);
-      const metricsB = calculateMetrics(variantB || []);
+      const metricsA = calculateMetrics((variantA as ABTestVariantData[]) || []);
+      const metricsB = calculateMetrics((variantB as ABTestVariantData[]) || []);
 
       // Determine winner based on click rate
       let winner: "A" | "B" | undefined;
@@ -337,8 +349,8 @@ The Team`,
         const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
         const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
 
-        let businesses: any[] = [];
-        let templates: any[] = [];
+        let businesses: Business[] = [];
+        let templates: EmailTemplate[] = [];
 
         if (businessIds.length > 0) {
           const { data: bizData } = await supabase
@@ -399,9 +411,9 @@ The Team`,
         const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
         const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
 
-        let businesses: any[] = [];
-        let templates: any[] = [];
-        let previews: any[] = [];
+        let businesses: Business[] = [];
+        let templates: EmailTemplate[] = [];
+        let previews: Array<{ business_id: string; preview_url: string }> = [];
 
         if (businessIds.length > 0) {
           const { data: bizData } = await supabase
@@ -432,7 +444,7 @@ The Team`,
             const preview = previews.find(p => p.business_id === item.business_id);
             
             return {
-              id: item.id,
+              id: item.i,
               business_id: item.business_id,
               business_name: business?.business_name || "Unknown",
               email: business?.email || item.email || "No email",

@@ -66,6 +66,16 @@ interface ProviderStats {
   displayName: string
 }
 
+interface ApiUsageRecord {
+  id: string
+  api_name: string
+  endpoint: string
+  tokens_used: number
+  cost: number
+  business_id: string
+  created_at: string
+}
+
 // Initialize cache
 const dataCache = new DataCache<{
   apiUsageStats: ApiUsageStats[]
@@ -158,12 +168,12 @@ export default function ApiUsageMonitor() {
         throw monthlyError
       }
 
-      const currentHasData = monthlyUsage && monthlyUsage.length > 0
+      const currentHasData =monthlyUsage && monthlyUsage.length > 0
       setHasData(currentHasData)
 
       if (currentHasData) {
         // Process real data from api_usage table
-        const providerStats = processProviderStats(monthlyUsage, today)
+        const providerStats = processProviderStats(monthlyUsage as ApiUsageRecord[], today)
         
         // Calculate totals from real data
         let todayTotal = 0
@@ -221,7 +231,7 @@ export default function ApiUsageMonitor() {
         setUsageHistory([])
       } else if (historyData) {
         // Process real usage history
-        const processedHistory = await processUsageHistory(historyData)
+        const processedHistory = await processUsageHistory(historyData as ApiUsageRecord[])
         setUsageHistory(processedHistory)
         
         // Update cache with history data
@@ -297,7 +307,7 @@ export default function ApiUsageMonitor() {
   }
 
   // Helper function to process provider stats from real data
-  const processProviderStats = (monthlyUsage: any[], today: Date): Record<ProviderKey, ProviderStats> => {
+  const processProviderStats = (monthlyUsage: ApiUsageRecord[], today: Date): Record<ProviderKey, ProviderStats> => {
     const providerStats: Record<ProviderKey, ProviderStats> = {
       'together_ai': {
         today: 0,
@@ -411,7 +421,7 @@ export default function ApiUsageMonitor() {
       const nextDay = new Date(date)
       nextDay.setDate(nextDay.getDate() + 1)
 
-      const dayUsage = weeklyUsage.filter(item => {
+      const dayUsage = (weeklyUsage as ApiUsageRecord[]).filter(item => {
         const itemDate = new Date(item.created_at)
         return itemDate >= date && itemDate < nextDay
       })
@@ -448,7 +458,7 @@ export default function ApiUsageMonitor() {
   }
 
   // Helper function to process usage history
-  const processUsageHistory = async (historyData: any[]): Promise<ApiUsageData[]> => {
+  const processUsageHistory = async (historyData: ApiUsageRecord[]): Promise<ApiUsageData[]> => {
     // Get business names if available
     const businessIds = [...new Set(historyData.map(item => item.business_id).filter(Boolean))]
     
@@ -457,7 +467,7 @@ export default function ApiUsageMonitor() {
       const { data: businesses } = await supabase
         .from('businesses')
         .select('id, business_name')
-        .in('id',businessIds)
+        .in('id', businessIds)
       
       if (businesses) {
         businessMap = businesses.reduce((acc, b) => {
