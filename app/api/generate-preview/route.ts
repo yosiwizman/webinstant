@@ -2556,7 +2556,7 @@ function generatePremiumHTML(business: BusinessRecord, content: BusinessContent,
   ${getCategorySpecificSections()}
 
   <!-- Trust Signals -->
-  ${generateTrustSignals(content.businessType, businessName)}
+  ${generateTrustSignals(content.businessType)}
 
   ${getAboutSection()}
 

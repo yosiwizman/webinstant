@@ -10,6 +10,43 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  {
+    ignores: [
+      // Utility scripts
+      'check-broken-images-diagnostic.js',
+      'check-specific-previews.js',
+      'debug-image-issues.js',
+      'fix-all-broken-images.js',
+      'fix-has-website.js',
+      'fix-images.js',
+      'fix-template-variables.js',
+      'regenerate-previews.js',
+      'test-ai-apis.js',
+      // Generated files
+      'next-env.d.ts',
+      '.next/**/*',
+      'out/**/*',
+      'dist/**/*',
+      'build/**/*',
+      // Dependencies
+      'node_modules/**/*',
+      // Environment files
+      '.env*',
+      // Logs
+      '*.log',
+      'npm-debug.log*',
+      'yarn-debug.log*',
+      'yarn-error.log*',
+      // OS files
+      '.DS_Store',
+      'Thumbs.db',
+      // IDE files
+      '.vscode/**/*',
+      '.idea/**/*',
+      '*.swp',
+      '*.swo',
+    ],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 
