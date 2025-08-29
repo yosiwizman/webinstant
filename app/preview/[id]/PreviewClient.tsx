@@ -85,11 +85,99 @@ export default function PreviewClient({ preview }: PreviewClientProps) {
 
   return (
     <>
-      <div 
-        dangerouslySetInnerHTML={{ __html: htmlWithFixedImages }}
-        style={{ width: '100%', minHeight: '100vh' }}
-        suppressHydrationWarning={true}
-      />
+      {/* TOP BANNER - Claim Your Website */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#28a745',
+        color: 'white',
+        padding: '15px',
+        textAlign: 'center',
+        zIndex: 1001,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '20px',
+        flexWrap: 'wrap'
+      }}>
+        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>
+          🎉 This is YOUR website! Ready to go live in 24 hours!
+        </span>
+        <a 
+          href={`/claim/${preview.business_id}`}
+          style={{
+            backgroundColor: 'white',
+            color: '#28a745',
+            padding: '10px 30px',
+            borderRadius: '25px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            textDecoration: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            transition: 'transform 0.2s'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          Claim Now - Only $150/year
+        </a>
+      </div>
+      
+      {/* Add padding to account for fixed banner */}
+      <div style={{ paddingTop: '70px' }}>
+        <div 
+          dangerouslySetInnerHTML={{ __html: htmlWithFixedImages }}
+          style={{ width: '100%', minHeight: '100vh' }}
+          suppressHydrationWarning={true}
+        />
+      </div>
+      
+      {/* CLAIM YOUR WEBSITE BUTTON - This is what business owners see! */}
+      <a 
+        href={`/claim/${preview.business_id}`}
+        style={{
+          position: 'fixed',
+          bottom: '30px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#28a745',
+          color: 'white',
+          padding: '20px 40px',
+          borderRadius: '50px',
+          fontSize: '20px',
+          fontWeight: 'bold',
+          textDecoration: 'none',
+          cursor: 'pointer',
+          zIndex: 1000,
+          boxShadow: '0 4px 20px rgba(40, 167, 69, 0.4)',
+          animation: 'pulse 2s infinite',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}
+      >
+        💰 Claim Your Website - Only $150
+      </a>
+      
+      {/* Pulse animation */}
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 4px 20px rgba(40, 167, 69, 0.4);
+          }
+          50% {
+            box-shadow: 0 4px 30px rgba(40, 167, 69, 0.6);
+          }
+          100% {
+            box-shadow: 0 4px 20px rgba(40, 167, 69, 0.4);
+          }
+        }
+      `}</style>
+      
       <button 
         style={{
           position: 'fixed',
