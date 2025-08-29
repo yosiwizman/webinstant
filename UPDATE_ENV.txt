@@ -1,0 +1,8 @@
+UPDATE YOUR .env.local FILE:
+============================
+
+Add or update this line in your .env.local file:
+
+RESEND_API_KEY=re_h15TwNJ6_NKcUNQBLpJ1wYfdqtCNJuAa7
+
+This is your new Resend API key that needs to be added for email functionality to work.

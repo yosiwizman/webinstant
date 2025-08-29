@@ -1,0 +1,20 @@
+[33md3501ca[m fix: create missing email tables and improve error handling in EmailCampaignCenter
+[33m55e9d8a[m fix: correct syntax error and generate valid UUID for test emails
+[33mc5f5093[m fix: resolve email campaign flickering and connect revenue dashboard to real data
+[33m0531694[m feat: add test email button to verify Resend integration
+[33m1767c23[m fix: redirect emails to test address in development mode with Resend defaults
+[33m111c89a[m feat: add migration to fix missing columns in email tables
+[33m466cb5e[m feat: implement direct Resend email API with styled HTML templates
+[33mb1c50ce[m feat: add comprehensive SettingsPanel with API, email, automation, and notification configuration
+[33m9f92f0b[m feat: add QuickActions FAB component with import, generate, campaign, check, and export actions
+[33m0463058[m fix: remove unused variables and implement follow-up email functionality
+[33mc1cbe58[m Adds Puppeteer and email tracking improvements
+[33m8e5a401[m feat: add campaign send API route with POST and GET handlers
+[33mfa3d2e1[m feat: add campaign send API route
+[33m3479853[m fix: use external preview URLs and 11ty screenshot service for emails
+[33m9b0db4a[m fix: simplify screenshot API for external URLs with standard email preview viewport
+[33mc630675[m fix: replace broken screenshot service with working alternative for email previews
+[33me876258[m feat: add website preview image with screenshot service to email template
+[33me907548[m fix: correct email_sent_at column name and add success logging
+[33mf8ca0e1[m fix: replace metadata field with direct columns in email logging
+[33m30ba8d9[m fix: hardcode test email address and add success logging
