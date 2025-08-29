@@ -88,6 +88,7 @@ export default function PreviewClient({ preview }: PreviewClientProps) {
       <div 
         dangerouslySetInnerHTML={{ __html: htmlWithFixedImages }}
         style={{ width: '100%', minHeight: '100vh' }}
+        suppressHydrationWarning={true}
       />
       <button 
         style={{
