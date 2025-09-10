@@ -25,6 +25,7 @@ Additional (optional/guarded in UI components)
   - app/claim/[id]/page.tsx (fetch preview by id, then associated business data indirectly in UI)
   - components/admin/* (various dashboards)
 - Writes/Updates:
+  - app/api/leads/ingest/route.ts (upsert leads with has_website from Place Details or SerpAPI fallback)
   - app/api/generate-preview/route.ts (update website_url, industry_type)
   - app/api/verify-payment/route.ts (set payment_status, paid_at, domain_name)
   - app/api/send-campaign/route.ts (update preview_url, preview_generated_at, email_sent flags)
@@ -75,6 +76,8 @@ Schema notes:
   - app/api/send-email/route.ts (operation logs for email)
   - app/api/track-email/route.ts (email event tracking)
   - app/api/log-error/route.ts (generic error logging)
+  - app/api/leads/ingest/route.ts (lead ingest summary)
+  - app/api/jobs/daily/route.ts (daily job summary)
 
 ### campaigns
 - Writes:
