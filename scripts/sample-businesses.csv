@@ -1,0 +1,12 @@
+business_name,address,city,state,zip_code,phone,email,industry_type
+Joes Pizza,123 Main St,Austin,TX,78701,(512) 555-1234,owner@joespizza.com,restaurant
+Sparkle Cleaners,45 Oak Ave,Dallas,TX,75201,214-555-6677,hello@sparklecleaners.com,cleaning
+Elite Auto Repair,789 Elm Rd,Houston,TX,77002,713-555-9988,service@eliteauto.com,auto
+Golden Nails,22 Market St,San Antonio,TX,78205,210-555-1200,goldennails@gmail.com,beauty
+Rapid Plumbers,900 Water Way,Fort Worth,TX,76102,817-555-3322,contact@rapidplumbers.com,plumbing
+Sunrise Bakery,10 Sunrise Blvd,El Paso,TX,79901,915-555-7788,bakery@sunrise.com,restaurant
+Luxe Salon,77 Fashion Ln,Plano,TX,75023,469-555-4321,info@luxesalon.com,beauty
+TechFix IT,300 Silicon Dr,Round Rock,TX,78664,737-555-9090,support@techfixit.com,service
+Happy Paws Grooming,14 Pet Park,Frisco,TX,75033,972-555-6060,hello@happypaws.com,service
+Metro Movers,555 Cargo Ct,Arlington,TX,76010,682-555-2222,book@metromovers.com,moving
+

@@ -1,9 +1,11 @@
 'use client'
-
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, ReactElement } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getBrowserSupabase } from '@/lib/supabaseClient'
 import dynamic from 'next/dynamic'
 import ThemeToggle from '@/components/admin/ThemeToggle'
+import CsvUpload from './components/CsvUpload'
 
 // Dynamic imports for better code splitting
 const RevenueDashboard = dynamic(() => import('@/components/admin/RevenueDashboard'), {
@@ -53,6 +55,7 @@ const LoadingComponent = () => (
 )
 
 export default function AdminPage() {
+  const supabase: any = getBrowserSupabase()
   const [activeSection, setActiveSection] = useState<ActiveSection>('revenue')
   const [quickStats, setQuickStats] = useState<QuickStats>({
     revenueToday: 0,
@@ -89,7 +92,8 @@ export default function AdminPage() {
 
       if (revenueError) throw revenueError
 
-      const revenueToday = revenueData?.reduce((sum, sub) => sum + (sub.amount || 0), 0) || 0
+      const revArray = (revenueData as Array<{ amount?: number }> | null) || []
+      const revenueToday = revArray.reduce((sum: number, sub: { amount?: number }) => sum + (sub.amount || 0), 0)
 
       // Fetch emails sent today
       const { count: emailCount, error: emailError } = await supabase
@@ -389,6 +393,11 @@ export default function AdminPage() {
               )}
             </button>
           </div>
+        </div>
+
+        {/* CSV Import Card */}
+        <div className="mb-8">
+          <CsvUpload />
         </div>
 
         {/* Quick Stats Cards */}
