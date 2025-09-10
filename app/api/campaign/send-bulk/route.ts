@@ -9,7 +9,9 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { businessIds, template = 'website_ready' } = await req.json()
+    const body = await req.json()
+    const businessIds: string[] = body.businessIds || body.business_ids
+    const template: string = body.template || 'website_ready'
 
     if (!Array.isArray(businessIds) || businessIds.length === 0) {
       return NextResponse.json({ success: false, error: 'businessIds[] required' }, { status: 400 })
@@ -59,7 +61,7 @@ export async function GET() {
   return NextResponse.json({
     message: 'Bulk campaign endpoint',
     method: 'POST',
-    body: { businessIds: ['uuid', 'uuid'], template: 'website_ready' }
+    body: { businessIds: ['uuid', 'uuid'], business_ids: ['uuid'], template: 'website_ready' }
   })
 }
 

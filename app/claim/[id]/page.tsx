@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { getBrowserSupabase } from '@/lib/supabaseClient'
 
 interface WebsitePreview {
   id: string
@@ -24,6 +24,8 @@ export default function ClaimPage() {
   const [businessEmail, setBusinessEmail] = useState<string>('')
   const [businessName, setBusinessName] = useState<string>('')
   const [alreadyPaid, setAlreadyPaid] = useState<boolean>(false)
+
+  const supabase = getBrowserSupabase()
 
   const fetchWebsitePreview = useCallback(async () => {
     try {

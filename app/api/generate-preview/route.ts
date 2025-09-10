@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getServerSupabase } from '@/lib/supabaseClient';
 import { 
   detectBusinessType, 
   getCategoryTheme,
@@ -49,7 +49,7 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-async function generateUniqueSlug(baseName: string): Promise<string> {
+async function generateUniqueSlug(supabase: ReturnType<typeof getServerSupabase>, baseName: string): Promise<string> {
   let slug = generateSlug(baseName);
   let counter = 1;
   
@@ -58,7 +58,7 @@ async function generateUniqueSlug(baseName: string): Promise<string> {
       .from('website_previews')
       .select('slug')
       .eq('slug', slug)
-      .single();
+      .maybeSingle();
     
     if (!existing) {
       return slug;
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
   console.log('\n🚀 Starting preview generation process');
   console.log('================================================');
   
+  const supabase = getServerSupabase();
   try {
     let businessId: string | undefined;
     try {
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
         const layoutVariation = getLayoutVariation(business.business_name);
         
         // Generate unique slug
-        const slug = await generateUniqueSlug(business.business_name);
+const slug = await generateUniqueSlug(supabase, business.business_name);
         const previewUrl = `/preview/${slug}`;
         
         // Detect business type if not set
