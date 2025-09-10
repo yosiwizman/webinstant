@@ -11,6 +11,12 @@ interface EditPanelProps {
   onSave: (updates: EditPanelUpdates) => void
 }
 
+interface SocialLinks {
+  facebook?: string
+  instagram?: string
+  twitter?: string
+}
+
 interface EditPanelData {
   menuItems?: MenuItem[]
   services?: Service[]
@@ -21,6 +27,8 @@ interface EditPanelData {
   serviceAreas?: string
   appointmentLink?: string
   products?: string
+  email?: string
+  socialLinks?: SocialLinks
 }
 
 interface EditPanelUpdates {
@@ -35,6 +43,9 @@ interface EditPanelUpdates {
   staff?: Staff[]
   appointmentLink?: string
   products?: string
+  email?: string
+  socialLinks?: SocialLinks
+  hours?: Record<string, string>
 }
 
 interface MenuItem {
@@ -106,6 +117,28 @@ export default function EditPanel({
   const [appointmentLink, setAppointmentLink] = useState(initialData.appointmentLink || '')
   const [products, setProducts] = useState(initialData.products || '')
   const [isSaving, setIsSaving] = useState(false)
+  const [email, setEmail] = useState(initialData.email || '')
+  const [facebook, setFacebook] = useState(initialData.socialLinks?.facebook || '')
+  const [instagram, setInstagram] = useState(initialData.socialLinks?.instagram || '')
+  const [twitter, setTwitter] = useState(initialData.socialLinks?.twitter || '')
+  const [hoursMap, setHoursMap] = useState<Record<string, string>>({})
+  const [contactError, setContactError] = useState<string | null>(null)
+
+  const timeOptions = (() => {
+    const opts: string[] = []
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const mer = h >= 12 ? 'PM' : 'AM'
+        let displayH = h % 12
+        if (displayH === 0) displayH = 12
+        opts.push(`${displayH}:${pad(m)} ${mer}`)
+      }
+    }
+    return opts
+  })()
+
+  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
   // Add new menu item
   const addMenuItem = () => {
@@ -187,6 +220,35 @@ export default function EditPanel({
       timestamp: new Date().toISOString()
     }
 
+    // Basic email validation if provided
+    if (email) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      if (!emailOk) {
+        setContactError('Please provide a valid email address')
+        setIsSaving(false)
+        return
+      }
+      updates.email = email
+    }
+
+    // Social links (optional) with basic URL validation
+    const socials: SocialLinks = {}
+    const urlOk = (u: string) => !u || /^https?:\/\//i.test(u)
+    if (!urlOk(facebook) || !urlOk(instagram) || !urlOk(twitter)) {
+      setContactError('Social links must be full URLs starting with http:// or https://')
+      setIsSaving(false)
+      return
+    }
+    if (facebook) socials.facebook = facebook
+    if (instagram) socials.instagram = instagram
+    if (twitter) socials.twitter = twitter
+    if (Object.keys(socials).length > 0) updates.socialLinks = socials
+
+    // Hours
+    if (Object.keys(hoursMap).length > 0) {
+      updates.hours = hoursMap
+    }
+
     if (category === 'RESTAURANT') {
       updates.menuItems = menuItems.filter(item => item.name && item.price)
       updates.dailySpecial = dailySpecial
@@ -238,6 +300,55 @@ export default function EditPanel({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          {/* Contact & Social */}
+          <div className="mb-8 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800">Contact & Social</h3>
+            {contactError && (
+              <div className="text-sm text-red-600">{contactError}</div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="owner@example.com"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Facebook URL</label>
+                <input
+                  type="url"
+                  value={facebook}
+                  onChange={(e) => setFacebook(e.target.value)}
+                  placeholder="https://facebook.com/yourpage"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Instagram URL</label>
+                <input
+                  type="url"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  placeholder="https://instagram.com/yourpage"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Twitter URL</label>
+                <input
+                  type="url"
+                  value={twitter}
+                  onChange={(e) => setTwitter(e.target.value)}
+                  placeholder="https://twitter.com/yourhandle"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
           {/* Restaurant Category */}
           {category === 'RESTAURANT' && (
             <div className="space-y-6">
@@ -547,36 +658,42 @@ export default function EditPanel({
             </div>
           )}
 
-          {/* General Category (fallback) */}
-          {category === 'GENERAL' && (
-            <div className="text-center py-12">
-              <p className="text-gray-600">
-                Business type not recognized. Showing standard edit options.
-              </p>
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Hours
-                  </label>
-                  <textarea
-                    placeholder="Enter your business hours..."
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+          {/* Business Hours */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Business Hours</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {days.map((d) => (
+                <div key={d} className="flex items-center gap-2">
+                  <div className="w-28 text-gray-700 text-sm">{d}</div>
+                  <select
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => {
+                      const from = e.target.value
+                      const to = hoursMap[d]?.split(' - ')[1] || ''
+                      setHoursMap(prev => ({ ...prev, [d]: from && to ? `${from} - ${to}` : from }))
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="">From</option>
+                    {timeOptions.map(t => <option key={`from-${d}-${t}`} value={t}>{t}</option>)}
+                  </select>
+                  <span className="text-gray-500">to</span>
+                  <select
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => {
+                      const to = e.target.value
+                      const from = hoursMap[d]?.split(' - ')[0] || ''
+                      setHoursMap(prev => ({ ...prev, [d]: from && to ? `${from} - ${to}` : to }))
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="">To</option>
+                    {timeOptions.map(t => <option key={`to-${d}-${t}`} value={t}>{t}</option>)}
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Contact Information
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Phone number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}

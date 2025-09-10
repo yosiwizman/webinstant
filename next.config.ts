@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Silence workspace root inference warning by explicitly setting tracing root
+  outputFileTracingRoot: path.join(__dirname),
 };
 
 export default nextConfig;

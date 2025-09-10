@@ -8,7 +8,7 @@ This document inventories all known DB interactions by table, notes schema misma
 - payment_intents
 - email_logs
 - operations_log
-- campaign_logs
+- campaigns
 - api_usage
 
 Additional (optional/guarded in UI components)
@@ -38,11 +38,12 @@ Schema notes:
 - Writes/Updates:
   - app/api/generate-preview/route.ts (insert/update html_content, preview_url, template_used, slug)
   - app/api/save-edit/route.ts (update custom_edits)
-  - app/api/preview/update/route.ts (update html_content, custom_edits, last_edited_at)
+  - app/api/preview/update/route.ts (update html_content, custom_edits, last_edited_at, email, social_links)
   - app/api/upload-logo/route.ts (update logo_url; and optional HTML tag replacement)
   - app/api/fix-preview-urls/route.ts (update preview_url)
 
-Schema mismatches:
+Schema notes:
+- Added optional columns to support UX edits: email (string), social_links (jsonb)
 - last_edited_at vs updated_at (different endpoints set different timestamps)
 - preview.slug vs website_previews.preview_url used inconsistently in some UIs
 
@@ -64,9 +65,10 @@ Schema mismatches:
   - app/api/track-email/route.ts (email event tracking)
   - app/api/log-error/route.ts (generic error logging)
 
-### campaign_logs
+### campaigns
 - Writes:
-  - app/api/send-campaign/route.ts (summary record for campaign run)
+  - app/api/campaign/send-bulk/route.ts (summary record for bulk campaign run)
+  - app/api/send-campaign/route.ts (legacy summary record)
 
 ### api_usage
 - Writes:

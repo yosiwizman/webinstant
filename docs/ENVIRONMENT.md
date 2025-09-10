@@ -45,5 +45,6 @@ Do not commit real values. This document lists variable NAMES only and their fea
 ## Notes & Hygiene
 - .env.example exists and should be kept in sync with variable names above.
 - Never print or log real env values. Use placeholders in docs and scripts.
+- NEXT_PUBLIC_BASE_URL used by bulk campaign endpoint to call internal routes
 - Critical typo to fix during P0: app/api/preview/update/route.ts uses NEXT_PUBLIC_SUPABASE_AN_KEY (missing `ON`).
 

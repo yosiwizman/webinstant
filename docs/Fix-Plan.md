@@ -39,6 +39,11 @@ Prioritization per acceptance criteria.
    - Add simple table in /admin pulling last 24h from api_usage with provider breakdown
 3) Screenshot route improvement (optional)
    - Integrate Puppeteer locally under a dev flag to capture real screenshots or keep SVG placeholder in prod
+4) Bulk Email Campaigns (Phase 2)
+   - API: POST /api/campaign/send-bulk (accepts businessIds[], template) → uses existing /api/send-email
+   - UI: Admin dashboard panel with checkboxes, template dropdown, send button, and basic open/click metrics
+   - Logging: Insert campaign summaries into campaigns table (id, type, template, totals, results)
+   - Build hygiene: eliminate ESLint warnings, set next.config.ts outputFileTracingRoot to silence workspace warning
 
 ## Validation & Tests
 - Add a minimal route test suite for /api/preview/update with fixture HTML and asserts on replacements

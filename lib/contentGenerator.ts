@@ -771,7 +771,7 @@ export async function generateBusinessImages(businessType: string, businessName:
     throw new Error('Replicate returned no output');
   };
 
-  const tryTogether = async (prompt: string, label: string): Promise<string> => {
+const tryTogether = async (prompt: string): Promise<string> => {
     if (!process.env.TOGETHER_API_KEY) throw new Error('TOGETHER_API_KEY missing');
     const response = await fetch('https://api.together.xyz/v1/images/generations', {
       method: 'POST',
@@ -823,12 +823,12 @@ export async function generateBusinessImages(businessType: string, businessName:
     }
 
     return { hero: images[0], service: images[1], team: images[2], gallery: images };
-  } catch (replicateError) {
+  } catch {
     console.log('  ⚠️ Replicate generation failed, falling back to Together AI');
     // Fallback to Together AI for all images
-    const hero = await withRetries(() => tryTogether(prompts.hero, 'hero'), 'together-hero');
-    const service = await withRetries(() => tryTogether(prompts.service, 'service'), 'together-service');
-    const team = await withRetries(() => tryTogether(prompts.team, 'team'), 'together-team');
+    const hero = await withRetries(() => tryTogether(prompts.hero), 'together-hero');
+    const service = await withRetries(() => tryTogether(prompts.service), 'together-service');
+    const team = await withRetries(() => tryTogether(prompts.team), 'together-team');
     return { hero, service, team, gallery: [hero, service, team] };
   }
 }

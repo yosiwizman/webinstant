@@ -13,17 +13,8 @@ function PaymentSuccessInner() {
   const businessId = searchParams.get('business_id');
   const sessionId = searchParams.get('session_id');
 
-  useEffect(() => {
-    if (sessionId) {
-      // Verify payment with backend
-      verifyPayment();
-    } else {
-      setStatus('error');
-      setMessage('Invalid payment session');
-    }
-  }, [sessionId]);
-
   const verifyPayment = async () => {
+    if (!sessionId) return;
     try {
       const response = await fetch('/api/verify-payment', {
         method: 'POST',
@@ -39,11 +30,22 @@ function PaymentSuccessInner() {
         setStatus('error');
         setMessage('Payment verification failed');
       }
-    } catch (error) {
+    } catch {
       setStatus('error');
       setMessage('Something went wrong');
     }
   };
+
+  useEffect(() => {
+    if (sessionId) {
+      // Verify payment with backend
+      verifyPayment();
+    } else {
+      setStatus('error');
+      setMessage('Invalid payment session');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const triggerPostPaymentActions = async () => {
     // This will trigger domain purchase and website deployment

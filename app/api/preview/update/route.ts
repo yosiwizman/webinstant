@@ -83,6 +83,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update email
+    if (updates.email) {
+      const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+      updatedHtml = updatedHtml.replace(emailRegex, updates.email)
+      try {
+        await supabase
+          .from('website_previews')
+          .update({ email: updates.email, updated_at: new Date().toISOString() })
+          .eq('id', previewId)
+      } catch (e) {
+        console.log('Note: could not update email column on website_previews:', (e as Error).message)
+      }
+    }
+
     // Update prices
     if (updates.prices && Array.isArray(updates.prices)) {
       updates.prices.forEach((priceUpdate: PriceUpdate) => {
@@ -100,6 +114,7 @@ export async function POST(request: NextRequest) {
     const mergedEdits = {
       ...existingEdits,
       ...updates,
+      social_links: updates.socialLinks || existingEdits?.social_links,
       last_modified: new Date().toISOString()
     }
 

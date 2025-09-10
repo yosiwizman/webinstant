@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import EditPanel from './EditPanel'
 
 interface PreviewClientProps {
   preview: {
@@ -199,50 +200,19 @@ export default function PreviewClient({ preview }: PreviewClientProps) {
         ✏️
       </button>
       {showEditModal && (
-        <>
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            zIndex: 9999
-          }} onClick={() => setShowEditModal(false)} />
-          <div style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'white',
-            padding: '30px',
-            borderRadius: '12px',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-            zIndex: 10000,
-            minWidth: '400px',
-            maxWidth: '90vw'
-          }}>
-            <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>Edit Options</h2>
-            <p style={{ color: '#666', marginBottom: '20px' }}>Choose what you&apos;d like to edit:</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button style={{ padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                📞 Update Phone Number
-              </button>
-              <button style={{ padding: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                🕐 Update Business Hours
-              </button>
-              <button style={{ padding: '10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                💰 Update Prices
-              </button>
-            </div>
-            <button 
-              onClick={() => setShowEditModal(false)}
-              style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-            >
-              Close
-            </button>
-          </div>
-        </>
+        <EditPanel
+          businessName={document?.title || 'Business'}
+          businessType={'general'}
+          initialData={{}}
+          onClose={() => setShowEditModal(false)}
+          onSave={async (updates) => {
+            await fetch('/api/preview/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ previewId: preview.id, businessId: preview.business_id, updates })
+            })
+          }}
+        />
       )}
     </>
   )
