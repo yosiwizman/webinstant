@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 interface WebsitePreview {
   id: string
   preview_url?: string
+  business_id?: string
   title?: string
   description?: string
   created_at?: string
@@ -20,6 +21,9 @@ export default function ClaimPage() {
   const [domainName, setDomainName] = useState('')
   const [domainAvailable, setDomainAvailable] = useState<boolean | null>(null)
   const [checkingDomain, setCheckingDomain] = useState(false)
+  const [businessEmail, setBusinessEmail] = useState<string>('')
+  const [businessName, setBusinessName] = useState<string>('')
+  const [alreadyPaid, setAlreadyPaid] = useState<boolean>(false)
 
   const fetchWebsitePreview = useCallback(async () => {
     try {
@@ -28,7 +32,7 @@ export default function ClaimPage() {
       
       const { data, error } = await supabase
         .from('website_previews')
-        .select('*')
+        .select('id, preview_url, business_id, created_at')
         .eq('id', params.id)
         .single()
 
@@ -39,6 +43,26 @@ export default function ClaimPage() {
       }
 
       setPreview(data)
+
+      // Fetch business email/name for checkout
+      if (data.business_id) {
+        const { data: biz } = await supabase
+          .from('businesses')
+          .select('business_name, email')
+          .eq('id', data.business_id)
+          .single()
+        setBusinessEmail(biz?.email || '')
+        setBusinessName(biz?.business_name || '')
+
+        // Check if already paid
+        const { data: payments } = await supabase
+          .from('payment_intents')
+          .select('status')
+          .eq('business_id', data.business_id)
+          .in('status', ['completed', 'succeeded'])
+          .limit(1)
+        setAlreadyPaid(!!(payments && payments.length > 0))
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load website preview')
     } finally {
@@ -67,15 +91,36 @@ export default function ClaimPage() {
     }, 1000)
   }
 
-  const handleClaimWebsite = () => {
+  const handleClaimWebsite = async () => {
     if (!domainName || !domainAvailable) {
       alert('Please select an available domain name first')
       return
     }
-
-    // Replace with your actual Stripe Payment Link
-    const stripePaymentLink = `https://buy.stripe.com/your-payment-link?prefilled_email=&client_reference_id=${params.id}&metadata[domain]=${domainName}.com`
-    window.open(stripePaymentLink, '_blank')
+    if (!preview?.business_id) {
+      alert('Missing business information for checkout')
+      return
+    }
+    try {
+      const resp = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: preview.business_id,
+          domainName: `${domainName}.com`,
+          email: businessEmail || undefined,
+          businessName: businessName || undefined,
+        })
+      })
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error || 'Failed to start checkout')
+      if (json.checkoutUrl) {
+        window.location.href = json.checkoutUrl
+      } else {
+        alert('Unexpected response from payment API')
+      }
+    } catch (e) {
+      alert((e as Error).message)
+    }
   }
 
   if (loading) {
@@ -227,13 +272,19 @@ export default function ClaimPage() {
           </div>
 
           {/* CTA Button */}
-          <button
-            onClick={handleClaimWebsite}
-            disabled={!domainAvailable || !domainName}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-lg shadow-lg"
-          >
-            Get My Website
-          </button>
+          {alreadyPaid ? (
+            <div className="w-full py-4 bg-green-100 text-green-800 font-semibold rounded-lg text-center">
+              Paid — Deployment in progress.
+            </div>
+          ) : (
+            <button
+              onClick={handleClaimWebsite}
+              disabled={!domainAvailable || !domainName}
+              className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-lg shadow-lg"
+            >
+              Get My Website
+            </button>
+          )}
 
           {/* Trust badges */}
           <div className="mt-6 pt-6 border-t border-gray-200">

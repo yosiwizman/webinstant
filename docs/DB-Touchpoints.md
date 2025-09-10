@@ -6,6 +6,8 @@ This document inventories all known DB interactions by table, notes schema misma
 - businesses
 - website_previews
 - payment_intents
+- payments
+- generated_websites
 - email_logs
 - operations_log
 - campaigns
@@ -51,7 +53,16 @@ Schema notes:
 - Writes:
   - app/api/create-checkout-session/route.ts (insert: stripe_session_id, business_id, domain_name, amount, status=pending, customer_email)
 - Updates:
-  - app/api/verify-payment/route.ts (status=completed, completed_at)
+  - app/api/stripe/webhook/route.ts (status=completed, completed_at)
+
+### payments
+- Writes:
+  - app/api/stripe/webhook/route.ts (insert payment record on checkout.session.completed)
+
+### generated_websites
+- Writes:
+  - app/api/stripe/webhook/route.ts (insert with status=pending_deploy after successful checkout)
+  - app/api/deploy/route.ts (upsert with target_domain, verification JSON, status transitions)
 
 ### email_logs
 - Writes:
@@ -88,7 +99,7 @@ Schema notes:
   - /api/send-email → reads businesses and website_previews; sends via Resend; logs to email_logs and operations_log
 - Payment:
   - /api/create-checkout-session → reads businesses, inserts payment_intents
-  - /api/verify-payment → verifies Stripe session, updates payment_intents and businesses; triggers send-email
+  - /api/stripe/webhook → verifies signature and, on success, updates payment_intents/payments and creates generated_websites
 - Edit Path:
   - /api/save-edit → updates website_previews.custom_edits
   - /api/preview/update → replaces phone/hours/prices in html_content, merges custom_edits
