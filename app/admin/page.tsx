@@ -18,6 +18,9 @@ const WebsiteGallery = dynamic(() => import('@/components/admin/WebsiteGallery')
 const EmailCampaignCenter = dynamic(() => import('@/components/admin/EmailCampaignCenter'), {
   loading: () => <LoadingComponent />
 })
+const BulkCampaignPanel = dynamic(() => import('@/components/admin/BulkCampaignPanel'), {
+  loading: () => <LoadingComponent />
+})
 const CustomerPipeline = dynamic(() => import('@/components/admin/CustomerPipeline'), {
   loading: () => <LoadingComponent />
 })
@@ -474,7 +477,12 @@ export default function AdminPage() {
           <div className="transition-all duration-300 ease-in-out">
             {activeSection === 'revenue' && <RevenueDashboard key={`revenue-${refreshKey}`} />}
             {activeSection === 'pipeline' && <CustomerPipeline key={`pipeline-${refreshKey}`} />}
-            {activeSection === 'campaigns' && <EmailCampaignCenter key={`campaigns-${refreshKey}`} />}
+{activeSection === 'campaigns' && (
+  <div className="space-y-6">
+    <EmailCampaignCenter key={`campaigns-${refreshKey}`} />
+    <BulkCampaignPanel />
+  </div>
+)}
             {activeSection === 'websites' && <WebsiteGallery key={`websites-${refreshKey}`} />}
             {activeSection === 'api' && <ApiUsageMonitor key={`api-${refreshKey}`} />}
             {activeSection === 'operations' && <OperationsLog key={`operations-${refreshKey}`} />}

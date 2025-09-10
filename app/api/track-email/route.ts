@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         },
         created_at: new Date().toISOString(),
       })
-    } catch (_) {
+    } catch {
       // non-fatal
     }
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         Expires: '0',
       },
     })
-  } catch (err) {
+  } catch {
     // On error, still return a pixel
     const body = Buffer.from(PIXEL_BASE64, 'base64')
     return new NextResponse(body, {

@@ -6,9 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-function toCsvValue(value: any): string {
+function toCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const str = String(value).replace(/\r?\n/g, ' ').replace(/"/g, '""')
+  const str = String(value).replace(/\r?\n/g, ' ').replace(/\"/g, '""')
   return `"${str}"`
 }
 
@@ -49,6 +49,7 @@ export async function GET() {
     const lines: string[] = []
     lines.push(headers.join(','))
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const row of rows as any[]) {
       const zip = row.zip ?? row.zip_code ?? ''
       const hasWebsite = typeof row.has_website === 'boolean'

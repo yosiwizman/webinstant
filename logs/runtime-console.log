@@ -1,0 +1,10 @@
+[2025-09-10T13:05:52.424Z] Starting headless crawl against http://localhost:3000
+[2025-09-10T13:05:55.193Z] [requestfailed] / :: GET http://localhost:3000/ :: net::ERR_CONNECTION_REFUSED
+[2025-09-10T13:05:55.196Z] [navigation-error] / :: net::ERR_CONNECTION_REFUSED at http://localhost:3000/
+[2025-09-10T13:05:57.527Z] [requestfailed] /admin :: GET http://localhost:3000/admin :: net::ERR_CONNECTION_REFUSED
+[2025-09-10T13:05:57.530Z] [navigation-error] /admin :: net::ERR_CONNECTION_REFUSED at http://localhost:3000/admin
+[2025-09-10T13:05:59.854Z] [requestfailed] /preview/test :: GET http://localhost:3000/preview/test :: net::ERR_CONNECTION_REFUSED
+[2025-09-10T13:05:59.857Z] [navigation-error] /preview/test :: net::ERR_CONNECTION_REFUSED at http://localhost:3000/preview/test
+[2025-09-10T13:06:02.192Z] [requestfailed] /claim/test :: GET http://localhost:3000/claim/test :: net::ERR_CONNECTION_REFUSED
+[2025-09-10T13:06:02.195Z] [navigation-error] /claim/test :: net::ERR_CONNECTION_REFUSED at http://localhost:3000/claim/test
+[2025-09-10T13:06:02.298Z] Headless crawl finished

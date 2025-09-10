@@ -1,27 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function PaymentSuccess() {
+function PaymentSuccessInner() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const businessId = searchParams.get('business_id');
   const sessionId = searchParams.get('session_id');
 
-  useEffect(() => {
-    if (sessionId) {
-      // Verify payment with backend
-      verifyPayment();
-    } else {
-      setStatus('error');
-      setMessage('Invalid payment session');
-    }
-  }, [sessionId]);
-
   const verifyPayment = async () => {
+    if (!sessionId) return;
     try {
       const response = await fetch('/api/verify-payment', {
         method: 'POST',
@@ -37,11 +30,22 @@ export default function PaymentSuccess() {
         setStatus('error');
         setMessage('Payment verification failed');
       }
-    } catch (error) {
+    } catch {
       setStatus('error');
       setMessage('Something went wrong');
     }
   };
+
+  useEffect(() => {
+    if (sessionId) {
+      // Verify payment with backend
+      verifyPayment();
+    } else {
+      setStatus('error');
+      setMessage('Invalid payment session');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const triggerPostPaymentActions = async () => {
     // This will trigger domain purchase and website deployment
@@ -106,7 +110,7 @@ export default function PaymentSuccess() {
                 <svg className="h-5 w-5 text-green-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>We're purchasing your domain name</span>
+                <span>We&apos;re purchasing your domain name</span>
               </li>
               <li className="flex items-start">
                 <svg className="h-5 w-5 text-green-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -118,7 +122,7 @@ export default function PaymentSuccess() {
                 <svg className="h-5 w-5 text-green-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>You'll receive login details via email</span>
+                <span>You&apos;ll receive login details via email</span>
               </li>
             </ul>
           </div>
@@ -129,7 +133,7 @@ export default function PaymentSuccess() {
               ⏱️ Your website will be live within 24 hours
             </p>
             <p className="text-xs text-blue-700 mt-1">
-              We'll email you as soon as it's ready!
+              We&apos;ll email you as soon as it&apos;s ready!
             </p>
           </div>
 
@@ -158,5 +162,13 @@ export default function PaymentSuccess() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentSuccess() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>}>
+      <PaymentSuccessInner />
+    </Suspense>
   );
 }
