@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-
-// Initialize Supabase client with service role for write operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_AN_KEY!
-)
+import { normalizeHoursString } from '@/lib/time'
 
 interface PriceUpdate {
   old: string;
@@ -16,6 +11,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { previewId, businessId, updates } = body
+
+    // Validate environment and initialize Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        { success: false, error: 'Missing Supabase environment variables (URL or KEY)' },
+        { status: 400 }
+      )
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     console.log('Updating preview:', { previewId, businessId, updates })
 
@@ -52,21 +58,24 @@ export async function POST(request: NextRequest) {
 
     // Update hours
     if (updates.hours) {
-      for (const [day, hours] of Object.entries(updates.hours)) {
-        // More sophisticated replacement for hours
+      for (const [day, rawHours] of Object.entries(updates.hours)) {
+        const hours = normalizeHoursString(String(rawHours))
         const dayCapitalized = day.charAt(0).toUpperCase() + day.slice(1)
-        // Match various formats: "Monday: 9-5", "Monday 9-5", etc.
+        const escapedDay = dayCapitalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+        // Match patterns like "Monday: 9:00 AM - 5:00 PM" without crossing tags or lines
         const dayPatterns = [
-          new RegExp(`${dayCapitalized}[:\\s]+[^<\\n]*`, 'g'),
-          new RegExp(`${day}[:\\s]+[^<\\n]*`, 'gi')
+          new RegExp(`\\b${escapedDay}\\b\\s*:\\s*[^<\\n]*`, 'g'),
+          new RegExp(`\\b${day}\\b\\s*:\\s*[^<\\n]*`, 'gi')
         ]
-        
+
         for (const pattern of dayPatterns) {
           updatedHtml = updatedHtml.replace(pattern, (match: string) => {
-            // Preserve any HTML tags in the match
-            if (match.includes('<')) {
-              const afterTag = match.substring(match.indexOf('<'))
-              return `${dayCapitalized}: ${hours}${afterTag}`
+            // Preserve any trailing HTML in the matched segment
+            const tagIndex = match.indexOf('<')
+            if (tagIndex > -1) {
+              const trailing = match.substring(tagIndex)
+              return `${dayCapitalized}: ${hours}${trailing}`
             }
             return `${dayCapitalized}: ${hours}`
           })

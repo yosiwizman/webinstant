@@ -6,10 +6,10 @@ import { supabase } from '@/lib/supabase'
 
 interface WebsitePreview {
   id: string
-  url: string
-  title: string
-  description: string
-  created_at: string
+  preview_url?: string
+  title?: string
+  description?: string
+  created_at?: string
 }
 
 export default function ClaimPage() {
@@ -114,13 +114,17 @@ export default function ClaimPage() {
   return (
     <div className="relative min-h-screen bg-gray-100">
       {/* Full-screen iframe */}
-      {preview && (
+      {preview?.preview_url ? (
         <iframe
-          src={preview.url}
+          src={preview.preview_url}
           className="w-full h-screen border-0"
           title="Website Preview"
           sandbox="allow-scripts allow-same-origin"
         />
+      ) : (
+        <div className="w-full h-screen flex items-center justify-center text-gray-600">
+          Preview URL is not available.
+        </div>
       )}
 
       {/* Floating claim card */}
