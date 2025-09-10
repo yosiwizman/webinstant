@@ -54,3 +54,9 @@ Prioritization per acceptance criteria.
 - Phase 1: Apply P0 fixes, run type/lint/build/dev, confirm headless crawl passes
 - Phase 2: Apply P1 improvements; phase 3: P2 enhancements
 
+## Release v0.2.0
+- Features: Payments (Stripe Checkout + webhook), Vercel domain deploy, Resend webhook, bulk email campaigns with A/B, leads ingestion (Places + SerpAPI), daily automation, admin metrics, circuit breakers.
+- Date: 2025-09-10
+- Tag: v0.2.0
+- Notes: See CHANGELOG.md for full details.
+
