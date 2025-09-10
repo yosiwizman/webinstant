@@ -4,6 +4,11 @@ import path from "path";
 const nextConfig: NextConfig = {
   // Silence workspace root inference warning by explicitly setting tracing root
   outputFileTracingRoot: path.join(__dirname),
+  async redirects() {
+    return [
+      { source: '/', destination: '/admin', permanent: false },
+    ]
+  },
 };
 
 export default nextConfig;
