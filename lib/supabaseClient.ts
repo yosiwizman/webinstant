@@ -10,6 +10,12 @@ export function getBrowserSupabase() {
     _browser = createClient(url, anon, {
       auth: { persistSession: true }
     })
+    // Track number of browser clients created (for diagnostics in DB Health card)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g: any = globalThis as any
+      g.__sbClientCreated = (g.__sbClientCreated || 0) + 1
+    } catch {}
   }
   return _browser
 }

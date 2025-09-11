@@ -56,6 +56,47 @@ const LoadingComponent = () => (
 
 export default function AdminPage() {
   const supabase: any = getBrowserSupabase()
+
+  // Wire up Generate & Email handler after initial render
+  useEffect(() => {
+    const btn = document.querySelector('[data-testid="gen-email-run"]') as HTMLButtonElement | null
+    const countEl = document.querySelector('[data-testid="gen-count"]') as HTMLInputElement | null
+    const overwriteEl = document.querySelector('[data-testid="gen-overwrite"]') as HTMLInputElement | null
+    const statusEl = document.getElementById('gen-email-status')
+    if (!btn || !countEl || !overwriteEl || !statusEl) return
+
+    const onClick = async () => {
+      const limit = Math.max(1, parseInt(countEl.value || '10', 10))
+      const overwrite = !!overwriteEl.checked
+      statusEl.textContent = 'Generating previews…'
+      try {
+        const resp = await fetch('/api/generate-preview-batch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit, overwrite })
+        })
+        const json = await resp.json()
+        if (!resp.ok) throw new Error(json.error || 'Failed to generate')
+        statusEl.textContent = `Generated ${json.successes}/${json.processed}. Sending emails…`
+        const ids: string[] = json.business_ids_with_previews || []
+        if (ids.length) {
+          const r2 = await fetch('/api/campaign/send-bulk', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessIds: ids, template: 'A' })
+          })
+          const j2 = await r2.json()
+          if (!r2.ok || !j2.success) throw new Error(j2.error || 'Failed to send emails')
+          statusEl.textContent = `Emails sent: ${j2.sent}/${ids.length}`
+        } else {
+          statusEl.textContent = 'No businesses with preview URLs to email.'
+        }
+      } catch (e: any) {
+        statusEl.textContent = `Error: ${e.message}`
+      }
+    }
+
+    btn.addEventListener('click', onClick)
+    return () => btn.removeEventListener('click', onClick)
+  }, [])
   const [activeSection, setActiveSection] = useState<ActiveSection>('revenue')
   const [quickStats, setQuickStats] = useState<QuickStats>({
     revenueToday: 0,
@@ -398,6 +439,28 @@ export default function AdminPage() {
         {/* CSV Import Card */}
         <div className="mb-8">
           <CsvUpload />
+        </div>
+
+        {/* DB Health Card */}
+        <div className="mb-8">
+          {(() => {
+            const DbHealthCard = require('./components/DbHealthCard').default
+            return <DbHealthCard />
+          })()}
+        </div>
+
+        {/* Generate & Email Card */}
+        <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Generate & Email</h2>
+          <div className="flex items-center gap-3 mb-3">
+            <label className="text-sm text-gray-700 dark:text-gray-300">Count</label>
+            <input data-testid="gen-count" type="number" min={1} defaultValue={10} className="w-24 border rounded px-2 py-1" />
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input data-testid="gen-overwrite" type="checkbox" /> Overwrite existing previews
+            </label>
+            <button data-testid="gen-email-run" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Generate & Email</button>
+          </div>
+          <div id="gen-email-status" className="text-sm text-gray-600 dark:text-gray-300"></div>
         </div>
 
         {/* Quick Stats Cards */}

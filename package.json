@@ -9,10 +9,12 @@
     "lint": "next lint",
     "qa:trace": "playwright test --trace on",
     "qa:smoke": "playwright test tests/qa/smoke.spec.ts --reporter=list",
-    "qa:open": "playwright show-trace ./playwright-report/*/*.zip"
+    "qa:open": "playwright show-trace ./playwright-report/*/*.zip",
+    "qa:pipeline": "playwright test tests/qa/pipeline.spec.ts --reporter=list"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.38.0",
+    "next-themes": "^0.2.1",
     "@heroicons/react": "^2.1.5",
     "@supabase/supabase-js": "^2.55.0",
     "clsx": "^2.1.1",

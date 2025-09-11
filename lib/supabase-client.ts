@@ -1,16 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-export function getSupabaseClient() {
-  return supabase
-}
-
+// Delegate to the canonical browser singleton to avoid duplicate clients
+import { getBrowserSupabase } from './supabaseClient'
+export const supabase = getBrowserSupabase()
+export function getSupabaseClient() { return supabase }
 export default supabase

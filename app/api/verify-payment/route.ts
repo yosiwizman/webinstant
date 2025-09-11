@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase';
+import { getServerSupabase } from '@/lib/supabaseClient';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   console.log('🔍 Verifying payment...');
   
   try {
+    const supabase = getServerSupabase();
     const body = await request.json();
     const { sessionId } = body;
 
