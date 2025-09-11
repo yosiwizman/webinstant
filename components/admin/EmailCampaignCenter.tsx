@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback } from "react";
-import { getBrowserSupabase } from '@/lib/supabaseClient';
+import { getBrowserSupabase } from '@/lib/supabase';
 
 interface CampaignStats {
   emailsSentToday: number;
@@ -492,10 +492,7 @@ const templateIds = [...new Set((data as any[]).map((item: any) => item.template
   const handleSendTestEmail = async () => {
     setSendingTestEmail(true);
     try {
-      // Generate a valid UUID for test business ID
-      const testBusinessId = crypto.randomUUID();
-      
-      const response = await fetch('/api/send-email', {
+      const response = await fetch('/api/admin/email/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
