@@ -50,3 +50,28 @@ iframe {
     text-size-adjust: 100%;
   }
 }
+
+/* Legacy theme safeguards */
+:root { --bg: #ffffff; --fg: #0f172a; }
+body { background: var(--bg); color: var(--fg); }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#0a0a0a; --fg:#fafafa; }
+}
+
+/* Admin cards readability */
+.card,
+.bg-card {
+  background-color: #ffffff;
+}
+:root[data-theme='dark'] .card,
+:root[data-theme='dark'] .bg-card,
+[data-theme='dark'] .card,
+[data-theme='dark'] .bg-card {
+  background-color: #111827; /* gray-900 */
+}
+.border-card {
+  border-color: #e5e7eb; /* gray-200 */
+}
+[data-theme='dark'] .border-card {
+  border-color: #374151; /* gray-700 */
+}
