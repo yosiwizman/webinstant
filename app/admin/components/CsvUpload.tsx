@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react'
 import Papa from 'papaparse'
-import { getBrowserSupabase } from '@/lib/supabaseClient'
+import { getBrowserSupabase } from '@/lib/supabase'
 
 interface CsvRow { [key: string]: string | number | null | undefined }
 
@@ -32,6 +32,9 @@ export default function CsvUpload() {
   const [progress, setProgress] = useState('')
   const [result, setResult] = useState<string>('')
   const [generatePreviews, setGeneratePreviews] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [insertedIds, setInsertedIds] = useState<string[]>([])
 
   const previewRows = useMemo(() => rows.slice(0, 10), [rows])
 
@@ -76,7 +79,9 @@ export default function CsvUpload() {
   async function runImport() {
     try {
       setValidating(true)
+      setUploading(true)
       setResult('')
+      setInsertedIds([])
       if (rows.length === 0) { setResult('No rows to import'); return }
 
       // build prepared objects
@@ -100,24 +105,42 @@ export default function CsvUpload() {
         return
       }
 
-      // chunk upsert
-      const CHUNK = 500
+      // chunk insert (email-based) to avoid ON CONFLICT errors
+      const CHUNK = 300
       let affected = 0
       const insertedIds: string[] = []
 
       for (let i = 0; i < prepared.length; i += CHUNK) {
         const batch = prepared.slice(i, i + CHUNK)
-        setProgress(`Upserting ${i + 1}-${Math.min(i + CHUNK, prepared.length)} of ${prepared.length}…`)
-        const { data, error } = await supabase
-          .from('businesses')
-          .upsert(batch, { onConflict: 'business_name,city,state,phone' })
-          .select('id')
-        if (error) {
-          setResult(`Batch error at ${i + 1}: ${error.message}`)
-          return
+        setProgress(`Importing ${i + 1}-${Math.min(i + CHUNK, prepared.length)} of ${prepared.length}…`)
+
+        // Build unique email list for this batch
+        const emails = Array.from(new Set(batch.map(r => String((r as any).email || '')).filter(Boolean)))
+        let existingEmails: Array<{ id: string; email: string }> = []
+        if (emails.length > 0) {
+          const { data: exist } = await supabase
+            .from('businesses')
+            .select('id,email')
+            .in('email', emails)
+          existingEmails = exist || []
         }
-        affected += data ? data.length : 0;
-        (data as Array<{ id: string }> | null | undefined)?.forEach((d: { id: string }) => { if (d?.id) insertedIds.push(d.id) })
+        const existingSet = new Set(existingEmails.map(e => (e.email || '').toLowerCase()))
+        const toInsert = batch.filter(r => {
+          const em = String((r as any).email || '').toLowerCase()
+          return em && !existingSet.has(em)
+        })
+
+        if (toInsert.length > 0) {
+          const { data, error } = await supabase
+            .from('businesses')
+            .insert(toInsert)
+            .select('id')
+          if (error) { setResult(`Batch error at ${i + 1}: ${error.message}`); return }
+          affected += data ? data.length : 0
+          const ids: string[] = []
+          ;(data as Array<{ id: string }> | null | undefined)?.forEach((d: { id: string }) => { if (d?.id) { insertedIds.push(d.id); ids.push(d.id) } })
+          if (ids.length) setInsertedIds(prev => [...prev, ...ids])
+        }
       }
 
       setResult(`Import complete. Affected: ${affected}`)
@@ -136,11 +159,12 @@ export default function CsvUpload() {
       }
     } finally {
       setValidating(false)
+      setUploading(false)
     }
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+    <div className="bg-white text-gray-900 dark:bg-neutral-950 dark:text-neutral-50 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">CSV Import</h2>
         <a className="text-sm text-blue-600 hover:underline" href="/scripts/sample-businesses.csv" download>
@@ -149,8 +173,9 @@ export default function CsvUpload() {
       </div>
 
       <div className="space-y-3">
-        <input data-testid="csv-file" type="file" accept=".csv" onChange={onFile}
-          className="block w-full text-sm text-gray-700" />
+        <label htmlFor="csvFile" className="inline-flex items-center px-4 py-2 rounded bg-indigo-600 text-white cursor-pointer w-fit">Choose CSV</label>
+        <input id="csvFile" data-testid="csv-file" type="file" accept=".csv" onChange={onFile}
+          className="sr-only" />
         {fileName && <div className="text-xs text-gray-500">Selected: {fileName}</div>}
         {progress && <div className="text-xs text-gray-500">{progress}</div>}
       </div>
@@ -178,9 +203,23 @@ export default function CsvUpload() {
               <input type="checkbox" checked={generatePreviews} onChange={(e) => setGeneratePreviews(e.target.checked)} />
               Generate previews for imported rows
             </label>
-            <button data-testid="import-run" onClick={runImport} disabled={validating}
+            <button data-testid="import-run" onClick={runImport} disabled={validating || uploading}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-              {validating ? 'Importing…' : 'Run Import'}
+              {uploading ? 'Importing…' : 'Run Import'}
+            </button>
+            <button onClick={async () => {
+              setGenerating(true)
+              try {
+                if (insertedIds.length === 0) { alert('No imported IDs found'); return }
+                const r = await fetch('/api/preview/render-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessIds: insertedIds }) })
+                const j = await r.json()
+                alert(`Generated: ${j.generated}, Errors: ${j.errors?.length ?? 0}`)
+              } finally {
+                setGenerating(false)
+              }
+            }} disabled={generating || insertedIds.length === 0}
+              className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-50">
+              {generating ? 'Generating…' : 'Generate Websites'}
             </button>
           </div>
 
@@ -199,7 +238,23 @@ export default function CsvUpload() {
               <tbody>
                 {previewRows.map((r, i) => (
                   <tr key={i} className="odd:bg-gray-50">
-                    {headers.map(h => <td key={h} className="px-2 py-1 border-b">{String(r[h] ?? '')}</td>)}
+                    {headers.map(h => {
+                      const val = String(r[h] ?? '')
+                      if (h === 'business_name' && (r as any).business_id) {
+                        return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`/admin/businesses/${(r as any).business_id}`}>{val}</a></td>
+                      }
+                      if (h === 'address') {
+                        const addr = `${r['address'] ?? ''}, ${r['city'] ?? ''} ${r['state'] ?? ''} ${r['zip_code'] ?? ''}`
+                        return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`}>{val}</a></td>
+                      }
+                      if (h === 'phone') {
+                        return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`tel:${val.replace(/\D/g,'')}`}>{val}</a></td>
+                      }
+                      if (h === 'email') {
+                        return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`mailto:${val}`}>{val}</a></td>
+                      }
+                      return <td key={h} className="px-2 py-1 border-b">{val}</td>
+                    })}
                   </tr>
                 ))}
               </tbody>
