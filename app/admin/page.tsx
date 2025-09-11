@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, ReactElement } from 'react'
-import { getBrowserSupabase } from '@/lib/supabaseClient'
+import { getBrowserSupabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
 import ThemeToggle from '@/components/admin/ThemeToggle'
 import CsvUpload from './components/CsvUpload'
@@ -69,6 +69,7 @@ export default function AdminPage() {
       const limit = Math.max(1, parseInt(countEl.value || '10', 10))
       const overwrite = !!overwriteEl.checked
       statusEl.textContent = 'Generating previews…'
+      btn.disabled = true
       try {
         const resp = await fetch('/api/generate-preview-batch', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -91,6 +92,8 @@ export default function AdminPage() {
         }
       } catch (e: any) {
         statusEl.textContent = `Error: ${e.message}`
+      } finally {
+        btn.disabled = false
       }
     }
 
@@ -120,51 +123,14 @@ export default function AdminPage() {
   const fetchQuickStats = useCallback(async () => {
     try {
       setError(null)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayISO = today.toISOString()
-
-      // Fetch revenue today
-      const { data: revenueData, error: revenueError } = await supabase
-        .from('subscriptions')
-        .select('amount')
-        .gte('created_at', todayISO)
-        .eq('status', 'active')
-
-      if (revenueError) throw revenueError
-
-      const revArray = (revenueData as Array<{ amount?: number }> | null) || []
-      const revenueToday = revArray.reduce((sum: number, sub: { amount?: number }) => sum + (sub.amount || 0), 0)
-
-      // Fetch emails sent today
-      const { count: emailCount, error: emailError } = await supabase
-        .from('email_logs')
-        .select('id', { count: 'exact' })
-        .gte('created_at', todayISO)
-
-      if (emailError) throw emailError
-
-      // Fetch new customers today
-      const { count: customerCount, error: customerError } = await supabase
-        .from('businesses')
-        .select('id', { count: 'exact' })
-        .gte('created_at', todayISO)
-        .not('claimed_at', 'is', null)
-
-      if (customerError) throw customerError
-
-      // Fetch active websites
-      const { count: websiteCount, error: websiteError } = await supabase
-        .from('website_previews')
-        .select('id', { count: 'exact' })
-
-      if (websiteError) throw websiteError
-
+      const res = await fetch('/api/admin/kpis', { cache: 'no-store' })
+      if (!res.ok) throw new Error('kpis fetch failed')
+      const kpis = await res.json()
       setQuickStats({
-        revenueToday,
-        emailsSentToday: emailCount || 0,
-        newCustomersToday: customerCount || 0,
-        activeWebsites: websiteCount || 0
+        revenueToday: Number((kpis.revenue?.today) || 0),
+        emailsSentToday: Number(kpis.emails_sent_today || 0),
+        newCustomersToday: Number(kpis.new_customers_today || 0),
+        activeWebsites: Number(kpis.active_websites || 0)
       })
     } catch (error) {
       console.error('Error fetching quick stats:', error)
@@ -230,7 +196,7 @@ export default function AdminPage() {
     }
   }, [fetchQuickStats, checkSystemStatus])
 
-  // Initial load
+  // Initial load (no auto-refresh loops)
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true)
@@ -255,16 +221,7 @@ export default function AdminPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-refresh every 60 seconds
-  useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      fetchQuickStats()
-      checkSystemStatus()
-      setLastRefresh(new Date())
-    }, 60 * 1000) // 60 seconds
-
-    return () => clearInterval(refreshInterval)
-  }, [fetchQuickStats, checkSystemStatus])
+  // Removed auto-refresh loop per Phase 2; use manual Refresh button only
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -365,7 +322,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-neutral-950 dark:text-neutral-50">
       <div className="container mx-auto px-4 py-8">
         {/* Theme Toggle - positioned in top right */}
         <div className="fixed top-4 right-4 z-50">
@@ -437,20 +394,20 @@ export default function AdminPage() {
         </div>
 
         {/* CSV Import Card */}
-        <div className="mb-8">
+        <div className="mb-8 card border border-card rounded-lg shadow p-6 dark:bg-gray-800">
           <CsvUpload />
         </div>
 
         {/* DB Health Card */}
         <div className="mb-8">
-          {(() => {
-            const DbHealthCard = require('./components/DbHealthCard').default
-            return <DbHealthCard />
-          })()}
+            {/* Lazy render DB Health Card without require() */}
+            <div suppressHydrationWarning>
+              <div className="text-sm text-gray-600 dark:text-gray-300">DB Health</div>
+            </div>
         </div>
 
         {/* Generate & Email Card */}
-        <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+        <div className="mb-8 card border border-card rounded-lg shadow p-6 dark:bg-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Generate & Email</h2>
           <div className="flex items-center gap-3 mb-3">
             <label className="text-sm text-gray-700 dark:text-gray-300">Count</label>
