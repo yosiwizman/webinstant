@@ -60,8 +60,9 @@ test-*.ts
 # *.sql
 
 # Screenshots and generated files
-e2e-screenshots/
-screenshots/
+ e2e-screenshots/
+ screenshots/
+ smoke-report.json
 
 # Local database
 *.db
