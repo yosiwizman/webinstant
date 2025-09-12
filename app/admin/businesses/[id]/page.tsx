@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabaseClient";
+// @ts-expect-error: importing client child from server page
+import ClientActions from "./ClientActions";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +82,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <a href={mapsUrl} target="_blank" className="rounded-xl bg-gray-100 px-4 py-2 hover:bg-gray-200">Google Maps</a>
           )}
           {preview?.preview_url && (
-            <button onClick={() => { navigator.clipboard.writeText(String(preview.preview_url)); }} className="rounded-xl bg-gray-100 px-4 py-2 hover:bg-gray-200">Copy Preview Link</button>
+            // Client-side copy button
+            // @ts-expect-error Server component imports client child
+            <ClientActions previewUrl={preview.preview_url} />
           )}
         </div>
       </header>
