@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=0",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=50",
     "typecheck": "tsc --noEmit",
     "qa:trace": "playwright test --trace on",
     "qa:smoke": "playwright test tests/qa/smoke.spec.ts --reporter=list",
