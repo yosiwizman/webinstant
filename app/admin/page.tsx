@@ -1,9 +1,11 @@
 'use client'
-
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, ReactElement } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getBrowserSupabase } from '@/lib/supabase'
 import dynamic from 'next/dynamic'
 import ThemeToggle from '@/components/admin/ThemeToggle'
+import CsvUpload from './components/CsvUpload'
 
 // Dynamic imports for better code splitting
 const RevenueDashboard = dynamic(() => import('@/components/admin/RevenueDashboard'), {
@@ -53,6 +55,51 @@ const LoadingComponent = () => (
 )
 
 export default function AdminPage() {
+  const supabase: any = getBrowserSupabase()
+
+  // Wire up Generate & Email handler after initial render
+  useEffect(() => {
+    const btn = document.querySelector('[data-testid="gen-email-run"]') as HTMLButtonElement | null
+    const countEl = document.querySelector('[data-testid="gen-count"]') as HTMLInputElement | null
+    const overwriteEl = document.querySelector('[data-testid="gen-overwrite"]') as HTMLInputElement | null
+    const statusEl = document.getElementById('gen-email-status')
+    if (!btn || !countEl || !overwriteEl || !statusEl) return
+
+    const onClick = async () => {
+      const limit = Math.max(1, parseInt(countEl.value || '10', 10))
+      const overwrite = !!overwriteEl.checked
+      statusEl.textContent = 'Generating previews…'
+      btn.disabled = true
+      try {
+        const resp = await fetch('/api/generate-preview-batch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit, overwrite })
+        })
+        const json = await resp.json()
+        if (!resp.ok) throw new Error(json.error || 'Failed to generate')
+        statusEl.textContent = `Generated ${json.successes}/${json.processed}. Sending emails…`
+        const ids: string[] = json.business_ids_with_previews || []
+        if (ids.length) {
+          const r2 = await fetch('/api/campaign/send-bulk', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessIds: ids, template: 'A' })
+          })
+          const j2 = await r2.json()
+          if (!r2.ok || !j2.success) throw new Error(j2.error || 'Failed to send emails')
+          statusEl.textContent = `Emails sent: ${j2.sent}/${ids.length}`
+        } else {
+          statusEl.textContent = 'No businesses with preview URLs to email.'
+        }
+      } catch (e: any) {
+        statusEl.textContent = `Error: ${e.message}`
+      } finally {
+        btn.disabled = false
+      }
+    }
+
+    btn.addEventListener('click', onClick)
+    return () => btn.removeEventListener('click', onClick)
+  }, [])
   const [activeSection, setActiveSection] = useState<ActiveSection>('revenue')
   const [quickStats, setQuickStats] = useState<QuickStats>({
     revenueToday: 0,
@@ -76,50 +123,14 @@ export default function AdminPage() {
   const fetchQuickStats = useCallback(async () => {
     try {
       setError(null)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayISO = today.toISOString()
-
-      // Fetch revenue today
-      const { data: revenueData, error: revenueError } = await supabase
-        .from('subscriptions')
-        .select('amount')
-        .gte('created_at', todayISO)
-        .eq('status', 'active')
-
-      if (revenueError) throw revenueError
-
-      const revenueToday = revenueData?.reduce((sum, sub) => sum + (sub.amount || 0), 0) || 0
-
-      // Fetch emails sent today
-      const { count: emailCount, error: emailError } = await supabase
-        .from('email_logs')
-        .select('id', { count: 'exact' })
-        .gte('created_at', todayISO)
-
-      if (emailError) throw emailError
-
-      // Fetch new customers today
-      const { count: customerCount, error: customerError } = await supabase
-        .from('businesses')
-        .select('id', { count: 'exact' })
-        .gte('created_at', todayISO)
-        .not('claimed_at', 'is', null)
-
-      if (customerError) throw customerError
-
-      // Fetch active websites
-      const { count: websiteCount, error: websiteError } = await supabase
-        .from('website_previews')
-        .select('id', { count: 'exact' })
-
-      if (websiteError) throw websiteError
-
+      const res = await fetch('/api/admin/kpis', { cache: 'no-store' })
+      if (!res.ok) throw new Error('kpis fetch failed')
+      const kpis = await res.json()
       setQuickStats({
-        revenueToday,
-        emailsSentToday: emailCount || 0,
-        newCustomersToday: customerCount || 0,
-        activeWebsites: websiteCount || 0
+        revenueToday: Number((kpis.revenue?.today) || 0),
+        emailsSentToday: Number(kpis.emails_sent_today || 0),
+        newCustomersToday: Number(kpis.new_customers_today || 0),
+        activeWebsites: Number(kpis.active_websites || 0)
       })
     } catch (error) {
       console.error('Error fetching quick stats:', error)
@@ -185,7 +196,7 @@ export default function AdminPage() {
     }
   }, [fetchQuickStats, checkSystemStatus])
 
-  // Initial load
+  // Initial load (no auto-refresh loops)
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true)
@@ -210,16 +221,7 @@ export default function AdminPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-refresh every 60 seconds
-  useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      fetchQuickStats()
-      checkSystemStatus()
-      setLastRefresh(new Date())
-    }, 60 * 1000) // 60 seconds
-
-    return () => clearInterval(refreshInterval)
-  }, [fetchQuickStats, checkSystemStatus])
+  // Removed auto-refresh loop per Phase 2; use manual Refresh button only
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -320,7 +322,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-neutral-950 dark:text-neutral-50">
       <div className="container mx-auto px-4 py-8">
         {/* Theme Toggle - positioned in top right */}
         <div className="fixed top-4 right-4 z-50">
@@ -389,6 +391,33 @@ export default function AdminPage() {
               )}
             </button>
           </div>
+        </div>
+
+        {/* CSV Import Card */}
+        <div className="mb-8 card border border-card rounded-lg shadow p-6 dark:bg-gray-800">
+          <CsvUpload />
+        </div>
+
+        {/* DB Health Card */}
+        <div className="mb-8">
+            {/* Lazy render DB Health Card without require() */}
+            <div suppressHydrationWarning>
+              <div className="text-sm text-gray-600 dark:text-gray-300">DB Health</div>
+            </div>
+        </div>
+
+        {/* Generate & Email Card */}
+        <div className="mb-8 card border border-card rounded-lg shadow p-6 dark:bg-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Generate & Email</h2>
+          <div className="flex items-center gap-3 mb-3">
+            <label className="text-sm text-gray-700 dark:text-gray-300">Count</label>
+            <input data-testid="gen-count" type="number" min={1} defaultValue={10} className="w-24 border rounded px-2 py-1" />
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input data-testid="gen-overwrite" type="checkbox" /> Overwrite existing previews
+            </label>
+            <button data-testid="gen-email-run" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Generate & Email</button>
+          </div>
+          <div id="gen-email-status" className="text-sm text-gray-600 dark:text-gray-300"></div>
         </div>
 
         {/* Quick Stats Cards */}

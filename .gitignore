@@ -27,6 +27,9 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+*.env*
+*.local*
+*.bak*
 
 # IDE
 .vscode/
@@ -60,8 +63,9 @@ test-*.ts
 # *.sql
 
 # Screenshots and generated files
-e2e-screenshots/
-screenshots/
+ e2e-screenshots/
+ screenshots/
+ smoke-report.json
 
 # Local database
 *.db

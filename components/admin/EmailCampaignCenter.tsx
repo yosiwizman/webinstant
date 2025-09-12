@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from '@/lib/supabase';
+import { getBrowserSupabase } from '@/lib/supabase';
 
 interface CampaignStats {
   emailsSentToday: number;
@@ -82,6 +84,7 @@ interface ABTestVariantData {
 }
 
 export default function EmailCampaignCenter() {
+  const supabase: any = getBrowserSupabase();
   const [stats, setStats] = useState<CampaignStats>({
     emailsSentToday: 0,
     openRate: 0,
@@ -346,8 +349,8 @@ The Team`,
 
       if (data) {
         // Fetch related data separately
-        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
-        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
+const businessIds = [...new Set((data as any[]).map((item: any) => item.business_id).filter(Boolean))];
+const templateIds = [...new Set((data as any[]).map((item: any) => item.template_id).filter(Boolean))];
 
         let businesses: Business[] = [];
         let templates: Array<{ id: string; name: string }> = [];
@@ -369,7 +372,7 @@ The Team`,
         }
 
         setEmailQueue(
-          data.map((item) => {
+(data as any[]).map((item: any) => {
             const business = businesses.find(b => b.id === item.business_id);
             const template = templates.find(t => t.id === item.template_id);
             
@@ -408,8 +411,8 @@ The Team`,
 
       if (data) {
         // Fetch related data separately
-        const businessIds = [...new Set(data.map(item => item.business_id).filter(Boolean))];
-        const templateIds = [...new Set(data.map(item => item.template_id).filter(Boolean))];
+const businessIds = [...new Set((data as any[]).map((item: any) => item.business_id).filter(Boolean))];
+const templateIds = [...new Set((data as any[]).map((item: any) => item.template_id).filter(Boolean))];
 
         let businesses: Business[] = [];
         let templates: Array<{ id: string; name: string }> = [];
@@ -438,7 +441,7 @@ The Team`,
         }
 
         setEmailHistory(
-          data.map((item) => {
+(data as any[]).map((item: any) => {
             const business = businesses.find(b => b.id === item.business_id);
             const template = templates.find(t => t.id === item.template_id);
             const preview = previews.find(p => p.business_id === item.business_id);
@@ -489,10 +492,7 @@ The Team`,
   const handleSendTestEmail = async () => {
     setSendingTestEmail(true);
     try {
-      // Generate a valid UUID for test business ID
-      const testBusinessId = crypto.randomUUID();
-      
-      const response = await fetch('/api/send-email', {
+      const response = await fetch('/api/admin/email/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

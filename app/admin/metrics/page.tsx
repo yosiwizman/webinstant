@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getBrowserSupabase } from '@/lib/supabaseClient'
 
 export default function MetricsPage() {
   const [days, setDays] = useState<7 | 30>(7)
@@ -24,6 +24,8 @@ export default function MetricsPage() {
     from.setDate(to.getDate() - days)
     return { from: from.toISOString(), to: to.toISOString() }
   }, [days])
+
+  const supabase = getBrowserSupabase()
 
   useEffect(() => {
     (async () => {

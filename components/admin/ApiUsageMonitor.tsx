@@ -1,7 +1,9 @@
 'use client'
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getBrowserSupabase } from '@/lib/supabaseClient'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
   PieChart,
@@ -90,6 +92,7 @@ const dataCache = new DataCache<{
 }>(5) // 5 minute cache
 
 export default function ApiUsageMonitor() {
+  const supabase: any = getBrowserSupabase()
   const [apiUsageStats, setApiUsageStats] = useState<ApiUsageStats[]>([])
   const [usageHistory, setUsageHistory] = useState<ApiUsageData[]>([])
   const [dailyTrend, setDailyTrend] = useState<DailyUsage[]>([])
@@ -470,7 +473,7 @@ export default function ApiUsageMonitor() {
         .in('id', businessIds)
       
       if (businesses) {
-        businessMap = businesses.reduce((acc, b) => {
+        businessMap = (businesses as any).reduce((acc: any, b: any) => {
           acc[b.id] = b.business_name
           return acc
         }, {} as Record<string, string>)

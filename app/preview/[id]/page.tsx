@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { getServerSupabase } from '@/lib/supabaseClient'
 import PreviewClient from './PreviewClient'
 
 interface PageProps {
@@ -14,6 +14,8 @@ export default async function PreviewPage({ params }: PageProps) {
   
   console.log('📋 Requested preview ID:', paramId)
   
+  const supabase = getServerSupabase()
+
   // First try to find by preview ID (UUID)
   console.log('🔎 Attempting to fetch by preview ID (UUID)...')
   console.log('   Query: website_previews.id =', paramId)
@@ -22,7 +24,7 @@ export default async function PreviewPage({ params }: PageProps) {
     .from('website_previews')
     .select('id, business_id, preview_url, html_content, template_used, slug')
     .eq('id', paramId)
-    .single()
+.maybeSingle()
 
   console.log('   Result:', {
     found: !!previewData,
@@ -39,7 +41,7 @@ export default async function PreviewPage({ params }: PageProps) {
       .from('website_previews')
       .select('id, business_id, preview_url, html_content, template_used, slug')
       .eq('business_id', paramId)
-      .single()
+.maybeSingle()
     
     previewData = result.data
     fetchError = result.error

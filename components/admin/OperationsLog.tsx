@@ -1,7 +1,8 @@
 'use client'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { getBrowserSupabase } from '@/lib/supabaseClient'
 import { 
   CheckCircleIcon, 
   InformationCircleIcon, 
@@ -55,10 +56,7 @@ export default function OperationsLog() {
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+const supabase: any = getBrowserSupabase()
 
   // Format time helper function
   const formatTime = (date: Date): string => {
