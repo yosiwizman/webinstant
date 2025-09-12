@@ -1,6 +1,6 @@
-import { getBrowserSupabase } from '@/lib/supabase'
 'use client'
 
+import { getBrowserSupabase } from '@/lib/supabase'
 import { useEffect, useMemo, useState } from 'react'
 
 export default function CustomersList() {
