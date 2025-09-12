@@ -199,6 +199,8 @@ Features:
 
 ## 📝 Database Schema
 
+<!-- CI Nudge: minor doc tweak to trigger Actions -->
+
 ### Main Tables
 - `businesses` - Business information
 - `website_previews` - Generated websites
