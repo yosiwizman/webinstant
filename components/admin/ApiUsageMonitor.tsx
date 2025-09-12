@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getBrowserSupabase } from '@/lib/supabaseClient'
+import { getBrowserSupabase } from '@/lib/supabase'
 import { AlertCircle, TrendingUp, DollarSign, Activity } from 'lucide-react'
 import {
   PieChart,

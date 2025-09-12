@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react'
-import { getBrowserSupabase } from '@/lib/supabaseClient'
+import { getBrowserSupabase } from '@/lib/supabase'
 import { 
   CheckCircleIcon, 
   InformationCircleIcon, 

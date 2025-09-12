@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { getBrowserSupabase } from '@/lib/supabase';
 import {
   Eye,
   Mail,
@@ -74,10 +74,7 @@ export default function WebsiteGallery() {
   const hasFetchedData = useRef(false);
   const cachedPreviews = useRef<WebsitePreview[]>([]);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getBrowserSupabase() as any;
 
   const fetchPreviews = useCallback(async (forceRefresh = false) => {
     // Use cached data if available and not forcing refresh

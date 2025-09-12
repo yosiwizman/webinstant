@@ -12,18 +12,18 @@
     "qa:smoke": "playwright test tests/qa/smoke.spec.ts --reporter=list",
     "qa:open": "playwright show-trace ./playwright-report/*/*.zip",
     "qa:pipeline": "playwright test tests/qa/pipeline.spec.ts --reporter=list",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "tsx scripts/smoke.ts --base http://localhost:3000",
     "smoke:win": "powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.38.0",
-    "next-themes": "^0.2.1",
     "@heroicons/react": "^2.1.5",
     "@supabase/supabase-js": "^2.55.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.1",
     "lucide-react": "^0.540.0",
     "next": "^15.5.0",
+    "next-themes": "^0.2.1",
     "openai": "^5.12.2",
     "papaparse": "^5.5.3",
     "puppeteer": "^24.16.2",
@@ -41,7 +41,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.55.0",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^20",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
@@ -49,6 +49,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }
