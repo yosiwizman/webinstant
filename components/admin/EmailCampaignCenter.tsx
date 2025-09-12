@@ -498,7 +498,7 @@ const templateIds = [...new Set((data as any[]).map((item: any) => item.template
         body: JSON.stringify({
           to: testEmailAddress,
           businessName: 'Test Business',
-          businessId: testBusinessId,
+          businessId: 'test-business-id',
           subject: 'WebInstant Test Email',
           content: `
             <h1 style="color: #333;">Test Email from WebInstant</h1>

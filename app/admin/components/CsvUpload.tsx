@@ -122,7 +122,7 @@ export default function CsvUpload() {
             .from('businesses')
             .select('id,email')
             .in('email', emails)
-          existingEmails = exist || []
+          existingEmails = (exist as Array<{ id: string; email: string }> | null | undefined) ?? []
         }
         const existingSet = new Set(existingEmails.map(e => (e.email || '').toLowerCase()))
         const toInsert = batch.filter(r => {

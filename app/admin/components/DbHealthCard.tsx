@@ -19,8 +19,7 @@ export default function DbHealthCard() {
       const json = await res.json()
       setReport(json)
       try {
-        // @ts-expect-error window probe
-        setClientCount((window as any).__sbClientCreated || 0)
+        setClientCount(((window as any)?.__sbClientCreated as number | undefined) ?? 0)
       } catch {}
     } catch (e) {
       setError((e as Error).message)
