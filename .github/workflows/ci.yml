@@ -1,17 +1,16 @@
 name: CI
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ master, main ]
+    branches: [ master ]
     paths-ignore:
-◦  "**/*.md"
-◦  ".vscode/**"
+      - "**/*.md"
+      - ".vscode/**"
   pull_request:
-    branches: [ master, main ]
+    branches: [ master ]
     paths-ignore:
-◦  "**/*.md"
-◦  ".vscode/**"
+      - "**/*.md"
+      - ".vscode/**"
 
 concurrency:
   group: ci-${{ github.ref }}
