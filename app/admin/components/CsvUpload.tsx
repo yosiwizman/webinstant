@@ -35,8 +35,20 @@ export default function CsvUpload() {
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [insertedIds, setInsertedIds] = useState<string[]>([])
+  const [overwrite, setOverwrite] = useState<boolean>(false)
+  const [emailToId, setEmailToId] = useState<Record<string, string>>({})
 
   const previewRows = useMemo(() => rows.slice(0, 10), [rows])
+
+  // Compute available IDs (inserted or annotated by email)
+  const availableIds = useMemo(() => {
+    if (insertedIds.length > 0) return insertedIds
+    const ids = new Set<string>()
+    rows.forEach((r) => {
+      const em = String(r['email'] ?? '').toLowerCase(); const id = emailToId[em]; if (id) ids.add(id)
+    })
+    return Array.from(ids)
+  }, [insertedIds, rows, emailToId])
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -134,11 +146,16 @@ export default function CsvUpload() {
           const { data, error } = await supabase
             .from('businesses')
             .insert(toInsert)
-            .select('id')
+            .select('id,email')
           if (error) { setResult(`Batch error at ${i + 1}: ${error.message}`); return }
           affected += data ? data.length : 0
           const ids: string[] = []
-          ;(data as Array<{ id: string }> | null | undefined)?.forEach((d: { id: string }) => { if (d?.id) { insertedIds.push(d.id); ids.push(d.id) } })
+          ;(data as Array<{ id: string; email?: string }> | null | undefined)?.forEach((d) => {
+            if (d?.id) {
+              insertedIds.push(d.id); ids.push(d.id)
+              const em = String(d.email || '').toLowerCase(); if (em) setEmailToId(prev => ({ ...prev, [em]: d.id }))
+            }
+          })
           if (ids.length) setInsertedIds(prev => [...prev, ...ids])
         }
       }
@@ -203,21 +220,43 @@ export default function CsvUpload() {
               <input type="checkbox" checked={generatePreviews} onChange={(e) => setGeneratePreviews(e.target.checked)} />
               Generate previews for imported rows
             </label>
+            <label className="inline-flex items-center gap-2 text-sm" title="If enabled, existing previews may be regenerated">
+              <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
+              Overwrite existing
+            </label>
             <button data-testid="import-run" onClick={runImport} disabled={validating || uploading}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
               {uploading ? 'Importing…' : 'Run Import'}
             </button>
             <button onClick={async () => {
               setGenerating(true)
+              setResult('')
               try {
-                if (insertedIds.length === 0) { alert('No imported IDs found'); return }
-                const r = await fetch('/api/preview/render-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessIds: insertedIds }) })
-                const j = await r.json()
-                alert(`Generated: ${j.generated}, Errors: ${j.errors?.length ?? 0}`)
+                const ids = availableIds.slice(0, 100)
+                if (ids.length === 0) { alert('Import a CSV first to enable'); return }
+                setProgress(`Queueing ${ids.length} jobs (cap 100)…`)
+                const pool = 4
+                let active = 0, idx = 0, generated = 0, failed = 0, skipped = 0
+                await new Promise<void>((resolve) => {
+                  const runNext = () => {
+                    while (active < pool && idx < ids.length) {
+                      const current = ids[idx++]
+                      active++
+                      setProgress(`Generating ${idx}/${ids.length}…`)
+                      fetch('/api/generate-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessId: current, overwrite }) })
+                        .then(r => r.json().catch(()=>({}))).then(j => { if (j?.skipped) skipped++; else generated++; })
+                        .catch(()=>{ failed++ })
+                        .finally(()=>{ active--; if (idx < ids.length) runNext(); else if (active===0) resolve() })
+                    }
+                  }
+                  runNext()
+                })
+                setResult(`Generated: ${generated} • Skipped: ${skipped} • Failed: ${failed}`)
+                setProgress('')
               } finally {
                 setGenerating(false)
               }
-            }} disabled={generating || insertedIds.length === 0}
+            }} disabled={generating || availableIds.length === 0} title={availableIds.length===0 ? 'Import a CSV first to enable' : undefined}
               className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-50">
               {generating ? 'Generating…' : 'Generate Websites'}
             </button>
@@ -240,8 +279,9 @@ export default function CsvUpload() {
                   <tr key={i} className="odd:bg-gray-50">
                     {headers.map(h => {
                       const val = String(r[h] ?? '')
-                      if (h === 'business_name' && (r as any).business_id) {
-                        return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`/admin/businesses/${(r as any).business_id}`}>{val}</a></td>
+                      if (h === 'business_name') {
+                        const em = String(r['email'] ?? '').toLowerCase(); const bid = emailToId[em]
+                        if (bid) return <td key={h} className="px-2 py-1 border-b"><a className="text-blue-600 underline" href={`/admin/businesses/${bid}`}>{val}</a></td>
                       }
                       if (h === 'address') {
                         const addr = `${r['address'] ?? ''}, ${r['city'] ?? ''} ${r['state'] ?? ''} ${r['zip_code'] ?? ''}`
