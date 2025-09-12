@@ -42,12 +42,15 @@ jobs:
     env:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_BASE_URL: "http://localhost:3000"
       SUPABASE_URL: "http://localhost"
       NEXT_PUBLIC_SUPABASE_URL: "http://localhost"
       SUPABASE_ANON_KEY: "test"
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test"
-      SUPABASE_SERVICE_ROLE: "test"
+      SUPABASE_SERVICE_ROLE_KEY: "test"
       RESEND_API_KEY: "test"
+      STRIPE_SECRET_KEY: "sk_test_dummy"
+      STRIPE_WEBHOOK_SECRET: "whsec_dummy"
       ANTHROPIC_API_KEY: "test"
       REPLICATE_API_TOKEN: "test"
       TINIFY_API_KEY: "test"
