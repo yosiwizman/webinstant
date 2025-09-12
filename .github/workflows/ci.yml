@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+    paths-ignore:
+◦  "**/*.md"
+◦  ".vscode/**"
+  pull_request:
+    branches: [ master, main ]
+    paths-ignore:
+◦  "**/*.md"
+◦  ".vscode/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+◦  uses: actions/checkout@v4
+◦  uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+◦  run: npm ci
+◦  run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+◦  uses: actions/checkout@v4
+◦  uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+◦  run: npm ci
+◦  run: npm run typecheck
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      SUPABASE_URL: "http://localhost"
+      NEXT_PUBLIC_SUPABASE_URL: "http://localhost"
+      SUPABASE_ANON_KEY: "test"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "test"
+      SUPABASE_SERVICE_ROLE: "test"
+      RESEND_API_KEY: "test"
+      ANTHROPIC_API_KEY: "test"
+      REPLICATE_API_TOKEN: "test"
+      TINIFY_API_KEY: "test"
+    steps:
+◦  uses: actions/checkout@v4
+◦  uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+◦  run: npm ci
+◦  run: npm run build
