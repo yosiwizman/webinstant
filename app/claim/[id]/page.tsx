@@ -14,7 +14,7 @@ interface WebsitePreview {
 }
 
 export default function ClaimPage() {
-  const params = useParams()
+  const params = useParams<{ id: string }>()
   const [preview, setPreview] = useState<WebsitePreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +35,7 @@ export default function ClaimPage() {
       const { data, error } = await supabase
         .from('website_previews')
         .select('id, preview_url, business_id, created_at')
-        .eq('id', params.id)
+        .eq('id', params.id as string)
         .single()
 
       if (error) throw error
@@ -44,26 +44,27 @@ export default function ClaimPage() {
         throw new Error('Website preview not found')
       }
 
-      setPreview(data)
+      const wp = data as unknown as WebsitePreview
+      setPreview(wp)
 
       // Fetch business email/name for checkout
-      if (data.business_id) {
+      if (wp.business_id) {
         const { data: biz } = await supabase
           .from('businesses')
           .select('business_name, email')
-          .eq('id', data.business_id)
+          .eq('id', wp.business_id)
           .single()
-        setBusinessEmail(biz?.email || '')
-        setBusinessName(biz?.business_name || '')
+        setBusinessEmail((biz as any)?.email || '')
+        setBusinessName((biz as any)?.business_name || '')
 
         // Check if already paid
         const { data: payments } = await supabase
           .from('payment_intents')
           .select('status')
-          .eq('business_id', data.business_id)
+          .eq('business_id', wp.business_id as string)
           .in('status', ['completed', 'succeeded'])
           .limit(1)
-        setAlreadyPaid(!!(payments && payments.length > 0))
+        setAlreadyPaid(!!(payments && (payments as any[]).length > 0))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load website preview')

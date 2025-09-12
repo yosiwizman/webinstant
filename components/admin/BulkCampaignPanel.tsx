@@ -35,7 +35,7 @@ export default function BulkCampaignPanel() {
         .from("businesses")
         .select("id, business_name, email")
         .limit(50);
-      setBusinesses(data || []);
+      setBusinesses((data as Business[] | null | undefined) ?? []);
       // Try to compute metrics from emails table if present
       try {
         const { data: emails } = await supabase.from("emails").select("sent_at, opened_at, clicked_at");

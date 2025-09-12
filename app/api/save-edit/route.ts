@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Initialize Supabase client safely with fallbacks to avoid build-time failures
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'anon-development-key';
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function getSupabase() {
+  return createClient(supabaseUrl || 'http://localhost:54321', supabaseKey);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabase();
     // Get current preview data
     const { data: preview, error: fetchError } = await supabase
       .from('website_previews')

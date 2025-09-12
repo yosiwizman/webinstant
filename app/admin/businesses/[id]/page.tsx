@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { notFound } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabaseClient";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ async function fetchBusiness(id: string) {
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await fetchBusiness(id);
-  if (!data) return NextResponse.json({ error: "Business not found" }, { status: 404 });
+  if (!data) return notFound();
 
   const { biz, preview, metrics } = data;
   const displayName = biz.business_name || biz.name || "Business";
@@ -147,4 +147,3 @@ function Card({ label, value }: { label: string; value: number | string }) {
     </div>
   );
 }
-
