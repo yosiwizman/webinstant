@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabaseClient';
+import crypto from 'node:crypto';
+import { GeneratePreviewRequestSchema, GeneratePreviewResultSchema } from '@/packages/shared/types';
 import { 
   detectBusinessType, 
   getCategoryTheme,
@@ -69,77 +71,57 @@ async function generateUniqueSlug(supabase: ReturnType<typeof getServerSupabase>
   }
 }
 
+function pool<T, R>(items: T[], limit: number, worker: (t: T) => Promise<R>): Promise<R[]> {
+  let i = 0, active = 0; const results: R[] = [] as any;
+  return new Promise((resolve) => {
+    const next = () => {
+      if (i >= items.length && active === 0) return resolve(results);
+      while (active < limit && i < items.length) {
+        const idx = i++; active++;
+        Promise.resolve(worker(items[idx]))
+          .then((r) => { (results as any)[idx] = r; })
+          .catch((e) => { (results as any)[idx] = { error: e?.message || String(e) } as any; })
+          .finally(() => { active--; next(); });
+      }
+    };
+    next();
+  });
+}
+
 export async function POST(request: NextRequest) {
-  console.log('\n🚀 Starting preview generation process');
-  console.log('================================================');
-  
   const supabase = getServerSupabase();
+  const body = await request.json().catch(() => ({}));
+  const parsed = GeneratePreviewRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request', issues: parsed.error.issues }, { status: 400 });
+  }
+  const { overwrite, count } = parsed.data;
+
+  const correlationId = crypto.randomUUID();
+
   try {
-    let businessId: string | undefined;
-    try {
-      const body = await request.json();
-      businessId = body.businessId;
-    } catch {
-      businessId = undefined;
+    // Select candidate businesses
+    const { data: allBusinesses, error: fetchError } = await supabase
+      .from('businesses')
+      .select('id, business_name, address, city, state, zip_code, phone, email, industry_type, website_url, updated_at')
+      .order('created_at', { ascending: false })
+      .limit(count);
+
+    if (fetchError) {
+      await supabase.from('operations_log').insert({
+        scope: 'preview', operation: 'batch-generate', status: 'error', correlation_id: correlationId,
+        details: { step: 'select-candidates', message: fetchError.message }
+      });
+      return NextResponse.json({ error: 'Failed to fetch candidates' }, { status: 500 });
     }
 
-    let businessesToProcess: BusinessRecord[] = [];
-    
-    if (businessId) {
-      console.log(`📋 Generating premium preview for business ID: ${businessId}`);
-      
-      const { data: business, error: fetchError } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('id', businessId)
-        .single();
-
-      if (fetchError || !business) {
-        console.error('❌ Error fetching business:', fetchError);
-        return NextResponse.json(
-          { success: false, error: 'Business not found' },
-          { status: 404 }
-        );
-      }
-      
-      businessesToProcess = [business as unknown as BusinessRecord];
-    } else {
-      console.log('📋 Finding businesses without previews...');
-      
-      const { data: allBusinesses, error: fetchError } = await supabase
-        .from('businesses')
-        .select('*');
-
-      if (fetchError) {
-        console.error('❌ Error fetching businesses:', fetchError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to fetch businesses' },
-          { status: 500 }
-        );
-      }
-
-      const { data: existingPreviews, error: previewError } = await supabase
-        .from('website_previews')
-        .select('business_id');
-
-      if (previewError) {
-        console.error('❌ Error fetching existing previews:', previewError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to fetch existing previews' },
-          { status: 500 }
-        );
-      }
-
-      const existingBusinessIds = new Set(((existingPreviews as unknown as PreviewRecord[]) || []).map((p: PreviewRecord) => p.business_id));
-      businessesToProcess = (((allBusinesses as unknown) as BusinessRecord[]) || []).filter((b: BusinessRecord) => !existingBusinessIds.has(b.id));
-
-      console.log(`📊 Found ${businessesToProcess.length} businesses without previews`);
-    }
+    const businessesToProcess = (allBusinesses || []) as unknown as BusinessRecord[];
 
     let generatedCount = 0;
-    let failedCount = 0;
+    const failedCount = 0;
 
-    for (const business of businessesToProcess) {
+    // Worker to generate or skip per business
+    const worker = async (business: BusinessRecord) => {
       try {
         console.log(`\n🏢 Processing: ${business.business_name}`);
         console.log('------------------------------------------------');
@@ -147,7 +129,7 @@ export async function POST(request: NextRequest) {
         // 1. CHECK IF THEY ALREADY HAVE A WEBSITE
         const hasWebsite = await checkExistingWebsite(business);
         if (hasWebsite) {
-          console.log('  ⚠️ Business already has website, but generating preview anyway...');
+          // proceed, but note in details
         }
         
         // 2. GENERATE PREMIUM AI CONTENT
@@ -200,9 +182,7 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
             .eq('business_id', business.id);
 
           if (updateError) {
-            console.error(`  ❌ Error updating preview:`, updateError);
-            failedCount++;
-            continue;
+            return { status: 'failed' as const, error: updateError.message };
           }
         } else {
           const { error: insertError } = await supabase
@@ -216,9 +196,7 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
             });
 
           if (insertError) {
-            console.error(`  ❌ Error creating preview:`, insertError);
-            failedCount++;
-            continue;
+            return { status: 'failed' as const, error: insertError.message };
           }
         }
         
@@ -237,35 +215,54 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
           .eq('id', business.id);
         
         if (businessUpdateError) {
-          console.error(`  ⚠️ Error updating business:`, businessUpdateError);
+          // non-fatal
         }
 
         generatedCount++;
-        console.log(`  ✅ Preview generated successfully!`);
-        console.log(`     - Slug: ${slug}`);
-        console.log(`     - URL: ${previewUrl}`);
-        console.log(`     - Theme: ${content.businessType}`);
-        console.log(`     - Layout: Variation ${layoutVariation}`);
-        
+        return { status: 'generated' as const };
       } catch (error) {
-        console.error(`  ❌ Error processing business:`, error);
-        failedCount++;
+        return { status: 'failed' as const, error: (error as Error).message };
       }
-    }
+    };
 
-    console.log('\n================================================');
-    console.log(`✅ Preview generation complete!`);
-    console.log(`   Generated: ${generatedCount}`);
-    console.log(`   Failed: ${failedCount}`);
-    console.log(`   Total: ${businessesToProcess.length}`);
-    console.log('================================================\n');
+    // If not overwriting, skip those with an existing preview
+    const filtered = await (async () => {
+      if (overwrite) return businessesToProcess;
+      const out: BusinessRecord[] = [];
+      for (const b of businessesToProcess) {
+        const { data: exists } = await supabase
+          .from('website_previews').select('id').eq('business_id', b.id).limit(1).maybeSingle();
+        if (!exists) out.push(b); else generatedCount += 0; // will count as skipped later
+      }
+      return out;
+    })();
 
-    return NextResponse.json({
-      success: true,
-      generated: generatedCount,
-      failed: failedCount,
-      total: businessesToProcess.length
+    const results = await pool(filtered, 4, worker);
+
+    const failedCountCalc = results.filter(r => (r as any)?.status === 'failed').length;
+    const generatedCountCalc = results.filter(r => (r as any)?.status === 'generated').length;
+    const skippedCountCalc = (businessesToProcess.length - filtered.length);
+
+    const sampleIds: string[] = [];
+    // Collect a few IDs directly from DB for evidence
+    try {
+      const { data: ids } = await supabase
+        .from('website_previews')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      (ids || []).forEach((r: any) => sampleIds.push(String(r.id)));
+    } catch {}
+
+    const status = failedCountCalc > 0 && generatedCountCalc === 0 ? 'error' : (failedCountCalc > 0 ? 'partial' : 'success');
+    await supabase.from('operations_log').insert({
+      scope: 'preview', operation: 'batch-generate', status, correlation_id: correlationId,
+      details: { generated: generatedCountCalc, skipped: skippedCountCalc, failed: failedCountCalc, sampleIds }
     });
+
+    const payload = { generated: generatedCountCalc, skipped: skippedCountCalc, failed: failedCountCalc, correlationId, sampleIds };
+    const validated = GeneratePreviewResultSchema.parse(payload);
+    return NextResponse.json(validated, { status: 200 });
 
   } catch (error) {
     console.error('❌ Error in generate-preview endpoint:', error);

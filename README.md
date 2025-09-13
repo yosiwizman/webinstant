@@ -159,6 +159,40 @@ webinstant/
 
 ## 🧪 Testing
 
+### CSV → Preview Slice (headless)
+
+Prereqs: ensure Supabase env keys in `.env.local` and that SUPABASE_URL points to your instance (local Supabase REST is typically http://localhost:54321).
+
+Steps:
+
+```
+Set-Location "C:\\Users\\yosiw\\Desktop\\webinstant"
+
+# Ensure env present
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
+
+npm ci
+npm run build
+Start-Process powershell -ArgumentList 'npm run dev' -WindowStyle Minimized
+
+# wait for health
+$tries=60; while ($tries-- -gt 0) { try { Invoke-RestMethod http://localhost:3000/api/health/config -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep 1 } }
+
+# trigger slice
+Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/api/generate-preview' -ContentType 'application/json' -Body '{ "overwrite": true, "count": 5 }'
+
+# run smoke
+npm run smoke -- --base http://localhost:3000
+
+# open reports
+Invoke-Item .\reports\smoke
+```
+
+Expected:
+- API returns `{ generated, skipped, failed, correlationId, sampleIds }`
+- Smoke verifies ≥5 previews exist (html_content or preview_url) and records sample IDs
+- One operations_log summary row per batch with correlation_id
+
 ### Test Payment Flow
 ```bash
 node test-payment-flow.js
