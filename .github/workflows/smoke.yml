@@ -1,0 +1,44 @@
+name: Smoke
+on:
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      # Safe dummy envs for typecheck/build; real keys are optional in PRs
+      - name: Prepare env
+        run: |
+          cp .env.example .env.local || true
+
+      - run: npm run build
+
+      # Start the Next server in background
+      - name: Start dev server
+        run: |
+          nohup npm run dev >/tmp/dev.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://localhost:3000/api/health/config && break
+            sleep 1
+          done
+
+      - name: Run smoke
+        run: npm run smoke -- --base http://localhost:3000
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            reports/smoke
+            /tmp/dev.log
