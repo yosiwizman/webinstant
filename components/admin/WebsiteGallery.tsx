@@ -156,10 +156,10 @@ export default function WebsiteGallery() {
         .select("business_id");
 
       const businessesWithPreviewsSet = new Set(
-        businessesWithPreviews?.map((p) => p.business_id) || []
+        (businessesWithPreviews as any[] | undefined)?.map((p: any) => p.business_id) || []
       );
-      const pendingCount = (allBusinesses || []).filter(
-        (b) => !businessesWithPreviewsSet.has(b.id)
+      const pendingCount = ((allBusinesses as any[] | undefined) || []).filter(
+        (b: any) => !businessesWithPreviewsSet.has(b.id)
       ).length;
 
       // With emails sent
