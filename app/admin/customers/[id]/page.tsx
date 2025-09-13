@@ -134,6 +134,7 @@ async function LatestPreviewCell({ businessId }: { businessId: string }) {
 }
 
 async function LastEmailCell({ businessId }: { businessId: string }) {
-  const data = await fetchLastEmailForBusiness(businessId)
-  return <div className="col-span-2 text-gray-500">{data?.sent_at ? new Date(data.sent_at).toLocaleDateString() : '—'}</div>
+  const data: any = await fetchLastEmailForBusiness(businessId)
+  const sent = data?.sent_at ? new Date(String(data.sent_at)) : null
+  return <div className="col-span-2 text-gray-500">{sent ? sent.toLocaleDateString() : '—'}</div>
 }

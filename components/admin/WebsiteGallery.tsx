@@ -106,7 +106,7 @@ export default function WebsiteGallery() {
 
       // For each preview, fetch associated emails
       const previewsWithEmails = await Promise.all(
-        (data || []).map(async (preview: any) => {
+(data as any[] || []).map(async (preview: any) => {
           const { data: emailData } = await supabase
             .from("emails")
             .select("id, sent_at, opened_at, clicked_at")
@@ -255,7 +255,7 @@ export default function WebsiteGallery() {
     }
   };
 
-  const handleSendEmail = async (preview: WebsitePreview) => {
+const handleSendEmail = async (preview: any) => {
     try {
       const response = await fetch("/api/send-email", {
         method: "POST",
