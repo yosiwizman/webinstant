@@ -90,9 +90,33 @@ function pool<T, R>(items: T[], limit: number, worker: (t: T) => Promise<R>): Pr
 
 export async function POST(request: NextRequest) {
   const supabase = getServerSupabase();
-  const body = await request.json().catch(() => ({}));
+  try {
+    console.log('Generate preview request:', {
+      method: request.method,
+      headers: Object.fromEntries(request.headers.entries())
+    });
+  } catch {}
+  let rawBody = '';
+  try {
+    rawBody = await request.text();
+  } catch (e: any) {
+    console.error('Failed to read raw body:', e?.message || String(e));
+  }
+  try {
+    console.log('Raw body length:', rawBody?.length || 0, 'content-type:', request.headers.get('content-type'));
+  } catch {}
+  let body: any = {};
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch (e: any) {
+    console.error('JSON parse error:', e?.message || String(e));
+    body = {};
+  }
+  try { console.log('Parsed body:', body); } catch {}
+
   const parsed = GeneratePreviewRequestSchema.safeParse(body);
   if (!parsed.success) {
+    try { console.error('Zod validation issues:', parsed.error.issues); } catch {}
     return NextResponse.json({ error: 'Invalid request', issues: parsed.error.issues }, { status: 400 });
   }
   const { overwrite, count } = parsed.data as any;
@@ -163,42 +187,75 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
         // Generate premium HTML with all new features
         const htmlContent = generatePremiumHTML(business, content, theme, layoutVariation);
         
-        const { data: existingPreview } = await supabase
-          .from('website_previews')
-          .select('id')
-          .eq('business_id', business.id)
-          .single();
-        
-        if (existingPreview) {
-          const { error: updateError } = await supabase
-            .from('website_previews')
-            .update({
-              html_content: htmlContent,
-              preview_url: previewUrl,
-              template_used: `premium-${content.businessType}-v${layoutVariation}`,
-              slug: slug,
-              updated_at: new Date().toISOString()
-            })
-            .eq('business_id', business.id);
+    // Detect existence by business_id if possible; if column missing, fall back to legacy flow
+    let existingPreview: any = null;
+    try {
+      const res = await supabase
+        .from('website_previews')
+        .select('id')
+        .eq('business_id', business.id)
+        .maybeSingle();
+      existingPreview = res.data || null;
+    } catch (e: any) {
+      // Likely the column does not exist; proceed as legacy (no pre-existing rows by business)
+      existingPreview = null;
+    }
 
-          if (updateError) {
-            return { status: 'failed' as const, error: updateError.message };
-          }
-        } else {
-          const { error: insertError } = await supabase
-            .from('website_previews')
-            .insert({
-              business_id: business.id,
-              html_content: htmlContent,
-              preview_url: previewUrl,
-              template_used: `premium-${content.businessType}-v${layoutVariation}`,
-              slug: slug
-            });
-
-          if (insertError) {
-            return { status: 'failed' as const, error: insertError.message };
-          }
+    // Helper: safe upsert with fallback to legacy columns if new columns are missing
+    const templateUsed = `premium-${content.businessType}-v${layoutVariation}`;
+    const tryUpdateNew = async () => supabase
+      .from('website_previews')
+      .update({
+        html_content: htmlContent,
+        preview_url: previewUrl,
+        template_used: templateUsed,
+        slug: slug,
+        updated_at: new Date().toISOString()
+      })
+      .eq('business_id', business.id);
+    const tryUpdateLegacy = async () => supabase
+      .from('website_previews')
+      .update({
+        html_content: htmlContent,
+        url: previewUrl, // fallback to legacy column
+        updated_at: new Date().toISOString()
+      } as any)
+      .eq('url', previewUrl as any); // best-effort legacy match
+    const tryInsertNew = async () => supabase
+      .from('website_previews')
+      .insert({
+        business_id: business.id,
+        html_content: htmlContent,
+        preview_url: previewUrl,
+        template_used: templateUsed,
+        slug: slug
+      } as any);
+    const tryInsertLegacy = async () => supabase
+      .from('website_previews')
+      .insert({
+        html_content: htmlContent,
+        url: previewUrl
+      } as any);
+    
+    if (existingPreview) {
+      let { error: updateError } = await tryUpdateNew();
+      if (updateError) {
+        // Attempt legacy fallback
+        const { error: legacyErr } = await tryUpdateLegacy();
+        if (legacyErr) {
+          return { status: 'failed' as const, error: legacyErr.message };
         }
+      }
+    } else {
+      let { error: insertError } = await tryInsertNew();
+      if (insertError) {
+        // Attempt legacy fallback insert
+        const { error: legacyInsErr } = await tryInsertLegacy();
+        if (legacyInsErr) {
+          return { status: 'failed' as const, error: legacyInsErr.message };
+        }
+      }
+    }
         
         const updateData: UpdateData = {
           website_url: previewUrl,
@@ -230,9 +287,14 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
       if (overwrite) return businessesToProcess;
       const out: BusinessRecord[] = [];
       for (const b of businessesToProcess) {
-        const { data: exists } = await supabase
-          .from('website_previews').select('id').eq('business_id', b.id).limit(1).maybeSingle();
-        if (!exists) out.push(b); else generatedCount += 0; // will count as skipped later
+        try {
+          const { data: exists } = await supabase
+            .from('website_previews').select('id').eq('business_id', b.id).limit(1).maybeSingle();
+          if (!exists) out.push(b); else generatedCount += 0; // will count as skipped later
+        } catch {
+          // Column may not exist yet; proceed without skipping
+          out.push(b);
+        }
       }
       return out;
     })();

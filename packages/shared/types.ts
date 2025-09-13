@@ -16,21 +16,15 @@ export const LegacyGeneratePreviewResultSchema = z.object({
 })
 export type LegacyGeneratePreviewResult = z.infer<typeof LegacyGeneratePreviewResultSchema>
 
-// Back-compat exports expected by /api/generate-preview (batch 5)
-export const GeneratePreviewRequestSchema = LegacyGeneratePreviewRequestSchema
-export type GeneratePreviewRequest = LegacyGeneratePreviewRequest
-export const GeneratePreviewResultSchema = LegacyGeneratePreviewResultSchema
-export type GeneratePreviewResult = LegacyGeneratePreviewResult
-
-// CSV → Preview (contracts-first) — scoped names to avoid conflicts with legacy
-export const GeneratePreviewCSVRequestSchema = z.object({
+// CSV → Preview (contracts-first)
+export const GeneratePreviewRequestSchema = z.object({
   csvId: z.string().min(1),
   limit: z.number().int().positive().max(100).default(5).optional(),
   overwrite: z.boolean().default(false).optional(),
 })
-export type GeneratePreviewCSVRequest = z.infer<typeof GeneratePreviewCSVRequestSchema>
+export type GeneratePreviewRequest = z.infer<typeof GeneratePreviewRequestSchema>
 
-export const GeneratePreviewCSVResponseSchema = z.object({
+export const GeneratePreviewResponseSchema = z.object({
   counts: z.object({
     generated: z.number().int().nonnegative(),
     skipped: z.number().int().nonnegative(),
@@ -38,7 +32,7 @@ export const GeneratePreviewCSVResponseSchema = z.object({
   }),
   correlationId: z.string().min(1),
 })
-export type GeneratePreviewResponse = z.infer<typeof GeneratePreviewCSVResponseSchema>
+export type GeneratePreviewResponse = z.infer<typeof GeneratePreviewResponseSchema>
 
 export const WebsitePreviewSchema = z.object({
   id: z.string().uuid(),

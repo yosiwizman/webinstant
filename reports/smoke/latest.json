@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-13T01:14:23.084Z",
+  "timestamp": "2025-09-13T15:09:52.866Z",
   "base": "http://localhost:3000",
   "env": {
     "SUPABASE_URL": true,
@@ -131,25 +131,54 @@
       }
     },
     {
-      "title": "POST /api/generate-preview-batch",
+      "title": "POST /api/generate-preview (batch 5)",
       "ok": false,
       "details": {
-        "status": 500
+        "status": 400,
+        "body": {}
       }
     },
     {
-      "title": "Verify previews count >= 5",
+      "title": "POST /api/generate-seo-media (limit 5)",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "body": {
+          "counts": {
+            "updatedSeo": 0,
+            "createdMedia": 0,
+            "skipped": 0,
+            "failed": 0
+          },
+          "correlationId": "de8fcb5f-d71e-4e02-be5e-12f7f93a7784"
+        }
+      }
+    },
+    {
+      "title": "Verify SEO (≥5) and hero media (≥5)",
       "ok": false,
       "details": {
-        "kpisKeys": [
-          "emails_sent_today",
-          "open_rate",
-          "click_rate",
-          "active_websites",
-          "new_customers_today",
-          "revenue",
-          "recent_transactions"
-        ]
+        "seoCount": 0,
+        "heroCount": 0,
+        "correlationId": "de8fcb5f-d71e-4e02-be5e-12f7f93a7784"
+      }
+    },
+    {
+      "title": "Verify previews count >= 5 (html_content)",
+      "ok": false,
+      "details": {
+        "have": 0,
+        "generated": 0,
+        "skipped": 0,
+        "failed": 0,
+        "correlationId": ""
+      }
+    },
+    {
+      "title": "operations_log contains correlationId (preview batch)",
+      "ok": false,
+      "details": {
+        "error": "missing correlationId from response"
       }
     },
     {
@@ -235,11 +264,23 @@
       "status": "FAIL"
     },
     {
-      "title": "POST /api/generate-preview-batch",
+      "title": "POST /api/generate-preview (batch 5)",
       "status": "FAIL"
     },
     {
-      "title": "Verify previews count >= 5",
+      "title": "POST /api/generate-seo-media (limit 5)",
+      "status": "PASS"
+    },
+    {
+      "title": "Verify SEO (≥5) and hero media (≥5)",
+      "status": "FAIL"
+    },
+    {
+      "title": "Verify previews count >= 5 (html_content)",
+      "status": "FAIL"
+    },
+    {
+      "title": "operations_log contains correlationId (preview batch)",
       "status": "FAIL"
     },
     {
