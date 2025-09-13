@@ -169,7 +169,7 @@ export default function WebsiteGallery() {
         .not("business_id", "is", null);
 
       const uniqueBusinessesWithEmails = new Set(
-        previewsWithEmails?.map((e) => e.business_id) || []
+        (previewsWithEmails as any[] | undefined)?.map((e: any) => e.business_id) || []
       );
 
       setStats({
