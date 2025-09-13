@@ -68,11 +68,11 @@ function KPIs({ count, lastEmail, latestPreview, created_at }: { count: number; 
       </div>
       <div className="rounded-2xl border p-4">
         <div className="text-xs text-gray-500">Last preview</div>
-        <div className="text-2xl font-semibold">{latestPreview?.updated_at ? new Date(latestPreview.updated_at).toLocaleDateString() : '—'}</div>
+        <div className="text-2xl font-semibold">{latestPreview?.updated_at ? new Date(String(latestPreview.updated_at)).toLocaleDateString() : '—'}</div>
       </div>
       <div className="rounded-2xl border p-4">
         <div className="text-xs text-gray-500">Last email</div>
-        <div className="text-2xl font-semibold">{lastEmail?.sent_at ? new Date(lastEmail.sent_at).toLocaleDateString() : '—'}</div>
+        <div className="text-2xl font-semibold">{lastEmail?.sent_at ? new Date(String(lastEmail.sent_at)).toLocaleDateString() : '—'}</div>
       </div>
     </div>
   )

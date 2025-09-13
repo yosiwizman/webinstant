@@ -1,0 +1,254 @@
+{
+  "timestamp": "2025-09-13T01:14:23.084Z",
+  "base": "http://localhost:3000",
+  "env": {
+    "SUPABASE_URL": true,
+    "SUPABASE_ANON_KEY": true,
+    "SUPABASE_SERVICE_ROLE": true,
+    "RESEND_API_KEY": true
+  },
+  "resolved": {
+    "supabaseRestBase": "https://gidhshkekazxdbhlvoiw.supabase.co/rest/v1",
+    "supabaseUrlSuspect": false
+  },
+  "checks": [
+    {
+      "title": "GET /api/health/config",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "json": {
+          "SUPABASE_URL": true,
+          "SUPABASE_ANON_KEY": true,
+          "SUPABASE_SERVICE_ROLE": true,
+          "RESEND_API_KEY": true,
+          "NEXT_PUBLIC_BASE_URL": true
+        }
+      }
+    },
+    {
+      "title": "Resolved Supabase REST base",
+      "ok": true,
+      "details": {
+        "supabaseUrl": "https://gidhshkekazxdbhlvoiw.supabase.co",
+        "restBase": "https://gidhshkekazxdbhlvoiw.supabase.co/rest/v1",
+        "suspect": false
+      }
+    },
+    {
+      "title": "Supabase REST reachability",
+      "ok": true,
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: businesses",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: website_previews",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: email_logs",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: email_queue",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: email_templates",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: api_usage",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: operations_log",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "Table reachable: ab_tests",
+      "ok": true,
+      "details": {
+        "ok": true,
+        "status": 401
+      }
+    },
+    {
+      "title": "GET /api/admin/kpis",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "keys": [
+          "emails_sent_today",
+          "open_rate",
+          "click_rate",
+          "active_websites",
+          "new_customers_today",
+          "revenue",
+          "recent_transactions"
+        ]
+      }
+    },
+    {
+      "title": "POST /api/admin/email/test",
+      "ok": false,
+      "details": {
+        "status": 500,
+        "hasResendKey": true
+      }
+    },
+    {
+      "title": "POST /api/generate-preview-batch",
+      "ok": false,
+      "details": {
+        "status": 500
+      }
+    },
+    {
+      "title": "Verify previews count >= 5",
+      "ok": false,
+      "details": {
+        "kpisKeys": [
+          "emails_sent_today",
+          "open_rate",
+          "click_rate",
+          "active_websites",
+          "new_customers_today",
+          "revenue",
+          "recent_transactions"
+        ]
+      }
+    },
+    {
+      "title": "email_templates reachable via REST",
+      "ok": true,
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "title": "email_queue reachable via REST",
+      "ok": true,
+      "details": {
+        "status": 401
+      }
+    }
+  ],
+  "appendix": [
+    {
+      "title": "health-config.json",
+      "body": "{\n  \"SUPABASE_URL\": true,\n  \"SUPABASE_ANON_KEY\": true,\n  \"SUPABASE_SERVICE_ROLE\": true,\n  \"RESEND_API_KEY\": true,\n  \"NEXT_PUBLIC_BASE_URL\": true\n}"
+    },
+    {
+      "title": "supabase-index.txt",
+      "body": "{\"message\":\"Invalid API key\",\"hint\":\"Double check your Supabase `anon` or `service_role` API key.\"}"
+    },
+    {
+      "title": "kpis.json",
+      "body": "{\n  \"emails_sent_today\": 0,\n  \"open_rate\": 0,\n  \"click_rate\": 0,\n  \"active_websites\": 0,\n  \"new_customers_today\": 0,\n  \"revenue\": {\n    \"today\": 0,\n    \"this_week\": 0,\n    \"this_month\": 0,\n    \"last_30_days_total\": 0,\n    \"series_30d\": [\n      {\n        \"date\": \"2025-08-15\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-16\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-17\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-18\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-19\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-20\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-21\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2025-08-22\",\n        \"amount\": 0\n      },\n      {\n        \"date\": \"2\n…(truncated)"
+    }
+  ],
+  "summary": [
+    {
+      "title": "GET /api/health/config",
+      "status": "PASS"
+    },
+    {
+      "title": "Resolved Supabase REST base",
+      "status": "PASS"
+    },
+    {
+      "title": "Supabase REST reachability",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: businesses",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: website_previews",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: email_logs",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: email_queue",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: email_templates",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: api_usage",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: operations_log",
+      "status": "PASS"
+    },
+    {
+      "title": "Table reachable: ab_tests",
+      "status": "PASS"
+    },
+    {
+      "title": "GET /api/admin/kpis",
+      "status": "PASS"
+    },
+    {
+      "title": "POST /api/admin/email/test",
+      "status": "FAIL"
+    },
+    {
+      "title": "POST /api/generate-preview-batch",
+      "status": "FAIL"
+    },
+    {
+      "title": "Verify previews count >= 5",
+      "status": "FAIL"
+    },
+    {
+      "title": "email_templates reachable via REST",
+      "status": "PASS"
+    },
+    {
+      "title": "email_queue reachable via REST",
+      "status": "PASS"
+    }
+  ]
+}
