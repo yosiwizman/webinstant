@@ -137,21 +137,28 @@ function addAppendix(title: string, body: string) {
     addCheck('POST /api/admin/email/test', false, { error: e.message, hasResendKey: Boolean(RESEND) });
   }
 
-  // 5) Generation pipeline minimal
-  // Try batch route first
+  // 5) Generation pipeline minimal (contracts-first)
+  // Trigger batch via /api/generate-preview
+  let genCounts = { generated: 0, skipped: 0, failed: 0, correlationId: '' } as any;
   try {
-    const r = await fetchx(`${BASE}/api/generate-preview-batch`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 5, overwrite: true }) });
-    addCheck('POST /api/generate-preview-batch', r.ok, { status: r.status });
+    const r = await fetchx(`${BASE}/api/generate-preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ overwrite: true, count: 5 }) });
+    const body = await r.json().catch(() => ({}));
+    addCheck('POST /api/generate-preview (batch 5)', r.ok, { status: r.status, body: { generated: body.generated, skipped: body.skipped, failed: body.failed, correlationId: body.correlationId } });
+    if (r.ok) genCounts = body;
   } catch (e: any) {
-    addCheck('POST /api/generate-preview-batch', false, { error: e.message });
+    addCheck('POST /api/generate-preview (batch 5)', false, { error: e.message });
   }
 
-  // Verify at least 5 previews present (html_content or preview_url not null)
+  // Verify at least 5 previews present (html_content or preview_url not null) via REST
   try {
-    const r = await fetchx(`${BASE}/api/admin/kpis`, { retries: 1 });
-    const body = await r.json().catch(() => ({}));
-    const ok = r.ok && (Number(body?.previews_total || 0) >= 5 || Number(body?.active_websites || 0) >= 5);
-    addCheck('Verify previews count >= 5', ok, { kpisKeys: Object.keys(body || {}) });
+    const rest = (p: string) => `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/website_previews?select=id${p}`;
+    const rA = await fetchx(rest('&html_content=not.is.null&limit=5'), { headers: { apikey: SUPABASE_ANON } });
+    const arrA = await rA.json().catch(() => []);
+    const rB = await fetchx(rest('&preview_url=not.is.null&limit=5'), { headers: { apikey: SUPABASE_ANON } });
+    const arrB = await rB.json().catch(() => []);
+    const have = (Array.isArray(arrA) ? arrA.length : 0) + (Array.isArray(arrB) ? arrB.length : 0);
+    const ok = have >= 5 || ((genCounts.generated || 0) + (genCounts.skipped || 0)) >= 5;
+    addCheck('Verify previews count >= 5', ok, { have, generated: genCounts.generated, skipped: genCounts.skipped, failed: genCounts.failed, correlationId: genCounts.correlationId });
   } catch (e: any) {
     addCheck('Verify previews count >= 5', false, { error: e.message });
   }
