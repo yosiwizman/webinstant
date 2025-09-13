@@ -20,11 +20,15 @@ export default async function PreviewPage({ params }: PageProps) {
   console.log('🔎 Attempting to fetch by preview ID (UUID)...')
   console.log('   Query: website_previews.id =', paramId)
   
-  let { data: previewData, error: fetchError } = await supabase
+  let previewData: any
+  let fetchError: any
+  const res1 = await supabase
     .from('website_previews')
     .select('id, business_id, preview_url, html_content, template_used, slug')
     .eq('id', paramId)
-.maybeSingle()
+    .maybeSingle()
+  previewData = res1.data
+  fetchError = res1.error
 
   console.log('   Result:', {
     found: !!previewData,
@@ -41,7 +45,7 @@ export default async function PreviewPage({ params }: PageProps) {
       .from('website_previews')
       .select('id, business_id, preview_url, html_content, template_used, slug')
       .eq('business_id', paramId)
-.maybeSingle()
+      .maybeSingle()
     
     previewData = result.data
     fetchError = result.error

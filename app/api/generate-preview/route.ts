@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      businessesToProcess = [business as BusinessRecord];
+      businessesToProcess = [business as unknown as BusinessRecord];
     } else {
       console.log('📋 Finding businesses without previews...');
       
@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existingBusinessIds = new Set((existingPreviews as PreviewRecord[] || []).map(p => p.business_id));
-      businessesToProcess = ((allBusinesses as BusinessRecord[]) || []).filter(b => !existingBusinessIds.has(b.id));
+      const existingBusinessIds = new Set(((existingPreviews as unknown as PreviewRecord[]) || []).map((p: PreviewRecord) => p.business_id));
+      businessesToProcess = (((allBusinesses as unknown) as BusinessRecord[]) || []).filter((b: BusinessRecord) => !existingBusinessIds.has(b.id));
 
       console.log(`📊 Found ${businessesToProcess.length} businesses without previews`);
     }
@@ -233,7 +233,7 @@ const slug = await generateUniqueSlug(supabase, business.business_name);
         
         const { error: businessUpdateError } = await supabase
           .from('businesses')
-          .update(updateData)
+          .update(updateData as any)
           .eq('id', business.id);
         
         if (businessUpdateError) {

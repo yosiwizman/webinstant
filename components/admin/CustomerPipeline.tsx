@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Phone, Mail, MessageSquare, Clock, TrendingUp, Users, DollarSign, Download, Send, Activity, Star, AlertCircle } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+import { getBrowserSupabase } from '@/lib/supabase'
 import { adminStyles, DataCache } from '@/lib/admin-utils'
 
 interface Lead {
@@ -65,10 +65,7 @@ export default function CustomerPipeline() {
   const [loading, setLoading] = useState(true)
   const hasFetched = useRef(false)
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase: any = getBrowserSupabase()
 
   const fetchRealBusinessData = useCallback(async () => {
     // Check cache first
@@ -121,7 +118,7 @@ export default function CustomerPipeline() {
       }
 
       // Process businesses into pipeline stages
-      const processedLeads: Lead[] = businesses.map(business => {
+      const processedLeads: Lead[] = (businesses as any[]).map((business: any) => {
         let stage: Lead['stage'] = 'lead'
         let lastAction = 'Preview created'
         let lastActionDate = ''
