@@ -16,6 +16,12 @@ export const LegacyGeneratePreviewResultSchema = z.object({
 })
 export type LegacyGeneratePreviewResult = z.infer<typeof LegacyGeneratePreviewResultSchema>
 
+// Back-compat exports expected by /api/generate-preview (batch 5)
+export const GeneratePreviewRequestSchema = LegacyGeneratePreviewRequestSchema
+export type GeneratePreviewRequest = LegacyGeneratePreviewRequest
+export const GeneratePreviewResultSchema = LegacyGeneratePreviewResultSchema
+export type GeneratePreviewResult = LegacyGeneratePreviewResult
+
 // CSV → Preview (contracts-first)
 export const GeneratePreviewRequestSchema = z.object({
   csvId: z.string().min(1),
