@@ -183,18 +183,31 @@ function addAppendix(title: string, body: string) {
     addCheck('Verify SEO (≥5) and hero media (≥5)', false, { error: e.message });
   }
 
-  // Verify at least 5 previews present (html_content or preview_url not null) via REST
+  // Verify at least 5 previews present (html_content IS NOT NULL) via REST
   try {
     const rest = (p: string) => `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/website_previews?select=id${p}`;
     const rA = await fetchx(rest('&html_content=not.is.null&limit=5'), { headers: { apikey: SUPABASE_ANON } });
     const arrA = await rA.json().catch(() => []);
-    const rB = await fetchx(rest('&preview_url=not.is.null&limit=5'), { headers: { apikey: SUPABASE_ANON } });
-    const arrB = await rB.json().catch(() => []);
-    const have = (Array.isArray(arrA) ? arrA.length : 0) + (Array.isArray(arrB) ? arrB.length : 0);
+    const have = Array.isArray(arrA) ? arrA.length : 0;
     const ok = have >= 5 || ((genCounts.generated || 0) + (genCounts.skipped || 0)) >= 5;
-    addCheck('Verify previews count >= 5', ok, { have, generated: genCounts.generated, skipped: genCounts.skipped, failed: genCounts.failed, correlationId: genCounts.correlationId });
+    addCheck('Verify previews count >= 5 (html_content)', ok, { have, generated: genCounts.generated, skipped: genCounts.skipped, failed: genCounts.failed, correlationId: genCounts.correlationId });
   } catch (e: any) {
-    addCheck('Verify previews count >= 5', false, { error: e.message });
+    addCheck('Verify previews count >= 5 (html_content)', false, { error: e.message });
+  }
+
+  // Verify operations_log entry exists for correlationId
+  try {
+    if (genCounts?.correlationId) {
+      const restBase = SUPABASE_URL.replace(/\/$/, '') + '/rest/v1';
+      const r = await fetchx(`${restBase}/operations_log?select=id,correlation_id,scope,operation,status&correlation_id=eq.${encodeURIComponent(genCounts.correlationId)}&limit=1`, { headers: { apikey: SUPABASE_ANON } });
+      const arr = await r.json().catch(() => []);
+      const ok = Array.isArray(arr) && arr.length > 0;
+      addCheck('operations_log contains correlationId (preview batch)', ok, { correlationId: genCounts.correlationId, found: ok });
+    } else {
+      addCheck('operations_log contains correlationId (preview batch)', false, { error: 'missing correlationId from response' });
+    }
+  } catch (e: any) {
+    addCheck('operations_log contains correlationId (preview batch)', false, { error: e.message, correlationId: genCounts?.correlationId || '' });
   }
 
   // 6) Campaign surface checks
