@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) throw error
-      candidateIds = (data || []).map(d => d.id)
+      const rows = (data as Array<{ id: string }>) || []
+      candidateIds = rows.map(d => String(d.id))
     } else {
       // pick newest businesses missing preview_url
       const { data: previewed } = await supabase
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest) {
         .select('id')
         .order('created_at', { ascending: false })
         .limit(200)
-      const queue = (latest || []).map(b => b.id).filter(id => !havePreview.has(id))
+      const latestRows = (latest as Array<{ id: string }>) || []
+      const queue = latestRows.map(b => String(b.id)).filter(id => !havePreview.has(id))
       candidateIds = queue.slice(0, limit)
     }
 

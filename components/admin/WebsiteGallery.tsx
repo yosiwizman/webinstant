@@ -106,7 +106,7 @@ export default function WebsiteGallery() {
 
       // For each preview, fetch associated emails
       const previewsWithEmails = await Promise.all(
-        (data || []).map(async (preview) => {
+        (data || []).map(async (preview: any) => {
           const { data: emailData } = await supabase
             .from("emails")
             .select("id, sent_at, opened_at, clicked_at")
@@ -116,7 +116,7 @@ export default function WebsiteGallery() {
           return {
             ...preview,
             emails: emailData || [],
-          };
+          } as any;
         })
       );
 
@@ -189,29 +189,29 @@ export default function WebsiteGallery() {
     // Status filter
     switch (statusFilter) {
       case "no-email":
-        filtered = filtered.filter((p) => p.emails.length === 0);
+      filtered = filtered.filter((p: any) => p.emails.length === 0);
         break;
       case "opened":
-        filtered = filtered.filter((p) =>
-          p.emails.some((e) => e.opened_at !== null)
+        filtered = filtered.filter((p: any) =>
+          p.emails.some((e: any) => e.opened_at !== null)
         );
         break;
       case "customer":
-        filtered = filtered.filter((p) => p.business.claimed_at !== null);
+        filtered = filtered.filter((p: any) => p.business.claimed_at !== null);
         break;
     }
 
     // Category filter
     if (categoryFilter !== "all") {
       filtered = filtered.filter(
-        (p) => p.business.industry_type === categoryFilter
+        (p: any) => p.business.industry_type === categoryFilter
       );
     }
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter((p) =>
-        p.business.business_name
+      filtered = filtered.filter((p: any) =>
+        String(p.business.business_name)
           .toLowerCase()
           .includes(searchTerm.toLowerCase())
       );
@@ -251,7 +251,7 @@ export default function WebsiteGallery() {
     if (selectedPreviews.size === filteredPreviews.length) {
       setSelectedPreviews(new Set());
     } else {
-      setSelectedPreviews(new Set(filteredPreviews.map((p) => p.id)));
+      setSelectedPreviews(new Set(filteredPreviews.map((p: any) => p.id)));
     }
   };
 

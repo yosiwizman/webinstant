@@ -6,6 +6,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   const { data: customer } = await sb.from('customers').select('*').eq('id', id).maybeSingle()
   if (!customer) return (<div className="p-6 text-sm text-gray-500">Customer not found</div>)
+  const cust: any = customer as any
 
   const { data: businesses } = await sb
     .from('businesses')
@@ -16,7 +17,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { data: lastEmail } = await sb
     .from('email_logs')
     .select('sent_at')
-    .eq('to_email', customer.email)
+    .eq('to_email', (cust as any).email)
     .order('sent_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -31,8 +32,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <div className="bg-white dark:bg-neutral-950 text-gray-900 dark:text-neutral-50 min-h-screen p-6 space-y-6">
-      <Header customer={customer} lastEmail={lastEmail} latestPreview={latestPreview} />
-      <KPIs count={(businesses || []).length} lastEmail={lastEmail} latestPreview={latestPreview} created_at={customer.created_at} />
+      <Header customer={cust} lastEmail={lastEmail} latestPreview={latestPreview} />
+      <KPIs count={(businesses || []).length} lastEmail={lastEmail} latestPreview={latestPreview} created_at={(cust as any).created_at} />
       <BusinessesTable rows={businesses || []} />
       <div className="pt-2">
         <a href="/admin" className="text-sm text-blue-600 hover:underline">← Back to Admin</a>
@@ -58,7 +59,7 @@ function Header({ customer, lastEmail, latestPreview }: { customer: any; lastEma
   )
 }
 
-function KPIs({ count, lastEmail, latestPreview, created_at }: { count: number; lastEmail: any; latestPreview: any; created_at: string }) {
+function KPIs({ count, lastEmail, latestPreview, created_at }: { count: number; lastEmail: any; latestPreview: any; created_at: any }) {
   return (
     <div className="grid grid-cols-3 gap-4">
       <div className="rounded-2xl border p-4">

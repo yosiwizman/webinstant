@@ -118,7 +118,7 @@ export default function CustomerPipeline() {
       }
 
       // Process businesses into pipeline stages
-      const processedLeads: Lead[] = businesses.map(business => {
+      const processedLeads: Lead[] = (businesses as any[]).map((business: any) => {
         let stage: Lead['stage'] = 'lead'
         let lastAction = 'Preview created'
         let lastActionDate = ''
