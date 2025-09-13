@@ -149,6 +149,40 @@ function addAppendix(title: string, body: string) {
     addCheck('POST /api/generate-preview (batch 5)', false, { error: e.message });
   }
 
+  // 6) Draft → SEO Meta & Media slice
+  let seoCounts = { updatedSeo: 0, createdMedia: 0, skipped: 0, failed: 0, correlationId: '' } as any;
+  try {
+    const r = await fetchx(`${BASE}/api/generate-seo-media`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ csvId: 'local-demo-csv', limit: 5, overwrite: false }) });
+    const body = await r.json().catch(() => ({}));
+    addCheck('POST /api/generate-seo-media (limit 5)', r.ok, { status: r.status, body: { counts: body.counts, correlationId: body.correlationId } });
+    if (r.ok) seoCounts = body;
+  } catch (e: any) {
+    addCheck('POST /api/generate-seo-media (limit 5)', false, { error: e.message });
+  }
+
+  // Verify ≥5 articles with SEO + ≥5 hero media
+  try {
+    // Prefer join filter if available; fallback to simple counts
+    const restBase = SUPABASE_URL.replace(/\/$/, '') + '/rest/v1';
+
+    // SEO count: articles where all three SEO fields not null
+    const seoRes = await fetchx(`${restBase}/website_articles?select=id&seo_title=not.is.null&seo_slug=not.is.null&seo_description=not.is.null&limit=5`, { headers: { apikey: SUPABASE_ANON } });
+    const seoArr = await seoRes.json().catch(() => []);
+
+    // Media count: hero media
+    const mediaRes = await fetchx(`${restBase}/website_media?select=id&kind=eq.hero&limit=5`, { headers: { apikey: SUPABASE_ANON } });
+    const mediaArr = await mediaRes.json().catch(() => []);
+
+    const ok = (Array.isArray(seoArr) ? seoArr.length : 0) >= 5 && (Array.isArray(mediaArr) ? mediaArr.length : 0) >= 5;
+    addCheck('Verify SEO (≥5) and hero media (≥5)', ok, {
+      seoCount: Array.isArray(seoArr) ? seoArr.length : 0,
+      heroCount: Array.isArray(mediaArr) ? mediaArr.length : 0,
+      correlationId: seoCounts?.correlationId || ''
+    });
+  } catch (e: any) {
+    addCheck('Verify SEO (≥5) and hero media (≥5)', false, { error: e.message });
+  }
+
   // Verify at least 5 previews present (html_content or preview_url not null) via REST
   try {
     const rest = (p: string) => `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/website_previews?select=id${p}`;

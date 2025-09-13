@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', issues: parsed.error.issues }, { status: 400 });
   }
-  const { overwrite, count } = parsed.data;
+  const { overwrite, count } = parsed.data as any;
 
   const correlationId = crypto.randomUUID();
 
