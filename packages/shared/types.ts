@@ -22,15 +22,15 @@ export type GeneratePreviewRequest = LegacyGeneratePreviewRequest
 export const GeneratePreviewResultSchema = LegacyGeneratePreviewResultSchema
 export type GeneratePreviewResult = LegacyGeneratePreviewResult
 
-// CSV → Preview (contracts-first)
-export const GeneratePreviewRequestSchema = z.object({
+// CSV → Preview (contracts-first) — scoped names to avoid conflicts with legacy
+export const GeneratePreviewCSVRequestSchema = z.object({
   csvId: z.string().min(1),
   limit: z.number().int().positive().max(100).default(5).optional(),
   overwrite: z.boolean().default(false).optional(),
 })
-export type GeneratePreviewRequest = z.infer<typeof GeneratePreviewRequestSchema>
+export type GeneratePreviewCSVRequest = z.infer<typeof GeneratePreviewCSVRequestSchema>
 
-export const GeneratePreviewResponseSchema = z.object({
+export const GeneratePreviewCSVResponseSchema = z.object({
   counts: z.object({
     generated: z.number().int().nonnegative(),
     skipped: z.number().int().nonnegative(),
