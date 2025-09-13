@@ -38,7 +38,7 @@ export const GeneratePreviewCSVResponseSchema = z.object({
   }),
   correlationId: z.string().min(1),
 })
-export type GeneratePreviewResponse = z.infer<typeof GeneratePreviewResponseSchema>
+export type GeneratePreviewResponse = z.infer<typeof GeneratePreviewCSVResponseSchema>
 
 export const WebsitePreviewSchema = z.object({
   id: z.string().uuid(),
